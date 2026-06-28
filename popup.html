@@ -8,19 +8,10 @@
 </head>
 <body>
   <div class="container">
-    <h1>OPED Player</h1>
-
-    <div id="noPlayback">
-      <p>再生中のプレイリストはありません。</p>
-      <label for="popupPlayMode">モード:</label>
-      <select id="popupPlayMode">
-        <option value="op">OPのみ</option>
-        <option value="ed">EDのみ</option>
-        <option value="both">OP+ED</option>
-      </select>
-      <div id="popupPlaylists"></div>
-      <button id="openOptions">プレイリスト管理</button>
-    </div>
+    <header>
+      <h1>OPED Player</h1>
+      <button id="openOptions">管理</button>
+    </header>
 
     <div id="playback" class="hidden">
       <div class="now-playing">
@@ -28,15 +19,20 @@
         <div id="trackInfo" class="track-info"></div>
         <div id="trackDetail" class="track-detail"></div>
         <div id="trackProgress" class="track-progress"></div>
-        <div id="nextInfo" class="next-info hidden"></div>
       </div>
 
       <div class="controls">
         <button id="prevBtn">⏮</button>
+        <button id="stopBtn" class="secondary">停止</button>
         <button id="nextBtn">⏭</button>
       </div>
 
-      <button id="stopBtn" class="secondary">停止</button>
+      <div id="playlistItems" class="playlist-items"></div>
+    </div>
+
+    <div id="playlistListSection">
+      <p>プレイリストを選択（▶で先頭から再生）</p>
+      <div id="playlistList" class="playlist-list"></div>
     </div>
   </div>
 

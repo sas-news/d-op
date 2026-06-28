@@ -127,9 +127,38 @@ button.danger:hover {
 .item-controls {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .item-controls button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.item-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6e6e73;
+}
+
+.item-time-input {
+  width: 60px;
+  padding: 4px 6px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.item-title-input {
+  width: 90px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.item-save-btn {
   padding: 4px 10px;
   font-size: 12px;
 }
@@ -139,10 +168,16 @@ button.danger:hover {
   font-size: 14px;
 }
 
+.item-episode {
+  font-size: 12px;
+  color: #3a3a3c;
+  margin-top: 1px;
+}
+
 .item-meta {
   font-size: 12px;
   color: #6e6e73;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .file-btn {
@@ -164,4 +199,71 @@ button.danger:hover {
   margin-top: 8px;
   font-size: 14px;
   color: #34c759;
+}
+
+.d-op-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.d-op-modal-panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 300px;
+  max-width: 80vw;
+  max-height: 70vh;
+  overflow-y: auto;
+  color: #1d1d1f;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.d-op-modal-panel h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.d-op-modal-panel p {
+  font-size: 14px;
+  color: #6e6e73;
+}
+
+.d-op-modal-playlist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.d-op-modal-playlist-item {
+  padding: 10px 12px;
+  border: 1px solid #e5e5ea;
+  border-radius: 8px;
+  background: #f9f9fb;
+  color: #1d1d1f;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.d-op-modal-playlist-item:hover {
+  background: #f2f2f7;
+  border-color: #007aff;
+}
+
+.d-op-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }

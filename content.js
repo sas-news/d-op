@@ -3,8 +3,10 @@
 
   const APP_TAG = 'd-op-injected';
   const DEBUG = false;
+  const RESUME_MAX_AGE_MS = 5 * 60 * 1000;
 
   let chaptersInfo = null;
+  let lastPartId = null;
   let targetRanges = [];
   let currentMode = 'none';
   let originalOpSkip = null;
@@ -14,6 +16,14 @@
   let currentPlayback = null;
   let customStart = null;
   let customEnd = null;
+  let customName = '';
+  let customSelecting = false;
+  let seekCooldownUntil = 0;
+  let startupLockUntil = 0;
+  let lastPrevClickTime = 0;
+  let panelHideTimer = null;
+  const PANEL_HIDE_DELAY = 3000;
+  let currentSeekRanges = [];
 
   function getVideo() {
     return document.getElementById('video');
@@ -40,7 +50,10 @@
 
   function getNoneChapters() {
     if (!chaptersInfo || !chaptersInfo.chapters) return [];
-    return chaptersInfo.chapters.filter((c) => c.type === 'none');
+    return chaptersInfo.chapters
+      .filter((c) => c.type === 'none')
+      .slice()
+      .sort((a, b) => a.start - b.start);
   }
 
   function getOpRange() {
@@ -54,23 +67,17 @@
   }
 
   function buildRanges() {
-    if (currentPlayback && currentPlayback.item) {
-      const item = currentPlayback.item;
-      const ranges = [];
-      if (currentPlayback.mode === 'op' && item.opRange) ranges.push(item.opRange);
-      if (currentPlayback.mode === 'ed' && item.edRange) ranges.push(item.edRange);
-      if (currentPlayback.mode === 'custom' && item.customRange) ranges.push(item.customRange);
-      if (currentPlayback.mode === 'both') {
-        if (item.opRange) ranges.push(item.opRange);
-        if (item.edRange) ranges.push(item.edRange);
-      }
-      return ranges.map((r) => ({ start: r.start, end: r.end }));
+    if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
+      return [currentPlayback.item.range];
     }
     const none = getNoneChapters();
     if (currentMode === 'op-only') return none.length > 0 ? [none[0]] : [];
     if (currentMode === 'ed-only') return none.length > 0 ? [none[none.length - 1]] : [];
     if (currentMode === 'op-ed') return none.slice();
     if (currentMode === 'custom-test') return targetRanges.slice();
+    if (customSelecting && customStart && customEnd) {
+      return [{ start: Math.min(customStart, customEnd), end: Math.max(customStart, customEnd) }];
+    }
     return [];
   }
 
@@ -116,6 +123,17 @@
     }
   }
 
+  function clearPlaylistState() {
+    stopEnforcer();
+    resetNativeSkip();
+    currentPlayback = null;
+    currentMode = 'none';
+    targetRanges = [];
+    dopClearPlayback();
+    updatePlaylistUI();
+    updateSeekMarkers();
+  }
+
   function activateMode(mode) {
     currentMode = mode;
     targetRanges = buildRanges();
@@ -135,25 +153,88 @@
     play();
   }
 
-  function startPlayback(playlist, index, mode) {
+  function seekToStartWhenReady(startSec, onReady) {
+    const deadline = Date.now() + 3000;
+    const trySeek = () => {
+      const video = getVideo();
+      if (video && video.readyState >= 1 && video.duration) {
+        seek(startSec);
+        if (onReady) setTimeout(onReady, 100);
+        return;
+      }
+      if (Date.now() < deadline) {
+        setTimeout(trySeek, 100);
+      } else if (onReady) {
+        onReady();
+      }
+    };
+    trySeek();
+  }
+
+  function playItemInCurrentVideo(playlist, index) {
     const item = playlist.items[index];
-    if (!item) return;
-    currentPlayback = { playlistId: playlist.id, index, mode, item };
-    dopSetPlayback(currentPlayback);
+    if (!item || !item.range) return;
+    currentPlayback = { playlistId: playlist.id, index, item };
+    dopSetPlayback({ playlistId: playlist.id, index, updatedAt: Date.now() });
     targetRanges = buildRanges();
-    log('startPlayback', { playlist: playlist.name, index, mode });
+    seekCooldownUntil = 0;
+    lastActionTime = 0;
+    log('playItemInCurrentVideo', { playlist: playlist.name, index, type: item.range.type });
 
     if (targetRanges.length === 0) {
       currentPlayback = null;
       dopClearPlayback();
+      updatePlaylistUI();
       return;
     }
 
     setNativeSkip(false);
+    startupLockUntil = Date.now() + 800;
     startEnforcer();
+    updatePlaylistUI();
+    updateSeekMarkers();
+
     const start = seconds(targetRanges[0].start);
-    seek(start);
-    play();
+    seekToStartWhenReady(start, () => play());
+  }
+
+  function startPlayback(playlist, index) {
+    const item = playlist.items[index];
+    if (!item || !item.range) return;
+    currentPlayback = { playlistId: playlist.id, index, item };
+    dopSetPlayback({ playlistId: playlist.id, index, updatedAt: Date.now() });
+    targetRanges = buildRanges();
+    seekCooldownUntil = 0;
+    lastActionTime = 0;
+    log('startPlayback', { playlist: playlist.name, index, type: item.range.type });
+
+    if (targetRanges.length === 0) {
+      currentPlayback = null;
+      dopClearPlayback();
+      updatePlaylistUI();
+      return;
+    }
+
+    setNativeSkip(false);
+    startupLockUntil = Date.now() + 1500;
+    startEnforcer();
+    updatePlaylistUI();
+    updateSeekMarkers();
+
+    const start = seconds(targetRanges[0].start);
+    pause();
+    seekToStartWhenReady(start, () => play());
+  }
+
+  async function playPlaylistIndex(playlist, index) {
+    const item = playlist.items[index];
+    if (!item || !item.range) return;
+    const currentPartId = new URLSearchParams(location.search).get('partId');
+    if (currentPartId === item.partId) {
+      playItemInCurrentVideo(playlist, index);
+    } else {
+      await goToPlaylistItem(playlist.id, index, item);
+    }
   }
 
   async function advancePlayback(direction) {
@@ -161,24 +242,126 @@
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
     if (!playlist) {
-      currentPlayback = null;
-      dopClearPlayback();
+      clearPlaylistState();
       return false;
     }
     const newIndex = currentPlayback.index + direction;
     if (newIndex < 0 || newIndex >= playlist.items.length) {
-      pause();
+      if (newIndex >= playlist.items.length) {
+        showEndOfPlaylistPopup(playlist);
+      } else {
+        pause();
+      }
       return false;
     }
-    const item = playlist.items[newIndex];
-    const currentPartId = new URLSearchParams(location.search).get('partId');
-    if (currentPartId === item.partId) {
-      startPlayback(playlist, newIndex, currentPlayback.mode);
-    } else {
-      await dopSetPlayback({ ...currentPlayback, index: newIndex });
-      location.href = item.url;
-    }
+    await playPlaylistIndex(playlist, newIndex);
     return true;
+  }
+
+  async function goToPlaylistItem(playlistId, index, item) {
+    await dopSetPlayback({ playlistId, index, updatedAt: Date.now() });
+    const url = new URL(item.url);
+    url.searchParams.set('dopPlaylistId', playlistId);
+    url.searchParams.set('dopIndex', String(index));
+    location.href = url.toString();
+  }
+
+  function showEndOfPlaylistPopup(playlist) {
+    pause();
+    const content = document.createElement('div');
+    content.style.textAlign = 'center';
+    content.textContent = 'プレイリストの最後まで再生しました';
+
+    showModal('再生終了', content, [
+      { label: '最初から再生', value: 'restart' },
+      { label: 'このまま見る', value: 'continue', primary: true },
+      { label: '閉じる', value: 'close' }
+    ]).then((value) => {
+      if (value === 'restart') {
+        playPlaylistIndex(playlist, 0);
+      } else {
+        clearPlaylistState();
+      }
+    });
+  }
+
+  async function handlePrevClick() {
+    if (!currentPlayback) return;
+    const video = getVideo();
+    const start = seconds(currentPlayback.item.range.start);
+    const now = Date.now();
+    const nearStart = video && Math.abs(video.currentTime - start) < 1.0;
+    const doubleClick = nearStart && (now - lastPrevClickTime < 1500);
+
+    if (doubleClick) {
+      advancePlayback(-1);
+    } else {
+      seek(start);
+      if (video && video.paused) play();
+    }
+    lastPrevClickTime = now;
+  }
+
+  function readUrlParams() {
+    const params = new URLSearchParams(location.search);
+    return {
+      rangeType: params.get('dopRangeType'),
+      title: params.get('dopTitle') || '',
+      episodeTitle: params.get('dopEpisodeTitle') || '',
+      playlistId: params.get('dopPlaylistId'),
+      index: params.has('dopIndex') ? parseInt(params.get('dopIndex'), 10) : null
+    };
+  }
+
+  function removeDopParamsFromUrl(href) {
+    const url = new URL(href);
+    ['dopRangeType', 'dopTitle', 'dopEpisodeTitle', 'dopPlaylistId', 'dopIndex'].forEach((k) => url.searchParams.delete(k));
+    return url.toString();
+  }
+
+  async function checkUrlParams() {
+    const params = readUrlParams();
+
+    if (params.playlistId && params.index !== null) {
+      const playlists = await dopGetPlaylists();
+      const playlist = playlists.find((p) => p.id === params.playlistId);
+      if (playlist && params.index >= 0 && params.index < playlist.items.length) {
+        history.replaceState(null, '', removeDopParamsFromUrl(location.href));
+        startPlayback(playlist, params.index);
+        return;
+      }
+    }
+
+    if (params.rangeType) {
+      history.replaceState(null, '', removeDopParamsFromUrl(location.href));
+      await startWorkPageRange(params.rangeType);
+    }
+  }
+
+  async function startWorkPageRange(rangeType) {
+    const none = getNoneChapters();
+    if (none.length === 0) {
+      showModal('エラー', 'この話にはOP/ED情報が見つかりませんでした。', [{ label: 'OK', value: null, primary: true }]);
+      return;
+    }
+
+    const selectedRange = rangeType === 'op' ? getOpRange() : rangeType === 'ed' ? getEdRange() : null;
+    if (!selectedRange) {
+      showModal('エラー', 'この話には該当するOP/EDが見つかりませんでした。', [{ label: 'OK', value: null, primary: true }]);
+      return;
+    }
+
+    clearPlaylistState();
+    currentMode = 'op-ed';
+    targetRanges = none.slice();
+    setNativeSkip(false);
+    startEnforcer();
+    updatePlaylistUI();
+    await updateSeekMarkers();
+
+    const start = seconds(selectedRange.start);
+    pause();
+    seekToStartWhenReady(start, () => play());
   }
 
   function log(label, data) {
@@ -197,6 +380,7 @@
 
   function enforceRanges(fromEvent) {
     if ((currentMode === 'none' && !currentPlayback) || targetRanges.length === 0) return;
+    if (Date.now() < seekCooldownUntil) return;
 
     const video = getVideo();
     if (!video) return;
@@ -204,6 +388,7 @@
     const t = video.currentTime;
     const firstStart = seconds(targetRanges[0].start);
     const lastEnd = seconds(targetRanges[targetRanges.length - 1].end);
+    const duration = video.duration || Infinity;
 
     if (insideRange(t)) {
       return;
@@ -220,7 +405,7 @@
       return;
     }
 
-    if (t > lastEnd) {
+    if (t > lastEnd || t >= duration - 0.3 || video.ended) {
       if (currentPlayback) {
         advancePlayback(1);
       } else {
@@ -239,6 +424,28 @@
 
   function onTimeUpdate() {
     enforceRanges(true);
+
+    const video = getVideo();
+    if (currentPlayback && video && Date.now() < startupLockUntil) {
+      const start = seconds(targetRanges[0].start);
+      if (Math.abs(video.currentTime - start) > 1.0) {
+        seek(start);
+      }
+    }
+  }
+
+  function onSeeking() {
+    seekCooldownUntil = Date.now() + 1000;
+  }
+
+  function onSeeked() {
+    seekCooldownUntil = Date.now() + 800;
+  }
+
+  function onVideoEnded() {
+    if (currentPlayback) {
+      advancePlayback(1);
+    }
   }
 
   function attachVideoListener() {
@@ -247,35 +454,46 @@
     if (attachedVideo === video) return;
     if (attachedVideo) {
       attachedVideo.removeEventListener('timeupdate', onTimeUpdate);
+      attachedVideo.removeEventListener('seeking', onSeeking);
+      attachedVideo.removeEventListener('seeked', onSeeked);
+      attachedVideo.removeEventListener('ended', onVideoEnded);
     }
     attachedVideo = video;
     video.addEventListener('timeupdate', onTimeUpdate);
+    video.addEventListener('seeking', onSeeking);
+    video.addEventListener('seeked', onSeeked);
+    video.addEventListener('ended', onVideoEnded);
     video.addEventListener('durationchange', updateSeekMarkers);
     video.addEventListener('loadedmetadata', updateSeekMarkers);
   }
 
   function createAddButton() {
     let wrapper = document.getElementById('d-op-add-wrapper');
-    if (wrapper) return wrapper;
+    if (wrapper && wrapper.isConnected) return wrapper;
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.id = 'd-op-add-wrapper';
+      wrapper.className = 'd-op-add-wrapper';
 
-    wrapper = document.createElement('div');
-    wrapper.id = 'd-op-add-wrapper';
-    wrapper.className = 'mainButton d-op-add-wrapper';
+      const btn = document.createElement('button');
+      btn.className = 'd-op-add-button';
+      btn.textContent = '♪';
+      btn.title = 'プレイリストに追加';
+      btn.setAttribute('aria-label', 'プレイリストに追加');
 
-    const btn = document.createElement('button');
-    btn.className = 'd-op-add-button';
-    btn.textContent = '＋';
-    btn.title = 'プレイリストに追加';
-    btn.setAttribute('aria-label', 'プレイリストに追加');
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showAddMenuModal();
-    });
+      const popup = document.createElement('div');
+      popup.className = 'd-op-popup';
 
-    wrapper.appendChild(btn);
+      popup.appendChild(createPopupRow('OPを追加', () => openPlaylistModal('op')));
+      popup.appendChild(createPopupRow('EDを追加', () => openPlaylistModal('ed')));
+      popup.appendChild(createPopupRow('カスタム範囲', () => showCustomRangeBar()));
+
+      wrapper.appendChild(btn);
+      wrapper.appendChild(popup);
+    }
 
     const timeEl = document.querySelector('.buttonArea .time');
-    if (timeEl && timeEl.parentNode) {
+    if (timeEl && timeEl.parentNode && wrapper.parentNode !== timeEl.parentNode) {
       const next = timeEl.nextElementSibling;
       if (next) {
         timeEl.parentNode.insertBefore(wrapper, next);
@@ -287,81 +505,271 @@
     return wrapper;
   }
 
-  async function showAddMenuModal() {
-    const list = document.createElement('div');
-    list.className = 'd-op-modal-menu-list';
-
-    const opBtn = document.createElement('button');
-    opBtn.className = 'd-op-modal-menu-item';
-    opBtn.textContent = 'OPを追加';
-    opBtn.addEventListener('click', () => {
-      document.getElementById('d-op-modal').remove();
-      openPlaylistModal('op');
+  function createPopupRow(label, onClick) {
+    const row = document.createElement('div');
+    row.className = 'd-op-popup-item';
+    row.textContent = label;
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onClick();
     });
-
-    const edBtn = document.createElement('button');
-    edBtn.className = 'd-op-modal-menu-item';
-    edBtn.textContent = 'EDを追加';
-    edBtn.addEventListener('click', () => {
-      document.getElementById('d-op-modal').remove();
-      openPlaylistModal('ed');
-    });
-
-    const customBtn = document.createElement('button');
-    customBtn.className = 'd-op-modal-menu-item';
-    customBtn.textContent = 'カスタム範囲';
-    customBtn.addEventListener('click', () => {
-      document.getElementById('d-op-modal').remove();
-      showCustomRangeUI();
-    });
-
-    list.appendChild(opBtn);
-    list.appendChild(edBtn);
-    list.appendChild(customBtn);
-
-    await showModal('プレイリストに追加', list, [{ label: 'キャンセル', value: null }]);
+    return row;
   }
 
-  function overrideNativeControls() {
-    const nextBtn = document.querySelector('.nextButton, .next button, [class*="next"]');
-    const prevBtn = document.querySelector('.prevButton, .prev button, [class*="prev"]');
+  function createPlaylistControls() {
+    let prevWrapper = document.getElementById('d-op-playlist-prev');
+    let nextWrapper = document.getElementById('d-op-playlist-next');
+    const alreadyExist = prevWrapper && prevWrapper.isConnected && nextWrapper && nextWrapper.isConnected;
 
-    if (nextBtn && !nextBtn.dataset.dopOverridden) {
-      nextBtn.dataset.dopOverridden = 'true';
-      nextBtn.addEventListener('click', async (e) => {
-        if (currentPlayback) {
-          e.preventDefault();
-          e.stopPropagation();
-          await advancePlayback(1);
+    if (!alreadyExist) {
+      if (!prevWrapper) {
+        prevWrapper = document.createElement('div');
+        prevWrapper.id = 'd-op-playlist-prev';
+        prevWrapper.className = 'd-op-playlist-btn-wrapper';
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'd-op-playlist-btn';
+        prevBtn.textContent = '⏮';
+        prevBtn.title = '前へ';
+        prevBtn.addEventListener('click', () => handlePrevClick());
+        prevWrapper.appendChild(prevBtn);
+      }
+
+      if (!nextWrapper) {
+        nextWrapper = document.createElement('div');
+        nextWrapper.id = 'd-op-playlist-next';
+        nextWrapper.className = 'd-op-playlist-btn-wrapper';
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'd-op-playlist-btn';
+        nextBtn.textContent = '⏭';
+        nextBtn.title = '次へ';
+        nextBtn.addEventListener('click', () => advancePlayback(1));
+        nextWrapper.appendChild(nextBtn);
+      }
+
+      const addWrapper = document.getElementById('d-op-add-wrapper');
+      if (addWrapper && addWrapper.parentNode) {
+        if (prevWrapper.parentNode !== addWrapper.parentNode) {
+          addWrapper.parentNode.insertBefore(prevWrapper, addWrapper);
         }
-      }, true);
-    }
-
-    if (prevBtn && !prevBtn.dataset.dopOverridden) {
-      prevBtn.dataset.dopOverridden = 'true';
-      prevBtn.addEventListener('click', async (e) => {
-        if (currentPlayback) {
-          e.preventDefault();
-          e.stopPropagation();
-          await advancePlayback(-1);
+        if (nextWrapper.parentNode !== addWrapper.parentNode) {
+          addWrapper.parentNode.insertBefore(nextWrapper, addWrapper.nextSibling);
         }
-      }, true);
+      } else {
+        const timeEl = document.querySelector('.buttonArea .time');
+        if (timeEl && timeEl.parentNode) {
+          if (prevWrapper.parentNode !== timeEl.parentNode) {
+            timeEl.parentNode.insertBefore(prevWrapper, timeEl.nextSibling);
+          }
+          if (nextWrapper.parentNode !== timeEl.parentNode) {
+            timeEl.parentNode.insertBefore(nextWrapper, timeEl.nextSibling);
+          }
+        }
+      }
+    }
+
+    return { prevWrapper, nextWrapper };
+  }
+
+  function updatePlaylistUI() {
+    const { prevWrapper, nextWrapper } = createPlaylistControls();
+    const prevBtn = prevWrapper.querySelector('button');
+    const nextBtn = nextWrapper.querySelector('button');
+    const active = currentPlayback || currentMode !== 'none';
+
+    if (!active) {
+      document.body.classList.remove('d-op-playlist-active');
+      prevWrapper.style.display = 'none';
+      nextWrapper.style.display = 'none';
+      hideTopRightPanel();
+      return;
+    }
+
+    document.body.classList.add('d-op-playlist-active');
+
+    if (currentPlayback) {
+      prevWrapper.style.display = 'inline-flex';
+      nextWrapper.style.display = 'inline-flex';
+      prevBtn.disabled = currentPlayback.index <= 0;
+      nextBtn.disabled = true;
+      dopGetPlaylists().then((playlists) => {
+        const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
+        if (playlist) {
+          nextBtn.disabled = currentPlayback.index >= playlist.items.length - 1;
+        }
+      });
+    } else {
+      prevWrapper.style.display = 'none';
+      nextWrapper.style.display = 'none';
+    }
+
+    showTopRightPanel();
+  }
+
+  function resetPanelHideTimer() {
+    if (panelHideTimer) {
+      clearTimeout(panelHideTimer);
+      panelHideTimer = null;
+    }
+    panelHideTimer = setTimeout(() => {
+      const panel = document.getElementById('d-op-top-panel');
+      if (panel) panel.style.opacity = '0';
+    }, PANEL_HIDE_DELAY);
+  }
+
+  function showTopRightPanel() {
+    let panel = document.getElementById('d-op-top-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'd-op-top-panel';
+      panel.className = 'd-op-top-panel';
+      document.body.appendChild(panel);
+    }
+
+    let label = 'OP/ED';
+    let sub = 'プレイリスト再生中';
+    if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
+      const range = currentPlayback.item.range;
+      label = range.name || (range.type === 'op' ? 'OP' : range.type === 'ed' ? 'ED' : 'CUSTOM');
+    } else if (currentMode === 'custom-test' || customSelecting) {
+      label = customName || 'CUSTOM';
+    } else if (currentMode === 'op-ed') {
+      label = 'OP/ED';
+    }
+
+    panel.innerHTML = '';
+
+    const modeText = document.createElement('div');
+    modeText.className = 'd-op-top-mode';
+    modeText.textContent = label;
+
+    const subText = document.createElement('div');
+    subText.className = 'd-op-top-sub';
+    subText.textContent = sub;
+
+    const stopBtn = document.createElement('button');
+    stopBtn.textContent = '終了';
+    stopBtn.title = 'プレイリスト再生を終了';
+    stopBtn.addEventListener('click', () => {
+      clearPlaylistState();
+    });
+
+    panel.appendChild(modeText);
+    panel.appendChild(subText);
+    panel.appendChild(stopBtn);
+    panel.style.display = 'flex';
+    panel.style.opacity = '1';
+    resetPanelHideTimer();
+  }
+
+  function hideTopRightPanel() {
+    const panel = document.getElementById('d-op-top-panel');
+    if (panel) {
+      panel.style.display = 'none';
+      panel.style.opacity = '1';
+    }
+    if (panelHideTimer) {
+      clearTimeout(panelHideTimer);
+      panelHideTimer = null;
     }
   }
 
-  function getSeekRanges() {
-    if (currentPlayback && currentPlayback.item) {
-      const item = currentPlayback.item;
-      const ranges = [];
-      if (item.opRange) ranges.push({ ...item.opRange, label: 'OP' });
-      if (item.edRange) ranges.push({ ...item.edRange, label: 'ED' });
-      if (item.customRange) ranges.push({ ...item.customRange, label: 'CUSTOM' });
-      return ranges;
+  function onMouseMove() {
+    if (!currentPlayback && currentMode === 'none') return;
+    const panel = document.getElementById('d-op-top-panel');
+    if (panel) {
+      panel.style.opacity = '1';
     }
-    return getNoneChapters().map((c) => ({ ...c, label: 'OP/ED' }));
+    resetPanelHideTimer();
   }
 
-  function updateSeekMarkers() {
+  async function getSeekRanges() {
+    const ranges = [];
+    const none = getNoneChapters();
+    const noneRanges = none.map((c, i, arr) => ({
+      ...c,
+      label: i === 0 ? 'OP' : i === arr.length - 1 ? 'ED' : 'OP/ED'
+    }));
+    ranges.push(...noneRanges);
+
+    if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
+      const r = currentPlayback.item.range;
+      const label = r.name || r.type.toUpperCase();
+      const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+      if (!dup) ranges.push({ ...r, label });
+    }
+
+    if ((currentMode === 'custom-test' || customSelecting) && targetRanges.length > 0) {
+      const r = targetRanges[0];
+      const label = customName || 'CUSTOM';
+      const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+      if (!dup) ranges.push({ ...r, label });
+    }
+
+    if (chaptersInfo && chaptersInfo.partId) {
+      const playlists = await dopGetPlaylists();
+      playlists.forEach((playlist) => {
+        playlist.items.forEach((item) => {
+          if (item.partId === chaptersInfo.partId && item.range) {
+            const dup = ranges.some((c) => c.start === item.range.start && c.end === item.range.end);
+            if (!dup) {
+              const r = item.range;
+              const label = r.name || (r.type === 'op' ? 'OP' : r.type === 'ed' ? 'ED' : 'CUSTOM');
+              ranges.push({ ...r, label });
+            }
+          }
+        });
+      });
+    }
+
+    return ranges;
+  }
+
+  function getRangeAt(timeSec) {
+    for (const r of currentSeekRanges) {
+      const start = seconds(r.start);
+      const end = seconds(r.end);
+      if (timeSec >= start - 0.05 && timeSec <= end + 0.05) return r;
+    }
+    return null;
+  }
+
+  function updateSeekPopupTitle(timeSec) {
+    const wrap = document.getElementById('seekPopupInWrap');
+    if (!wrap) return;
+    let labelEl = document.getElementById('d-op-seek-popup-label');
+    if (!labelEl) {
+      labelEl = document.createElement('div');
+      labelEl.id = 'd-op-seek-popup-label';
+      labelEl.className = 'd-op-seek-popup-label';
+      wrap.appendChild(labelEl);
+    }
+    const r = getRangeAt(timeSec);
+    if (r) {
+      labelEl.textContent = r.label;
+      labelEl.style.display = 'block';
+    } else {
+      labelEl.style.display = 'none';
+    }
+  }
+
+  function attachSeekPopupListener() {
+    const seekArea = document.querySelector('.seekArea');
+    if (!seekArea || seekArea.dataset.dopSeekListener) return;
+    seekArea.dataset.dopSeekListener = 'true';
+    seekArea.addEventListener('mousemove', (e) => {
+      const rect = seekArea.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const video = getVideo();
+      if (!video || !video.duration) return;
+      updateSeekPopupTitle(ratio * video.duration);
+    });
+    seekArea.addEventListener('mouseleave', () => {
+      const labelEl = document.getElementById('d-op-seek-popup-label');
+      if (labelEl) labelEl.style.display = 'none';
+    });
+  }
+
+  async function updateSeekMarkers() {
     const video = getVideo();
     const seekArea = document.querySelector('.seekArea');
     if (!video || !seekArea || !video.duration) return;
@@ -376,7 +784,9 @@
 
     container.innerHTML = '';
     const duration = video.duration;
-    const ranges = getSeekRanges();
+    const ranges = await getSeekRanges();
+    currentSeekRanges = ranges;
+    const canSeekColor = currentMode === 'op-ed' || currentMode === 'custom-test' || customSelecting;
 
     ranges.forEach((r) => {
       const start = seconds(r.start);
@@ -391,11 +801,15 @@
       marker.style.left = left + '%';
       marker.style.width = width + '%';
       marker.title = `${r.label}: ${formatTime(start)}-${formatTime(end)}`;
-      if (r.label === 'OP') marker.classList.add('op');
-      if (r.label === 'ED') marker.classList.add('ed');
-      if (r.label === 'CUSTOM') marker.classList.add('custom');
+      if (canSeekColor) {
+        if (r.label === 'OP') marker.classList.add('op');
+        if (r.label === 'ED') marker.classList.add('ed');
+        if (r.label === 'CUSTOM' || r.type === 'custom') marker.classList.add('custom');
+      }
       container.appendChild(marker);
     });
+
+    attachSeekPopupListener();
   }
 
   function showModal(title, content, buttons) {
@@ -452,12 +866,11 @@
   }
 
   async function openPlaylistModal(rangeType) {
-    const playlists = await dopGetPlaylists();
+    const playlists = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
     if (playlists.length === 0) {
-      const name = await showModal('新規プレイリスト', 'プレイリストがありません。新規作成してください。', [
-        { label: 'キャンセル', value: null }
+      await showModal('新規プレイリスト', 'プレイリストがありません。管理画面から作成してください。', [
+        { label: 'OK', value: null, primary: true }
       ]);
-      if (!name) return;
       return;
     }
 
@@ -507,78 +920,104 @@
     }
   }
 
-  function showCustomRangeUI() {
-    customStart = null;
-    customEnd = null;
+  function isSystemPlaylist(playlist) {
+    return typeof playlist.name === 'string' && playlist.name.startsWith('__dop_');
+  }
 
-    const body = document.createElement('div');
-    body.className = 'd-op-custom-range';
+  function showCustomRangeBar() {
+    customSelecting = true;
+    let bar = document.getElementById('d-op-custom-bar');
+    if (bar) bar.remove();
 
-    const rangeText = document.createElement('div');
-    rangeText.className = 'd-op-custom-range-text';
-    rangeText.textContent = '開始/終了を設定してください';
+    bar = document.createElement('div');
+    bar.id = 'd-op-custom-bar';
+    bar.className = 'd-op-custom-bar';
+
+    const rangeText = document.createElement('span');
+    rangeText.className = 'd-op-custom-bar-text';
+    updateText();
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = '名前（空欄でCUSTOM）';
+    nameInput.value = customName;
+    nameInput.addEventListener('input', () => {
+      customName = nameInput.value.trim();
+      updateSeekMarkers();
+    });
 
     const startBtn = document.createElement('button');
-    startBtn.textContent = '開始地点を設定';
+    startBtn.textContent = '開始';
+    startBtn.title = '開始地点を設定';
     startBtn.addEventListener('click', () => {
       const video = getVideo();
       if (!video) return;
       customStart = Math.floor(video.currentTime * 1000);
-      updateRangeText();
+      updateText();
+      updateSeekMarkers();
     });
 
     const endBtn = document.createElement('button');
-    endBtn.textContent = '終了地点を設定';
+    endBtn.textContent = '終了';
+    endBtn.title = '終了地点を設定';
     endBtn.addEventListener('click', () => {
       const video = getVideo();
       if (!video) return;
       customEnd = Math.floor(video.currentTime * 1000);
-      updateRangeText();
+      updateText();
+      updateSeekMarkers();
     });
 
     const testBtn = document.createElement('button');
-    testBtn.textContent = '再生テスト';
-    testBtn.className = 'primary';
+    testBtn.textContent = 'テスト';
     testBtn.addEventListener('click', () => {
       if (!customStart || !customEnd) return;
-      activateMode('none');
       currentMode = 'custom-test';
       targetRanges = [{ start: Math.min(customStart, customEnd), end: Math.max(customStart, customEnd) }];
       setNativeSkip(false);
       startEnforcer();
+      updateSeekMarkers();
       seek(seconds(targetRanges[0].start));
       play();
     });
 
     const addBtn = document.createElement('button');
-    addBtn.textContent = 'プレイリストに追加';
+    addBtn.textContent = '追加';
     addBtn.className = 'primary';
     addBtn.addEventListener('click', async () => {
       if (!customStart || !customEnd) return;
-      stopEnforcer();
-      resetNativeSkip();
-      currentMode = 'none';
-      document.getElementById('d-op-modal').remove();
       await openPlaylistModal('custom');
     });
 
-    function updateRangeText() {
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'キャンセル';
+    cancelBtn.addEventListener('click', () => {
+      stopEnforcer();
+      resetNativeSkip();
+      currentMode = 'none';
+      targetRanges = [];
+      customStart = null;
+      customEnd = null;
+      customName = '';
+      customSelecting = false;
+      bar.remove();
+      updateSeekMarkers();
+    });
+
+    function updateText() {
       const s = customStart ? formatTime(seconds(customStart)) : '--:--';
       const e = customEnd ? formatTime(seconds(customEnd)) : '--:--';
-      rangeText.textContent = `範囲: ${s} - ${e}`;
+      rangeText.textContent = `${s} - ${e}`;
     }
 
-    const buttons = document.createElement('div');
-    buttons.className = 'd-op-custom-range-buttons';
-    buttons.appendChild(startBtn);
-    buttons.appendChild(endBtn);
-    buttons.appendChild(testBtn);
-
-    body.appendChild(rangeText);
-    body.appendChild(buttons);
-    body.appendChild(addBtn);
-
-    showModal('カスタム範囲', body, [{ label: '閉じる', value: null }]);
+    bar.appendChild(rangeText);
+    bar.appendChild(nameInput);
+    bar.appendChild(startBtn);
+    bar.appendChild(endBtn);
+    bar.appendChild(testBtn);
+    bar.appendChild(addBtn);
+    bar.appendChild(cancelBtn);
+    document.body.appendChild(bar);
   }
 
   async function addCurrentToPlaylist(playlistId, rangeType) {
@@ -588,13 +1027,18 @@
     let range = null;
     if (rangeType === 'op') {
       const r = getOpRange();
-      if (r) range = { start: r.start, end: r.end };
+      if (r) range = { type: 'op', start: r.start, end: r.end };
     } else if (rangeType === 'ed') {
       const r = getEdRange();
-      if (r) range = { start: r.start, end: r.end };
+      if (r) range = { type: 'ed', start: r.start, end: r.end };
     } else if (rangeType === 'custom') {
       if (customStart && customEnd) {
-        range = { start: Math.min(customStart, customEnd), end: Math.max(customStart, customEnd) };
+        range = {
+          type: 'custom',
+          start: Math.min(customStart, customEnd),
+          end: Math.max(customStart, customEnd),
+          name: customName || undefined
+        };
       }
     }
 
@@ -605,70 +1049,42 @@
 
     const item = {
       partId: data.partId,
-      workId: data.workId,
-      title: data.workTitle || data.partTitle || '',
+      workId: data.workId || '',
+      title: data.workTitle || data.title || data.partTitle || '',
       episodeTitle: data.partTitle || '',
       url: location.href,
-      opRange: rangeType === 'op' ? range : null,
-      edRange: rangeType === 'ed' ? range : null,
-      customRange: rangeType === 'custom' ? range : null
+      range
     };
 
     await dopAddItemToPlaylist(playlistId, item);
+
+    stopEnforcer();
+    resetNativeSkip();
+    currentMode = 'none';
+    targetRanges = [];
     customStart = null;
     customEnd = null;
+    customName = '';
+    customSelecting = false;
+    const bar = document.getElementById('d-op-custom-bar');
+    if (bar) bar.remove();
+    updateSeekMarkers();
+
     await showModal('追加完了', 'プレイリストに追加しました。', [{ label: 'OK', value: null, primary: true }]);
   }
 
-  async function checkPendingPlayback() {
-    const pending = await dopGetPending();
-    if (!pending || !chaptersInfo) return;
-    const currentPartId = chaptersInfo.partId;
-    if (pending.partId !== currentPartId) return;
-
-    await dopClearPending();
-
-    const none = getNoneChapters();
-    const first = none.length > 0 ? none[0] : null;
-    const last = none.length > 1 ? none[none.length - 1] : null;
-
-    const playlists = await dopGetPlaylists();
-    let playlist = playlists.find((p) => p.name === '__dop_auto');
-    if (!playlist) {
-      playlist = await dopCreatePlaylist('__dop_auto');
-    } else {
-      await dopClearItems(playlist.id);
-    }
-
-    const item = {
-      partId: currentPartId,
-      workId: chaptersInfo.workId || '',
-      title: chaptersInfo.workTitle || chaptersInfo.partTitle || pending.title || '',
-      episodeTitle: chaptersInfo.partTitle || pending.episodeTitle || '',
-      url: location.href,
-      opRange: pending.rangeType === 'op' && first ? { start: first.start, end: first.end } : null,
-      edRange: pending.rangeType === 'ed' && last ? { start: last.start, end: last.end } : null,
-      customRange: null
-    };
-
-    await dopAddItemToPlaylist(playlist.id, item);
-    await dopSetPlayback({
-      playlistId: playlist.id,
-      index: 0,
-      mode: pending.rangeType
-    });
-    startPlayback(playlist, 0, pending.rangeType);
-  }
-
   async function resumePlaybackIfAny() {
-    const pending = await dopGetPending();
-    if (pending) {
-      await checkPendingPlayback();
-      return;
-    }
+    if (currentPlayback) return;
+    if (currentMode !== 'none') return;
+    if (readUrlParams().rangeType || readUrlParams().playlistId) return;
 
     const playback = await dopGetPlayback();
     if (!playback) return;
+    if (playback.updatedAt && Date.now() - playback.updatedAt > RESUME_MAX_AGE_MS) {
+      await dopClearPlayback();
+      return;
+    }
+
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === playback.playlistId);
     if (!playlist || playback.index >= playlist.items.length) {
@@ -678,39 +1094,63 @@
     const item = playlist.items[playback.index];
     const currentPartId = new URLSearchParams(location.search).get('partId');
     if (currentPartId !== item.partId) {
-      location.href = item.url;
+      await goToPlaylistItem(playlist.id, playback.index, item);
       return;
     }
-    startPlayback(playlist, playback.index, playback.mode);
+    startPlayback(playlist, playback.index);
+  }
+
+  async function jumpToPlaylistIndex(index) {
+    const playback = await dopGetPlayback();
+    if (!playback) return;
+    const playlists = await dopGetPlaylists();
+    const playlist = playlists.find((p) => p.id === playback.playlistId);
+    if (!playlist || index < 0 || index >= playlist.items.length) return;
+    await playPlaylistIndex(playlist, index);
   }
 
   function handleRuntimeMessage(message) {
     if (!message || !message.type) return;
     switch (message.type) {
       case 'PLAYLIST_PREV':
-        advancePlayback(-1);
+        handlePrevClick();
         break;
       case 'PLAYLIST_NEXT':
         advancePlayback(1);
         break;
       case 'PLAYLIST_STOP':
-        stopEnforcer();
-        resetNativeSkip();
-        currentPlayback = null;
-        currentMode = 'none';
-        dopClearPlayback();
+        clearPlaylistState();
+        break;
+      case 'PLAYLIST_JUMP':
+        if (message.index !== undefined) {
+          jumpToPlaylistIndex(message.index);
+        }
         break;
     }
   }
 
-  function handleChapters(info) {
+  async function handleChapters(info) {
+    const partIdChanged = chaptersInfo === null || chaptersInfo.partId !== info.partId;
     chaptersInfo = info;
+
+    if (partIdChanged) {
+      lastPartId = info.partId;
+      if (!currentPlayback) {
+        currentMode = 'none';
+        targetRanges = [];
+        stopEnforcer();
+        resetNativeSkip();
+      }
+      await updateSeekMarkers();
+    }
+
     attachVideoListener();
     createAddButton();
-    overrideNativeControls();
-    updateSeekMarkers();
-    checkPendingPlayback();
-    resumePlaybackIfAny();
+    createPlaylistControls();
+    await updateSeekMarkers();
+    updatePlaylistUI();
+    await checkUrlParams();
+    await resumePlaybackIfAny();
   }
 
   function init() {
@@ -734,14 +1174,28 @@
       handleRuntimeMessage(message);
     });
 
+    window.addEventListener('beforeunload', () => {
+      dopClearPlayback();
+      dopClearPending();
+    });
+
+    document.addEventListener('mousemove', onMouseMove);
+
+    let observerPaused = false;
     const observer = new MutationObserver(() => {
-      const video = getVideo();
-      if (video && attachedVideo !== video) {
-        attachVideoListener();
-        updateSeekMarkers();
+      if (observerPaused) return;
+      observerPaused = true;
+      try {
+        const video = getVideo();
+        if (video && attachedVideo !== video) {
+          attachVideoListener();
+          updateSeekMarkers();
+        }
+        createAddButton();
+        createPlaylistControls();
+      } finally {
+        observerPaused = false;
       }
-      createAddButton();
-      overrideNativeControls();
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }

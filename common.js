@@ -6,9 +6,45 @@ function dopGenerateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+function cleanItem(item) {
+  return {
+    id: item.id,
+    partId: item.partId,
+    workId: item.workId,
+    title: item.title,
+    episodeTitle: item.episodeTitle,
+    url: item.url,
+    range: item.range || null
+  };
+}
+
+function migrateItem(item) {
+  if (item.range) return [cleanItem(item)];
+  const result = [];
+  if (item.opRange) {
+    result.push(cleanItem({ ...item, range: { type: 'op', start: item.opRange.start, end: item.opRange.end } }));
+  }
+  if (item.edRange) {
+    result.push(cleanItem({ ...item, range: { type: 'ed', start: item.edRange.start, end: item.edRange.end } }));
+  }
+  if (item.customRange) {
+    result.push(cleanItem({ ...item, range: { type: 'custom', start: item.customRange.start, end: item.customRange.end } }));
+  }
+  if (result.length === 0) {
+    result.push(cleanItem({ ...item, range: null }));
+  }
+  return result;
+}
+
+function migratePlaylist(playlist) {
+  const items = (playlist.items || []).flatMap(migrateItem);
+  return { ...playlist, items };
+}
+
 async function dopGetPlaylists() {
   const result = await chrome.storage.local.get(DOP_STORAGE_KEY);
-  return result[DOP_STORAGE_KEY] || [];
+  const playlists = (result[DOP_STORAGE_KEY] || []).map(migratePlaylist);
+  return playlists;
 }
 
 async function dopSavePlaylists(playlists) {
@@ -107,4 +143,17 @@ async function dopMoveItem(playlistId, itemId, direction) {
   const item = playlist.items.splice(idx, 1)[0];
   playlist.items.splice(newIdx, 0, item);
   await dopSavePlaylists(playlists);
+}
+
+async function dopCopyItemToPlaylist(targetPlaylistId, item) {
+  const playlists = await dopGetPlaylists();
+  const playlist = playlists.find((p) => p.id === targetPlaylistId);
+  if (!playlist) return false;
+  const copy = {
+    ...cleanItem(item),
+    id: dopGenerateId()
+  };
+  playlist.items.push(copy);
+  await dopSavePlaylists(playlists);
+  return true;
 }

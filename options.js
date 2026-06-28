@@ -4,13 +4,26 @@
   const newNameInput = document.getElementById('newPlaylistName');
   const createBtn = document.getElementById('createPlaylistBtn');
   const playlistsContainer = document.getElementById('playlistsContainer');
-  const playMode = document.getElementById('playMode');
   const exportBtn = document.getElementById('exportBtn');
   const importFile = document.getElementById('importFile');
   const importStatus = document.getElementById('importStatus');
 
   function isSystemPlaylist(playlist) {
     return typeof playlist.name === 'string' && playlist.name.startsWith('__dop_');
+  }
+
+  function formatRangeType(type, name) {
+    if (name) return name;
+    if (type === 'op') return 'OP';
+    if (type === 'ed') return 'ED';
+    if (type === 'custom') return 'CUSTOM';
+    return type || '不明';
+  }
+
+  function decodeHtmlEntities(str) {
+    const txt = document.createElement('textarea');
+    txt.innerHTML = str || '';
+    return txt.value;
   }
 
   async function renderPlaylists() {
@@ -67,21 +80,112 @@
 
         const title = document.createElement('div');
         title.className = 'item-title';
-        title.textContent = item.title || item.episodeTitle || '(タイトル不明)';
+        title.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
+
+        const episode = document.createElement('div');
+        episode.className = 'item-episode';
+        episode.textContent = decodeHtmlEntities(item.episodeTitle) || '';
 
         const meta = document.createElement('div');
         meta.className = 'item-meta';
-        const labels = [];
-        if (item.opRange) labels.push(`OP ${formatSec(item.opRange.start)}-${formatSec(item.opRange.end)}`);
-        if (item.edRange) labels.push(`ED ${formatSec(item.edRange.start)}-${formatSec(item.edRange.end)}`);
-        if (item.customRange) labels.push(`CUSTOM ${formatSec(item.customRange.start)}-${formatSec(item.customRange.end)}`);
-        meta.textContent = labels.join(' / ') || '範囲未設定';
+        const rangeText = item.range
+          ? `${formatRangeType(item.range.type, item.range.name)} ${formatSec(item.range.start)}-${formatSec(item.range.end)}`
+          : '範囲未設定';
+        meta.textContent = rangeText;
+
+        const editRow = document.createElement('div');
+        editRow.className = 'item-edit-row';
+        editRow.style.display = 'none';
+
+        const titleInput = document.createElement('input');
+        titleInput.type = 'text';
+        titleInput.className = 'item-title-input';
+        titleInput.value = item.range ? (item.range.name || formatRangeType(item.range.type, item.range.name)) : '';
+        titleInput.placeholder = 'タイトル';
+        titleInput.disabled = !item.range;
+
+        const startInput = document.createElement('input');
+        startInput.type = 'text';
+        startInput.className = 'item-time-input';
+        startInput.value = item.range ? formatSec(item.range.start) : '';
+        startInput.placeholder = '開始';
+        startInput.disabled = !item.range;
+
+        const endInput = document.createElement('input');
+        endInput.type = 'text';
+        endInput.className = 'item-time-input';
+        endInput.value = item.range ? formatSec(item.range.end) : '';
+        endInput.placeholder = '終了';
+        endInput.disabled = !item.range;
+
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = '保存';
+        saveBtn.className = 'item-save-btn';
+        saveBtn.disabled = !item.range;
+        saveBtn.addEventListener('click', async () => {
+          const startMs = parseTimeInput(startInput.value);
+          const endMs = parseTimeInput(endInput.value);
+          if (startMs === null || endMs === null || startMs >= endMs) {
+            showStatus('開始・終了時間を正しく入力してください。');
+            return;
+          }
+          const playlists = await dopGetPlaylists();
+          const p = playlists.find((pl) => pl.id === playlist.id);
+          const target = p && p.items.find((i) => i.id === item.id);
+          if (target && target.range) {
+            const newName = titleInput.value.trim();
+            target.range.name = newName || undefined;
+            target.range.start = startMs;
+            target.range.end = endMs;
+            await dopSavePlaylists(playlists);
+            showStatus('保存しました。');
+            renderPlaylists();
+          }
+        });
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'キャンセル';
+        cancelBtn.addEventListener('click', () => {
+          editRow.style.display = 'none';
+          meta.style.display = 'block';
+        });
+
+        editRow.appendChild(titleInput);
+        editRow.appendChild(startInput);
+        editRow.appendChild(document.createTextNode(' - '));
+        editRow.appendChild(endInput);
+        editRow.appendChild(saveBtn);
+        editRow.appendChild(cancelBtn);
 
         info.appendChild(title);
+        if (item.episodeTitle) info.appendChild(episode);
         info.appendChild(meta);
+        info.appendChild(editRow);
 
         const controls = document.createElement('div');
         controls.className = 'item-controls';
+
+        const playBtn = document.createElement('button');
+        playBtn.textContent = '▶ 再生';
+        playBtn.addEventListener('click', () => startPlaylistPlayback(playlist.id, idx));
+
+        const editBtn = document.createElement('button');
+        editBtn.textContent = '編集';
+        editBtn.disabled = !item.range;
+        editBtn.addEventListener('click', () => {
+          editRow.style.display = 'flex';
+          meta.style.display = 'none';
+        });
+
+        const copyBtn = document.createElement('button');
+        copyBtn.textContent = 'コピー';
+        copyBtn.addEventListener('click', async () => {
+          const targetId = await showCopyDialog(playlists, playlist.id);
+          if (!targetId) return;
+          await dopCopyItemToPlaylist(targetId, item);
+          showStatus('コピーしました。');
+          renderPlaylists();
+        });
 
         const upBtn = document.createElement('button');
         upBtn.textContent = '↑';
@@ -101,11 +205,15 @@
 
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '削除';
+        removeBtn.className = 'danger';
         removeBtn.addEventListener('click', async () => {
           await dopRemoveItem(playlist.id, item.id);
           renderPlaylists();
         });
 
+        controls.appendChild(playBtn);
+        controls.appendChild(editBtn);
+        controls.appendChild(copyBtn);
         controls.appendChild(upBtn);
         controls.appendChild(downBtn);
         controls.appendChild(removeBtn);
@@ -126,17 +234,96 @@
     return `${m}:${String(sec).padStart(2, '0')}`;
   }
 
-  async function startPlaylistPlayback(playlistId) {
+  function showCopyDialog(playlists, currentPlaylistId) {
+    return new Promise((resolve) => {
+      let modal = document.getElementById('d-op-copy-modal');
+      if (modal) modal.remove();
+
+      modal = document.createElement('div');
+      modal.id = 'd-op-copy-modal';
+      modal.className = 'd-op-modal';
+
+      const panel = document.createElement('div');
+      panel.className = 'd-op-modal-panel';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = 'コピー先のプレイリスト';
+      panel.appendChild(h3);
+
+      const targets = playlists.filter((p) => !isSystemPlaylist(p) && p.id !== currentPlaylistId);
+      if (targets.length === 0) {
+        const empty = document.createElement('p');
+        empty.textContent = 'コピー先がありません。';
+        panel.appendChild(empty);
+      } else {
+        const list = document.createElement('div');
+        list.className = 'd-op-modal-playlist-list';
+        targets.forEach((p) => {
+          const row = document.createElement('button');
+          row.className = 'd-op-modal-playlist-item';
+          row.textContent = `${p.name} (${p.items.length}曲)`;
+          row.addEventListener('click', () => {
+            modal.remove();
+            resolve(p.id);
+          });
+          list.appendChild(row);
+        });
+        panel.appendChild(list);
+      }
+
+      const footer = document.createElement('div');
+      footer.className = 'd-op-modal-footer';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'キャンセル';
+      cancelBtn.addEventListener('click', () => {
+        modal.remove();
+        resolve(null);
+      });
+      footer.appendChild(cancelBtn);
+      panel.appendChild(footer);
+
+      modal.appendChild(panel);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.remove();
+          resolve(null);
+        }
+      });
+      document.body.appendChild(modal);
+    });
+  }
+
+  async function startPlaylistPlayback(playlistId, index = 0) {
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === playlistId);
     if (!playlist || playlist.items.length === 0) {
       showStatus('プレイリストが空です。');
       return;
     }
-    const mode = playMode.value;
-    await dopSetPlayback({ playlistId, index: 0, mode });
-    const item = playlist.items[0];
-    chrome.tabs.create({ url: item.url, active: true });
+    const item = playlist.items[index];
+    if (!item || !item.range) {
+      showStatus('選択したアイテムに範囲が設定されていません。');
+      return;
+    }
+    await dopSetPlayback({ playlistId, index, updatedAt: Date.now() });
+    await dopClearPending();
+    const url = new URL(item.url);
+    url.searchParams.set('dopPlaylistId', playlistId);
+    url.searchParams.set('dopIndex', String(index));
+    await chrome.tabs.create({ url: url.toString(), active: true });
+  }
+
+  function parseTimeInput(str) {
+    if (!str) return null;
+    const parts = String(str).trim().split(':');
+    if (parts.length === 2) {
+      const m = parseInt(parts[0], 10);
+      const s = parseInt(parts[1], 10);
+      if (!isNaN(m) && !isNaN(s)) return (m * 60 + s) * 1000;
+    }
+    const sec = parseFloat(str);
+    if (!isNaN(sec)) return Math.floor(sec * 1000);
+    return null;
   }
 
   function showStatus(text) {
@@ -183,9 +370,7 @@
           title: i.title || i.episodeTitle || '',
           episodeTitle: i.episodeTitle || '',
           url: i.url || '',
-          opRange: i.opRange || null,
-          edRange: i.edRange || null,
-          customRange: i.customRange || null
+          range: i.range ? { ...i.range } : null
         })) : []
       }));
       await dopSavePlaylists(cleaned);

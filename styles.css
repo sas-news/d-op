@@ -1,43 +1,105 @@
-.d-op-add-wrapper {
-  position: relative;
+.d-op-controls {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
 }
 
-.d-op-add-button {
+.d-op-add-wrapper,
+.d-op-playlist-btn-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
-  height: 32px;
+  height: 50px;
+  vertical-align: top;
+}
+
+.d-op-add-button,
+.d-op-playlist-btn {
+  width: 36px;
+  height: 36px;
   border: none;
   background: transparent;
-  color: #fff;
-  font-size: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
-  opacity: 0.85;
-}
-
-.d-op-add-button:hover {
-  opacity: 1;
-}
-
-.d-op-modal-menu-list {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
 }
 
-.d-op-modal-menu-item {
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
+.d-op-add-button:hover,
+.d-op-playlist-btn:hover:not(:disabled) {
   color: #fff;
-  text-align: left;
-  cursor: pointer;
-  font-size: 14px;
 }
 
-.d-op-modal-menu-item:hover {
-  background: rgba(230, 0, 18, 0.2);
-  border-color: #e60012;
+.d-op-playlist-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.d-op-popup {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 150px;
+  padding: 4px 0;
+  background: #000;
+  border-radius: 4px;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.25), 0 4px 16px rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+}
+
+.d-op-popup::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #000;
+}
+
+.d-op-popup::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
+
+.d-op-add-wrapper:hover .d-op-popup,
+.d-op-popup:hover {
+  display: block;
+}
+
+.d-op-popup-item {
+  padding: 8px 16px;
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.d-op-popup-item:last-child {
+  border-bottom: none;
+}
+
+.d-op-popup-item:hover {
+  background: #1a1a1a;
+}
+
+body.d-op-playlist-active .buttonArea .prev,
+body.d-op-playlist-active .buttonArea .next {
+  display: none !important;
 }
 
 .d-op-modal {
@@ -131,39 +193,105 @@
   font-size: 14px;
 }
 
-.d-op-custom-range {
-  display: flex;
+.d-op-top-panel {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: none;
   flex-direction: column;
-  gap: 12px;
-}
-
-.d-op-custom-range-text {
-  text-align: center;
-  font-size: 14px;
-  color: #b8b8c8;
-}
-
-.d-op-custom-range-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.d-op-custom-range-buttons button,
-.d-op-custom-range button {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  align-items: flex-end;
+  gap: 4px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
   color: #fff;
+  z-index: 10001;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-width: 120px;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+  pointer-events: auto;
+}
+
+.d-op-top-mode {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ff5a6a;
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+}
+
+.d-op-top-sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.2;
+}
+
+.d-op-top-panel button {
+  margin-top: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 12px;
   cursor: pointer;
+}
+
+.d-op-top-panel button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.d-op-custom-bar {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #000;
+  border-radius: 8px;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.1), 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  color: #fff;
   font-size: 13px;
 }
 
-.d-op-custom-range-buttons button.primary,
-.d-op-custom-range button.primary {
+.d-op-custom-bar button {
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.d-op-custom-bar button.primary {
   background: #e60012;
   border-color: #e60012;
+}
+
+.d-op-custom-bar-text {
+  color: #b8b8c8;
+  min-width: 100px;
+  text-align: center;
+}
+
+.d-op-custom-bar input[type="text"] {
+  width: 150px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 12px;
 }
 
 .d-op-seek-markers {
@@ -199,6 +327,18 @@
 .d-op-seek-marker.custom {
   background: rgba(255, 204, 0, 0.35);
   border-color: rgba(255, 204, 0, 0.8);
+}
+
+.d-op-seek-popup-label {
+  margin-top: 0;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  background: transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 2px 0 0;
+  white-space: nowrap;
 }
 
 .skipUi,

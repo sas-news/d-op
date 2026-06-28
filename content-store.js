@@ -18,20 +18,62 @@
     return titleEl ? titleEl.textContent.trim() : '';
   }
 
-  async function playEpisode(partId, rangeType) {
-    const workTitle = findWorkTitle();
-    const episodeTitle = findEpisodeTitle();
-    const url = `https://animestore.docomo.ne.jp/animestore/sc_d_pc?partId=${partId}`;
+  function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  }
 
-    await dopSetPending({
-      partId,
-      rangeType,
-      title: workTitle,
-      episodeTitle,
-      url
+  function playEpisode(partId, rangeType, episodeTitle) {
+    try {
+      const workTitle = findWorkTitle();
+      const params = new URLSearchParams();
+      params.set('partId', partId);
+      params.set('dopRangeType', rangeType);
+      params.set('dopTitle', workTitle);
+      params.set('dopEpisodeTitle', episodeTitle);
+      const url = `https://animestore.docomo.ne.jp/animestore/sc_d_pc?${params.toString()}`;
+      const newTab = window.open(url, '_blank');
+      if (!newTab) {
+        showError('ポップアップがブロックされました。');
+      }
+    } catch (err) {
+      console.error('[d-op store] playEpisode failed', err);
+      showError('再生の準備に失敗しました: ' + err.message);
+    }
+  }
+
+  function showError(message) {
+    let modal = document.getElementById('d-op-store-modal');
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = 'd-op-store-modal';
+    modal.className = 'd-op-store-modal';
+
+    const panel = document.createElement('div');
+    panel.className = 'd-op-store-modal-panel';
+
+    const title = document.createElement('h3');
+    title.textContent = 'エラー';
+
+    const body = document.createElement('p');
+    body.textContent = message;
+
+    const footer = document.createElement('div');
+    footer.className = 'd-op-store-modal-footer';
+
+    const okBtn = document.createElement('button');
+    okBtn.textContent = 'OK';
+    okBtn.addEventListener('click', () => modal.remove());
+    footer.appendChild(okBtn);
+
+    panel.appendChild(title);
+    panel.appendChild(body);
+    panel.appendChild(footer);
+    modal.appendChild(panel);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.remove();
     });
-
-    location.href = url;
+    document.body.appendChild(modal);
   }
 
   function decorateItems() {
@@ -40,6 +82,7 @@
       if (item.dataset.dopDecorated) return;
       const partId = findPartId(item);
       if (!partId) return;
+      const episodeTitle = findEpisodeTitle(item);
 
       const controls = document.createElement('div');
       controls.className = 'd-op-store-controls';
@@ -51,7 +94,7 @@
       opBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        playEpisode(partId, 'op');
+        playEpisode(partId, 'op', episodeTitle);
       });
 
       const edBtn = document.createElement('button');
@@ -61,7 +104,7 @@
       edBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        playEpisode(partId, 'ed');
+        playEpisode(partId, 'ed', episodeTitle);
       });
 
       controls.appendChild(opBtn);
