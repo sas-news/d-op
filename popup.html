@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dアニメ OPED Player</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>OPED Player</h1>
+
+    <div id="noPlayback">
+      <p>再生中のプレイリストはありません。</p>
+      <label for="popupPlayMode">モード:</label>
+      <select id="popupPlayMode">
+        <option value="op">OPのみ</option>
+        <option value="ed">EDのみ</option>
+        <option value="both">OP+ED</option>
+      </select>
+      <div id="popupPlaylists"></div>
+      <button id="openOptions">プレイリスト管理</button>
+    </div>
+
+    <div id="playback" class="hidden">
+      <div class="now-playing">
+        <div id="playlistName" class="playlist-name"></div>
+        <div id="trackInfo" class="track-info"></div>
+        <div id="trackDetail" class="track-detail"></div>
+        <div id="trackProgress" class="track-progress"></div>
+        <div id="nextInfo" class="next-info hidden"></div>
+      </div>
+
+      <div class="controls">
+        <button id="prevBtn">⏮</button>
+        <button id="nextBtn">⏭</button>
+      </div>
+
+      <button id="stopBtn" class="secondary">停止</button>
+    </div>
+  </div>
+
+  <script src="common.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

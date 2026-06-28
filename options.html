@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dアニメ OPED Player - プレイリスト管理</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <h1>プレイリスト管理</h1>
+
+    <section class="create-section">
+      <h2>新規プレイリスト</h2>
+      <div class="row">
+        <input type="text" id="newPlaylistName" placeholder="プレイリスト名">
+        <button id="createPlaylistBtn">作成</button>
+      </div>
+    </section>
+
+    <section class="play-section">
+      <h2>再生設定</h2>
+      <label for="playMode">モード:</label>
+      <select id="playMode">
+        <option value="op">OPのみ</option>
+        <option value="ed">EDのみ</option>
+        <option value="both">OP+ED</option>
+      </select>
+    </section>
+
+    <section class="playlists-section">
+      <h2>プレイリスト一覧</h2>
+      <div id="playlistsContainer"></div>
+    </section>
+
+    <section class="import-section">
+      <h2>インポート / エクスポート</h2>
+      <div class="row">
+        <button id="exportBtn">JSONエクスポート</button>
+        <label class="file-btn">
+          JSONインポート
+          <input type="file" id="importFile" accept=".json">
+        </label>
+      </div>
+      <div id="importStatus"></div>
+    </section>
+  </div>
+
+  <script src="common.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

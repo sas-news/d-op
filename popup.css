@@ -1,0 +1,127 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 280px;
+  margin: 0;
+  padding: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #fff;
+  color: #1d1d1f;
+}
+
+h1 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.now-playing {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.playlist-name {
+  font-size: 13px;
+  color: #007aff;
+  margin-bottom: 4px;
+}
+
+.track-info {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.track-progress {
+  font-size: 12px;
+  color: #8e8e93;
+}
+
+.track-detail {
+  font-size: 12px;
+  color: #6e6e73;
+}
+
+.next-info {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f2f2f7;
+  font-size: 12px;
+  color: #6e6e73;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.controls button {
+  width: 44px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #007aff;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.controls button:hover {
+  background: #0062cc;
+}
+
+button.secondary {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #d1d1d6;
+  border-radius: 8px;
+  background: #fff;
+  color: #1d1d1f;
+  cursor: pointer;
+}
+
+button.secondary:hover {
+  background: #f2f2f7;
+}
+
+p {
+  font-size: 13px;
+  color: #8e8e93;
+  margin: 0 0 12px;
+}
+
+select {
+  width: 100%;
+  padding: 6px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  border: 1px solid #d1d1d6;
+}
+
+.playlist-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #f2f2f7;
+}
+
+.playlist-row:last-child {
+  border-bottom: none;
+}
+
+.playlist-row span {
+  font-size: 13px;
+}
+
+.playlist-row button {
+  padding: 4px 10px;
+  font-size: 12px;
+}

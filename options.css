@@ -1,0 +1,167 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  margin: 0;
+  padding: 24px;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 24px;
+}
+
+h2 {
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+input[type="text"],
+select,
+textarea {
+  padding: 8px 12px;
+  border: 1px solid #d1d1d6;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+input[type="text"],
+select,
+textarea {
+  width: 100%;
+}
+
+textarea {
+  margin-top: 8px;
+  resize: vertical;
+}
+
+button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #007aff;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #0062cc;
+}
+
+button.danger {
+  background: #ff3b30;
+}
+
+button.danger:hover {
+  background: #d63024;
+}
+
+.playlist-card {
+  border: 1px solid #e5e5ea;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.playlist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.playlist-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.playlist-name-input {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.items-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f2f2f7;
+}
+
+.item-row:last-child {
+  border-bottom: none;
+}
+
+.item-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.item-controls button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.item-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.item-meta {
+  font-size: 12px;
+  color: #6e6e73;
+  margin-top: 2px;
+}
+
+.file-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #007aff;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.file-btn input {
+  display: none;
+}
+
+#importStatus {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #34c759;
+}

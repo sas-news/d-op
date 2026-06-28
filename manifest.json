@@ -6,6 +6,7 @@
   "permissions": [
     "scripting",
     "activeTab",
+    "tabs",
     "storage"
   ],
   "host_permissions": [
@@ -15,6 +16,11 @@
   "background": {
     "service_worker": "background.js"
   },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "dアニメ OPED Player"
+  },
+  "options_page": "options.html",
   "content_scripts": [
     {
       "matches": [
@@ -22,10 +28,27 @@
         "https://anime.dmkt-sp.jp/animestore/sc_d_pc?*"
       ],
       "js": [
+        "common.js",
         "content.js"
       ],
       "css": [
         "styles.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://animestore.docomo.ne.jp/animestore/*"
+      ],
+      "exclude_matches": [
+        "https://animestore.docomo.ne.jp/animestore/sc_d_pc?*"
+      ],
+      "js": [
+        "common.js",
+        "content-store.js"
+      ],
+      "css": [
+        "styles-store.css"
       ],
       "run_at": "document_idle"
     }

@@ -4,7 +4,55 @@
   const APP_TAG = 'd-op-injected';
 
   function send(type, payload) {
-    window.postMessage({ source: APP_TAG, type, payload }, window.location.origin);
+    window.postMessage({ source: APP_TAG, direction: 'from-page', type, payload }, window.location.origin);
+  }
+
+  function log(label, data) {
+    console.log('[d-op injected]', label, data);
+  }
+
+  function getPlayer() {
+    return window.vc && window.vc.videoEl ? window.vc.videoEl : document.getElementById('video');
+  }
+
+  function doSeek(timeSec) {
+    if (window.vc && typeof window.vc.jump === 'function') {
+      window.vc.jump(timeSec);
+      log('vc.jump', timeSec);
+      return;
+    }
+    const player = getPlayer();
+    if (player) {
+      player.currentTime = timeSec;
+      log('direct seek', timeSec);
+    }
+  }
+
+  function doPlay() {
+    const player = getPlayer();
+    if (player && player.paused) {
+      player.play().catch((err) => log('play failed', err.message));
+      log('play', {});
+    }
+  }
+
+  function doPause() {
+    const player = getPlayer();
+    if (!player) return;
+    let attempts = 0;
+    const tryPause = () => {
+      if (player.paused) {
+        log('pause confirmed', {});
+        return;
+      }
+      player.pause();
+      attempts++;
+      log('pause attempt', attempts);
+      if (attempts < 10) {
+        setTimeout(tryPause, 100);
+      }
+    };
+    tryPause();
   }
 
   function extractChapters() {
@@ -29,7 +77,6 @@
     };
   }
 
-  let found = false;
   let timer = null;
   let lastPartId = null;
   let lastUrl = location.href;
@@ -39,7 +86,8 @@
     if (info && info.partId !== lastPartId) {
       lastPartId = info.partId;
       send('CHAPTERS_FOUND', info);
-      found = true;
+      log('chapters sent', { partId: info.partId, count: info.chapters.length });
+      stopPolling();
     }
   }
 
@@ -64,9 +112,26 @@
   new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
-      found = false;
       lastPartId = null;
       startPolling();
     }
   }).observe(document, { subtree: true, childList: true });
+
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin) return;
+    const msg = event.data;
+    if (!msg || msg.source !== APP_TAG || msg.direction !== 'to-page') return;
+
+    switch (msg.type) {
+      case 'SEEK':
+        doSeek(msg.payload && msg.payload.time);
+        break;
+      case 'PLAY':
+        doPlay();
+        break;
+      case 'PAUSE':
+        doPause();
+        break;
+    }
+  });
 })();

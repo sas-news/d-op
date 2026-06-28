@@ -1,72 +1,208 @@
-#d-op-root {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 2147483647;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 13px;
-  line-height: 1.4;
-  color: #fff;
+.d-op-add-wrapper {
+  position: relative;
 }
 
-.d-op-panel {
-  background: rgba(20, 20, 30, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  padding: 12px;
-  min-width: 220px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(6px);
-}
-
-.d-op-title {
-  font-weight: 700;
-  margin-bottom: 8px;
-  letter-spacing: 0.02em;
-}
-
-.d-op-status {
-  color: #b8b8c8;
-  font-size: 12px;
-  margin-bottom: 10px;
-  word-break: break-all;
-}
-
-.d-op-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.d-op-buttons button {
-  flex: 1 1 auto;
-  min-width: 60px;
-  padding: 6px 10px;
+.d-op-add-button {
+  width: 32px;
+  height: 32px;
   border: none;
-  border-radius: 6px;
-  background: #3a3a4a;
+  background: transparent;
   color: #fff;
-  font-size: 12px;
+  font-size: 20px;
+  line-height: 1;
   cursor: pointer;
-  transition: background 0.15s ease;
+  opacity: 0.85;
 }
 
-.d-op-buttons button:hover:not(:disabled) {
-  background: #4a4a5e;
+.d-op-add-button:hover {
+  opacity: 1;
 }
 
-.d-op-buttons button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.d-op-modal-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.d-op-buttons button.active {
+.d-op-modal-menu-item {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.d-op-modal-menu-item:hover {
+  background: rgba(230, 0, 18, 0.2);
+  border-color: #e60012;
+}
+
+.d-op-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.d-op-modal-panel {
+  background: #1a1a24;
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 320px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  color: #fff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.d-op-modal-panel h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.d-op-modal-body {
+  margin-bottom: 16px;
+}
+
+.d-op-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.d-op-modal-footer button {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.d-op-modal-footer button.primary {
   background: #e60012;
+  border-color: #e60012;
 }
 
-.d-op-mode {
-  font-size: 11px;
-  color: #9090a0;
-  text-align: right;
+.d-op-modal-playlist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.d-op-modal-playlist-item {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.d-op-modal-playlist-item:hover,
+.d-op-modal-playlist-item.selected {
+  background: rgba(230, 0, 18, 0.2);
+  border-color: #e60012;
+}
+
+.d-op-modal-new-row input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 14px;
+}
+
+.d-op-custom-range {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.d-op-custom-range-text {
+  text-align: center;
+  font-size: 14px;
+  color: #b8b8c8;
+}
+
+.d-op-custom-range-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.d-op-custom-range-buttons button,
+.d-op-custom-range button {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.d-op-custom-range-buttons button.primary,
+.d-op-custom-range button.primary {
+  background: #e60012;
+  border-color: #e60012;
+}
+
+.d-op-seek-markers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.d-op-seek-marker {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  opacity: 0.5;
+  border-left: 2px solid rgba(255, 255, 255, 0.8);
+  border-right: 2px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.d-op-seek-marker.op {
+  background: rgba(230, 0, 18, 0.35);
+  border-color: rgba(230, 0, 18, 0.8);
+}
+
+.d-op-seek-marker.ed {
+  background: rgba(0, 122, 255, 0.35);
+  border-color: rgba(0, 122, 255, 0.8);
+}
+
+.d-op-seek-marker.custom {
+  background: rgba(255, 204, 0, 0.35);
+  border-color: rgba(255, 204, 0, 0.8);
+}
+
+.skipUi,
+.skip-ui,
+[class*="skipUi"] {
+  display: none !important;
 }
