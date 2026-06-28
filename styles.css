@@ -1,0 +1,72 @@
+#d-op-root {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #fff;
+}
+
+.d-op-panel {
+  background: rgba(20, 20, 30, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 220px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+}
+
+.d-op-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+
+.d-op-status {
+  color: #b8b8c8;
+  font-size: 12px;
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+
+.d-op-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.d-op-buttons button {
+  flex: 1 1 auto;
+  min-width: 60px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #3a3a4a;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.d-op-buttons button:hover:not(:disabled) {
+  background: #4a4a5e;
+}
+
+.d-op-buttons button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.d-op-buttons button.active {
+  background: #e60012;
+}
+
+.d-op-mode {
+  font-size: 11px;
+  color: #9090a0;
+  text-align: right;
+}

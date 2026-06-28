@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "dアニメ OPED Player",
+  "version": "0.1.0",
+  "description": "dアニメストアの動画からOP/EDのみを抽出して再生するChrome拡張機能",
+  "permissions": [
+    "scripting",
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://animestore.docomo.ne.jp/*",
+    "https://anime.dmkt-sp.jp/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://animestore.docomo.ne.jp/animestore/sc_d_pc?*",
+        "https://anime.dmkt-sp.jp/animestore/sc_d_pc?*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "injected.js"
+      ],
+      "matches": [
+        "https://animestore.docomo.ne.jp/*",
+        "https://anime.dmkt-sp.jp/*"
+      ]
+    }
+  ]
+}
