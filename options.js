@@ -3,6 +3,7 @@
 
   const newNameInput = document.getElementById('newPlaylistName');
   const createBtn = document.getElementById('createPlaylistBtn');
+  createBtn.className = 'btn-primary';
   const playlistsContainer = document.getElementById('playlistsContainer');
   const exportBtn = document.getElementById('exportBtn');
   const importFile = document.getElementById('importFile');
@@ -28,7 +29,12 @@
     playlistsContainer.innerHTML = '';
 
     if (playlists.length === 0) {
-      playlistsContainer.textContent = 'プレイリストがありません。';
+      playlistsContainer.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">♪</div>
+          <div>プレイリストがありません。</div>
+        </div>
+      `;
       return;
     }
 
@@ -49,12 +55,13 @@
       actions.className = 'playlist-actions';
 
       const playBtn = document.createElement('button');
-      playBtn.textContent = '再生';
+      playBtn.textContent = '▶ 再生';
+      playBtn.className = 'btn-text';
       playBtn.addEventListener('click', () => startPlaylistPlayback(playlist.id));
 
       const deleteBtn = document.createElement('button');
       deleteBtn.textContent = '削除';
-      deleteBtn.className = 'danger';
+      deleteBtn.className = 'btn-danger-text';
       deleteBtn.addEventListener('click', async () => {
         await dopDeletePlaylist(playlist.id);
         renderPlaylists();
@@ -117,7 +124,7 @@
 
         const saveBtn = document.createElement('button');
         saveBtn.textContent = '保存';
-        saveBtn.className = 'item-save-btn';
+        saveBtn.className = 'btn-primary';
         saveBtn.disabled = !item.range;
         saveBtn.addEventListener('click', async () => {
           const startMs = parseTimeInput(startInput.value);
@@ -141,9 +148,10 @@
         });
 
         const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn-text';
         cancelBtn.textContent = 'キャンセル';
         cancelBtn.addEventListener('click', () => {
-          editRow.style.display = 'none';
+          editRow.classList.remove('open');
           meta.style.display = 'block';
         });
 
@@ -163,19 +171,23 @@
         controls.className = 'item-controls';
 
         const playBtn = document.createElement('button');
-        playBtn.textContent = '▶ 再生';
+        playBtn.textContent = '▶';
+        playBtn.title = '再生';
+        playBtn.className = 'btn-icon';
         playBtn.addEventListener('click', () => startPlaylistPlayback(playlist.id, idx));
 
         const editBtn = document.createElement('button');
         editBtn.textContent = '編集';
+        editBtn.className = 'btn-text';
         editBtn.disabled = !item.range;
         editBtn.addEventListener('click', () => {
-          editRow.style.display = 'flex';
+          editRow.classList.add('open');
           meta.style.display = 'none';
         });
 
         const copyBtn = document.createElement('button');
         copyBtn.textContent = 'コピー';
+        copyBtn.className = 'btn-text';
         copyBtn.addEventListener('click', async () => {
           const targetId = await showCopyDialog(playlists, playlist.id);
           if (!targetId) return;
@@ -185,7 +197,9 @@
         });
 
         const upBtn = document.createElement('button');
+        upBtn.className = 'btn-icon';
         upBtn.textContent = '↑';
+        upBtn.title = '上へ';
         upBtn.disabled = idx === 0;
         upBtn.addEventListener('click', async () => {
           await dopMoveItem(playlist.id, item.id, -1);
@@ -193,7 +207,9 @@
         });
 
         const downBtn = document.createElement('button');
+        downBtn.className = 'btn-icon';
         downBtn.textContent = '↓';
+        downBtn.title = '下へ';
         downBtn.disabled = idx === playlist.items.length - 1;
         downBtn.addEventListener('click', async () => {
           await dopMoveItem(playlist.id, item.id, 1);
@@ -202,17 +218,26 @@
 
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '削除';
-        removeBtn.className = 'danger';
+        removeBtn.className = 'btn-danger-text';
         removeBtn.addEventListener('click', async () => {
           await dopRemoveItem(playlist.id, item.id);
           renderPlaylists();
         });
 
+        function addDivider() {
+          const divider = document.createElement('span');
+          divider.className = 'divider';
+          controls.appendChild(divider);
+        }
+
         controls.appendChild(playBtn);
+        addDivider();
         controls.appendChild(editBtn);
         controls.appendChild(copyBtn);
+        addDivider();
         controls.appendChild(upBtn);
         controls.appendChild(downBtn);
+        addDivider();
         controls.appendChild(removeBtn);
         li.appendChild(info);
         li.appendChild(controls);
@@ -272,6 +297,7 @@
       footer.className = 'd-op-modal-footer';
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = 'キャンセル';
+      cancelBtn.className = 'btn-text';
       cancelBtn.addEventListener('click', () => {
         modal.remove();
         resolve(null);
@@ -323,10 +349,12 @@
     return null;
   }
 
-  function showStatus(text) {
+  function showStatus(text, type = 'success') {
     importStatus.textContent = text;
+    importStatus.className = type === 'error' ? 'error' : 'success';
     setTimeout(() => {
       importStatus.textContent = '';
+      importStatus.className = '';
     }, 3000);
   }
 
@@ -338,6 +366,7 @@
     renderPlaylists();
   });
 
+  exportBtn.className = 'btn-secondary';
   exportBtn.addEventListener('click', async () => {
     const playlists = await dopGetPlaylists();
     const blob = new Blob([JSON.stringify(playlists, null, 2)], { type: 'application/json' });
@@ -374,7 +403,7 @@
       renderPlaylists();
       showStatus('インポートしました。');
     } catch (err) {
-      showStatus('インポートに失敗しました: ' + err.message);
+      showStatus('インポートに失敗しました: ' + err.message, 'error');
     }
     e.target.value = '';
   });

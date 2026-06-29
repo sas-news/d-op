@@ -187,6 +187,14 @@
     okBtn.addEventListener('click', () => modal.remove());
     footer.appendChild(okBtn);
 
+    const closeOnEsc = (e) => {
+      if (e.key === 'Escape') {
+        modal.remove();
+        document.removeEventListener('keydown', closeOnEsc);
+      }
+    };
+    document.addEventListener('keydown', closeOnEsc);
+
     panel.appendChild(title);
     panel.appendChild(body);
     panel.appendChild(footer);
@@ -215,11 +223,20 @@
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const data = await fetchChapters(partId);
-        if (data && data.chapters && data.chapters.length > 0) {
-          showRangeMenu(item, data.chapters, data.duration, episodeTitle, btn);
-        } else {
-          playEpisode(partId, 0, episodeTitle);
+        if (btn.disabled) return;
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="d-op-spinner"></span>読込';
+        try {
+          const data = await fetchChapters(partId);
+          if (data && data.chapters && data.chapters.length > 0) {
+            showRangeMenu(item, data.chapters, data.duration, episodeTitle, btn);
+          } else {
+            playEpisode(partId, 0, episodeTitle);
+          }
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalText;
         }
       });
 

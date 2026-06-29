@@ -700,6 +700,7 @@
 
     let label = 'OP/ED';
     let sub = 'プレイリスト再生中';
+    let meta = '';
     if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
       const range = currentPlayback.item.range;
       label = range.name || (range.type === 'op' ? 'OP' : range.type === 'ed' ? 'ED' : 'CUSTOM');
@@ -719,6 +720,9 @@
     subText.className = 'd-op-top-sub';
     subText.textContent = sub;
 
+    const metaText = document.createElement('div');
+    metaText.className = 'd-op-top-meta';
+
     const stopBtn = document.createElement('button');
     stopBtn.textContent = '終了';
     stopBtn.title = 'プレイリスト再生を終了';
@@ -726,9 +730,24 @@
       clearPlaylistState();
     });
 
-    panel.appendChild(modeText);
-    panel.appendChild(subText);
+    const contentWrap = document.createElement('div');
+    contentWrap.className = 'd-op-top-content';
+    contentWrap.appendChild(modeText);
+    contentWrap.appendChild(subText);
+    contentWrap.appendChild(metaText);
+
+    panel.appendChild(contentWrap);
     panel.appendChild(stopBtn);
+
+    if (currentPlayback) {
+      dopGetPlaylists().then((playlists) => {
+        const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
+        if (playlist) {
+          subText.textContent = playlist.name;
+          metaText.textContent = `${currentPlayback.index + 1} / ${playlist.items.length}`;
+        }
+      });
+    }
     panel.style.display = 'flex';
     panel.style.opacity = '1';
     resetPanelHideTimer();
@@ -945,6 +964,14 @@
           resolve(null);
         }
       });
+      const onKey = (e) => {
+        if (e.key === 'Escape') {
+          modal.remove();
+          resolve(null);
+          document.removeEventListener('keydown', onKey);
+        }
+      };
+      document.addEventListener('keydown', onKey);
       document.body.appendChild(modal);
     });
   }
@@ -1021,7 +1048,20 @@
     return typeof playlist.name === 'string' && playlist.name.startsWith('__dop_');
   }
 
-  function showCustomRangeBar() {
+  async function showCustomRangeBar() {
+    if (currentMode !== 'none' || currentPlayback) {
+      const value = await showModal(
+        '再生モードを終了',
+        'カスタム範囲を選択するには、現在の再生モードを終了してください。',
+        [
+          { label: 'キャンセル', value: 'cancel' },
+          { label: '終了して続行', value: 'ok', primary: true }
+        ]
+      );
+      if (value !== 'ok') return;
+      clearPlaylistState();
+    }
+
     customSelecting = true;
     let bar = document.getElementById('d-op-custom-bar');
     if (bar) bar.remove();

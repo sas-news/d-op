@@ -86,7 +86,17 @@
   function renderPlaylistList(playlists) {
     playlistList.innerHTML = '';
     if (playlists.length === 0) {
-      playlistList.innerHTML = '<p class="empty">プレイリストがありません。</p>';
+      playlistList.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">♪</div>
+          <div>プレイリストがありません。</div>
+          <button id="emptyCreateBtn">管理画面で作成</button>
+        </div>
+      `;
+      const emptyCreateBtn = document.getElementById('emptyCreateBtn');
+      if (emptyCreateBtn) {
+        emptyCreateBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
+      }
       return;
     }
 
