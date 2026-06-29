@@ -12,12 +12,9 @@
     return typeof playlist.name === 'string' && playlist.name.startsWith('__dop_');
   }
 
-  function formatRangeType(type, name) {
-    if (name) return name;
-    if (type === 'op') return 'OP';
-    if (type === 'ed') return 'ED';
-    if (type === 'custom') return 'CUSTOM';
-    return type || '不明';
+  function formatRangeName(range) {
+    if (range && range.name) return range.name;
+    return '範囲';
   }
 
   function decodeHtmlEntities(str) {
@@ -89,7 +86,7 @@
         const meta = document.createElement('div');
         meta.className = 'item-meta';
         const rangeText = item.range
-          ? `${formatRangeType(item.range.type, item.range.name)} ${formatSec(item.range.start)}-${formatSec(item.range.end)}`
+          ? `${formatRangeName(item.range)} ${formatSec(item.range.start)}-${formatSec(item.range.end)}`
           : '範囲未設定';
         meta.textContent = rangeText;
 
@@ -100,7 +97,7 @@
         const titleInput = document.createElement('input');
         titleInput.type = 'text';
         titleInput.className = 'item-title-input';
-        titleInput.value = item.range ? (item.range.name || formatRangeType(item.range.type, item.range.name)) : '';
+        titleInput.value = item.range ? (item.range.name || formatRangeName(item.range)) : '';
         titleInput.placeholder = 'タイトル';
         titleInput.disabled = !item.range;
 

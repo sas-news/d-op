@@ -1,12 +1,32 @@
 const DOP_STORAGE_KEY = 'dop_playlists';
 const DOP_PLAYBACK_KEY = 'dop_playback';
 const DOP_PENDING_KEY = 'dop_pending';
+const DOP_OPED_MODE_KEY = 'dop_oped_mode';
 
 function dopGenerateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+function deriveRangeName(range) {
+  if (!range) return null;
+  if (range.name) return range.name;
+  if (range.type) {
+    if (range.type === 'op') return 'OP';
+    if (range.type === 'ed') return 'ED';
+    if (range.type === 'custom') return 'CUSTOM';
+    return range.type.toUpperCase();
+  }
+  return null;
+}
+
 function cleanItem(item) {
+  const range = item.range
+    ? {
+        start: item.range.start,
+        end: item.range.end,
+        name: deriveRangeName(item.range) || undefined
+      }
+    : null;
   return {
     id: item.id,
     partId: item.partId,
@@ -14,7 +34,7 @@ function cleanItem(item) {
     title: item.title,
     episodeTitle: item.episodeTitle,
     url: item.url,
-    range: item.range || null
+    range
   };
 }
 
@@ -75,6 +95,19 @@ async function dopSetPending(pending) {
 
 async function dopClearPending() {
   await chrome.storage.local.remove(DOP_PENDING_KEY);
+}
+
+async function dopGetOpEdMode() {
+  const result = await chrome.storage.local.get(DOP_OPED_MODE_KEY);
+  return result[DOP_OPED_MODE_KEY] || null;
+}
+
+async function dopSetOpEdMode(active) {
+  if (active) {
+    await chrome.storage.local.set({ [DOP_OPED_MODE_KEY]: { active: true, updatedAt: Date.now() } });
+  } else {
+    await chrome.storage.local.remove(DOP_OPED_MODE_KEY);
+  }
 }
 
 async function dopCreatePlaylist(name) {

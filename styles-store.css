@@ -22,6 +22,40 @@
   background: #e60012;
 }
 
+.d-op-store-range-menu {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+  background: #000;
+  border-radius: 4px;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.25), 0 4px 16px rgba(0, 0, 0, 0.6);
+  z-index: 10001;
+  min-width: 140px;
+}
+
+.d-op-store-range-item {
+  padding: 8px 14px;
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.d-op-store-range-item:hover {
+  background: #1a1a1a;
+}
+
+.d-op-store-range-disabled {
+  color: rgba(255, 255, 255, 0.5);
+  cursor: default;
+}
+
+.d-op-store-range-disabled:hover {
+  background: transparent;
+}
+
 .d-op-store-modal {
   position: fixed;
   top: 0;

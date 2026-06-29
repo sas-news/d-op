@@ -22,12 +22,86 @@
     return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
-  function playEpisode(partId, rangeType, episodeTitle) {
+  function seconds(ms) {
+    return ms / 1000;
+  }
+
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function guessRangeName(chapter, index, total, durationMs) {
+    const durationSec = durationMs ? durationMs / 1000 : Infinity;
+    const startSec = seconds(chapter.start);
+    const endSec = seconds(chapter.end);
+    const lenSec = endSec - startSec;
+    const nearStart = startSec < 180;
+    const veryStart = startSec < 15;
+    const nearEnd = durationSec - endSec < 300;
+    const opEdDuration = lenSec >= 75 && lenSec <= 105;
+    const introDuration = lenSec < 15;
+
+    const used = new Set();
+    const makeName = (candidate) => {
+      if (!used.has(candidate)) {
+        used.add(candidate);
+        return candidate;
+      }
+      return `パート${index + 1}`;
+    };
+
+    if (total === 1) {
+      if (opEdDuration && nearStart) return makeName('OP');
+      if (introDuration && veryStart) return makeName('イントロ');
+      return `パート1`;
+    }
+
+    if (total === 2) {
+      if (index === 0) {
+        if (opEdDuration && nearStart) return makeName('OP');
+        if (introDuration && veryStart) return makeName('イントロ');
+        return `パート1`;
+      }
+      if (opEdDuration && nearEnd) return makeName('ED');
+      if (introDuration && veryStart) return makeName('イントロ');
+      return `パート2`;
+    }
+
+    if (index === 0 && introDuration && veryStart) return makeName('イントロ');
+    if (index === total - 1 && opEdDuration && nearEnd) return makeName('ED');
+    if (index > 0 && index < total - 1 && opEdDuration && nearStart) return makeName('OP');
+    return `パート${index + 1}`;
+  }
+
+  async function fetchChapters(partId) {
+    try {
+      const url = `https://animestore.docomo.ne.jp/animestore/sc_d_pc?partId=${encodeURIComponent(partId)}`;
+      const resp = await fetch(url, { credentials: 'same-origin' });
+      if (!resp.ok) return null;
+      const text = await resp.text();
+
+      const chapterMatch = text.match(/"chapters"\s*:\s*(\[[^\]]*\])/);
+      if (!chapterMatch) return null;
+      const chapters = JSON.parse(chapterMatch[1]);
+
+      const durMatch = text.match(/"duration"\s*:\s*(\d+)/);
+      const duration = durMatch ? parseInt(durMatch[1], 10) : null;
+
+      return { chapters, duration };
+    } catch (err) {
+      console.error('[d-op store] fetchChapters failed', err);
+      return null;
+    }
+  }
+
+  function playEpisode(partId, rangeIndex, episodeTitle) {
     try {
       const workTitle = findWorkTitle();
       const params = new URLSearchParams();
       params.set('partId', partId);
-      params.set('dopRangeType', rangeType);
+      params.set('dopRangeIndex', String(rangeIndex));
       params.set('dopTitle', workTitle);
       params.set('dopEpisodeTitle', episodeTitle);
       const url = `https://animestore.docomo.ne.jp/animestore/sc_d_pc?${params.toString()}`;
@@ -39,6 +113,53 @@
       console.error('[d-op store] playEpisode failed', err);
       showError('再生の準備に失敗しました: ' + err.message);
     }
+  }
+
+  function showRangeMenu(item, chapters, duration, episodeTitle, anchor) {
+    const existing = document.getElementById('d-op-store-range-menu');
+    if (existing) existing.remove();
+
+    const none = chapters
+      .filter((c) => c.type === 'none')
+      .slice()
+      .sort((a, b) => a.start - b.start);
+
+    const menu = document.createElement('div');
+    menu.id = 'd-op-store-range-menu';
+    menu.className = 'd-op-store-range-menu';
+
+    if (none.length === 0) {
+      const row = document.createElement('div');
+      row.className = 'd-op-store-range-item d-op-store-range-disabled';
+      row.textContent = 'スキップ区間なし';
+      menu.appendChild(row);
+    } else {
+      none.forEach((c, i) => {
+        const name = guessRangeName(c, i, none.length, duration);
+        const row = document.createElement('div');
+        row.className = 'd-op-store-range-item';
+        row.textContent = `${name} (${formatTime(seconds(c.start))}-${formatTime(seconds(c.end))})`;
+        row.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menu.remove();
+          playEpisode(findPartId(item), i, episodeTitle);
+        });
+        menu.appendChild(row);
+      });
+    }
+
+    document.body.appendChild(menu);
+    const rect = anchor.getBoundingClientRect();
+    menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
+    menu.style.left = `${rect.left + window.scrollX}px`;
+
+    const close = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', close);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', close), 0);
   }
 
   function showError(message) {
@@ -87,28 +208,22 @@
       const controls = document.createElement('div');
       controls.className = 'd-op-store-controls';
 
-      const opBtn = document.createElement('button');
-      opBtn.className = 'd-op-store-btn';
-      opBtn.textContent = 'OP';
-      opBtn.title = 'この話のOPを再生';
-      opBtn.addEventListener('click', (e) => {
+      const btn = document.createElement('button');
+      btn.className = 'd-op-store-btn';
+      btn.textContent = 'OP/ED';
+      btn.title = 'スキップ区間を選択して再生';
+      btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        playEpisode(partId, 'op', episodeTitle);
+        const data = await fetchChapters(partId);
+        if (data && data.chapters && data.chapters.length > 0) {
+          showRangeMenu(item, data.chapters, data.duration, episodeTitle, btn);
+        } else {
+          playEpisode(partId, 0, episodeTitle);
+        }
       });
 
-      const edBtn = document.createElement('button');
-      edBtn.className = 'd-op-store-btn';
-      edBtn.textContent = 'ED';
-      edBtn.title = 'この話のEDを再生';
-      edBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        playEpisode(partId, 'ed', episodeTitle);
-      });
-
-      controls.appendChild(opBtn);
-      controls.appendChild(edBtn);
+      controls.appendChild(btn);
       item.style.position = 'relative';
       item.appendChild(controls);
       item.dataset.dopDecorated = 'true';

@@ -22,12 +22,8 @@
     return txt.value;
   }
 
-  function formatRangeType(range) {
-    if (range.name) return range.name;
-    if (range.type === 'op') return 'OP';
-    if (range.type === 'ed') return 'ED';
-    if (range.type === 'custom') return 'CUSTOM';
-    return range.type || '不明';
+  function formatRangeName(range) {
+    return range.name || '範囲';
   }
 
   function formatSec(ms) {
@@ -136,7 +132,7 @@
           row.className = 'playlist-card-item';
           row.innerHTML = `
             <span class="item-title">${escapeHtml(decodeHtmlEntities(item.title || item.episodeTitle) || '(タイトル不明)')}</span>
-            <span class="item-meta">${item.range ? formatRangeType(item.range) + ' ' + formatSec(item.range.start) + '-' + formatSec(item.range.end) : '範囲未設定'}</span>
+            <span class="item-meta">${item.range ? formatRangeName(item.range) + ' ' + formatSec(item.range.start) + '-' + formatSec(item.range.end) : '範囲未設定'}</span>
           `;
           row.addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -173,7 +169,7 @@
       const meta = document.createElement('div');
       meta.className = 'item-meta';
       meta.textContent = item.range
-        ? `${formatRangeType(item.range)} ${formatSec(item.range.start)}-${formatSec(item.range.end)}`
+        ? `${formatRangeName(item.range)} ${formatSec(item.range.start)}-${formatSec(item.range.end)}`
         : '範囲未設定';
 
       info.appendChild(title);

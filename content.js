@@ -4,6 +4,7 @@
   const APP_TAG = 'd-op-injected';
   const DEBUG = false;
   const RESUME_MAX_AGE_MS = 5 * 60 * 1000;
+  const OPED_MODE_MAX_AGE_MS = 5 * 60 * 1000;
 
   let chaptersInfo = null;
   let lastPartId = null;
@@ -24,6 +25,8 @@
   let panelHideTimer = null;
   const PANEL_HIDE_DELAY = 3000;
   let currentSeekRanges = [];
+  let seekMarkerDebounceTimer = null;
+  let seekMarkerRunning = false;
 
   function getVideo() {
     return document.getElementById('video');
@@ -56,14 +59,54 @@
       .sort((a, b) => a.start - b.start);
   }
 
-  function getOpRange() {
-    const none = getNoneChapters();
-    return none.length > 0 ? none[0] : null;
+  function guessRangeName(chapter, index, total, durationSec) {
+    const startSec = seconds(chapter.start);
+    const endSec = seconds(chapter.end);
+    const lenSec = endSec - startSec;
+    const nearStart = startSec < 180;
+    const veryStart = startSec < 15;
+    const nearEnd = durationSec - endSec < 300;
+    const opEdDuration = lenSec >= 75 && lenSec <= 105;
+    const introDuration = lenSec < 15;
+
+    const used = new Set();
+    const makeName = (candidate) => {
+      if (!used.has(candidate)) {
+        used.add(candidate);
+        return candidate;
+      }
+      return `パート${index + 1}`;
+    };
+
+    if (total === 1) {
+      if (opEdDuration && nearStart) return makeName('OP');
+      if (introDuration && veryStart) return makeName('イントロ');
+      return `パート1`;
+    }
+
+    if (total === 2) {
+      if (index === 0) {
+        if (opEdDuration && nearStart) return makeName('OP');
+        if (introDuration && veryStart) return makeName('イントロ');
+        return `パート1`;
+      }
+      if (opEdDuration && nearEnd) return makeName('ED');
+      if (introDuration && veryStart) return makeName('イントロ');
+      return `パート2`;
+    }
+
+    if (index === 0 && introDuration && veryStart) return makeName('イントロ');
+    if (index === total - 1 && opEdDuration && nearEnd) return makeName('ED');
+    if (index > 0 && index < total - 1 && opEdDuration && nearStart) return makeName('OP');
+    return `パート${index + 1}`;
   }
 
-  function getEdRange() {
+  function getNoneRanges(durationSec) {
     const none = getNoneChapters();
-    return none.length > 1 ? none[none.length - 1] : null;
+    return none.map((c, i) => ({
+      ...c,
+      name: guessRangeName(c, i, none.length, durationSec)
+    }));
   }
 
   function buildRanges() {
@@ -71,8 +114,6 @@
       return [currentPlayback.item.range];
     }
     const none = getNoneChapters();
-    if (currentMode === 'op-only') return none.length > 0 ? [none[0]] : [];
-    if (currentMode === 'ed-only') return none.length > 0 ? [none[none.length - 1]] : [];
     if (currentMode === 'op-ed') return none.slice();
     if (currentMode === 'custom-test') return targetRanges.slice();
     if (customSelecting && customStart && customEnd) {
@@ -130,6 +171,7 @@
     currentMode = 'none';
     targetRanges = [];
     dopClearPlayback();
+    dopSetOpEdMode(false);
     updatePlaylistUI();
     updateSeekMarkers();
   }
@@ -305,7 +347,7 @@
   function readUrlParams() {
     const params = new URLSearchParams(location.search);
     return {
-      rangeType: params.get('dopRangeType'),
+      rangeIndex: params.has('dopRangeIndex') ? parseInt(params.get('dopRangeIndex'), 10) : null,
       title: params.get('dopTitle') || '',
       episodeTitle: params.get('dopEpisodeTitle') || '',
       playlistId: params.get('dopPlaylistId'),
@@ -315,7 +357,7 @@
 
   function removeDopParamsFromUrl(href) {
     const url = new URL(href);
-    ['dopRangeType', 'dopTitle', 'dopEpisodeTitle', 'dopPlaylistId', 'dopIndex'].forEach((k) => url.searchParams.delete(k));
+    ['dopRangeIndex', 'dopTitle', 'dopEpisodeTitle', 'dopPlaylistId', 'dopIndex'].forEach((k) => url.searchParams.delete(k));
     return url.toString();
   }
 
@@ -332,36 +374,49 @@
       }
     }
 
-    if (params.rangeType) {
+    if (params.rangeIndex !== null) {
       history.replaceState(null, '', removeDopParamsFromUrl(location.href));
-      await startWorkPageRange(params.rangeType);
+      await startWorkPageRange(params.rangeIndex);
     }
   }
 
-  async function startWorkPageRange(rangeType) {
-    const none = getNoneChapters();
-    if (none.length === 0) {
-      showModal('エラー', 'この話にはOP/ED情報が見つかりませんでした。', [{ label: 'OK', value: null, primary: true }]);
-      return;
-    }
+  async function enterOpEdMode(startIndex = 0) {
+    const video = getVideo();
+    const durationSec = video && video.duration ? video.duration : Infinity;
+    const none = getNoneRanges(durationSec);
+    if (none.length === 0) return false;
+    const index = Math.max(0, Math.min(startIndex, none.length - 1));
 
-    const selectedRange = rangeType === 'op' ? getOpRange() : rangeType === 'ed' ? getEdRange() : null;
-    if (!selectedRange) {
-      showModal('エラー', 'この話には該当するOP/EDが見つかりませんでした。', [{ label: 'OK', value: null, primary: true }]);
-      return;
-    }
-
-    clearPlaylistState();
+    currentPlayback = null;
     currentMode = 'op-ed';
-    targetRanges = none.slice();
+    targetRanges = none.map((c) => ({ start: c.start, end: c.end, name: c.name }));
     setNativeSkip(false);
     startEnforcer();
     updatePlaylistUI();
     await updateSeekMarkers();
 
-    const start = seconds(selectedRange.start);
+    const start = seconds(none[index].start);
     pause();
     seekToStartWhenReady(start, () => play());
+    return true;
+  }
+
+  async function startWorkPageRange(rangeIndex) {
+    const video = getVideo();
+    const durationSec = video && video.duration ? video.duration : Infinity;
+    const none = getNoneRanges(durationSec);
+    if (none.length === 0) {
+      showModal('エラー', 'この話にはOP/ED情報が見つかりませんでした。', [{ label: 'OK', value: null, primary: true }]);
+      return;
+    }
+    if (rangeIndex < 0 || rangeIndex >= none.length) {
+      showModal('エラー', '指定した区間が見つかりませんでした。', [{ label: 'OK', value: null, primary: true }]);
+      return;
+    }
+
+    clearPlaylistState();
+    await dopSetOpEdMode(true);
+    await enterOpEdMode(rangeIndex);
   }
 
   function log(label, data) {
@@ -408,7 +463,7 @@
     if (t > lastEnd || t >= duration - 0.3 || video.ended) {
       if (currentPlayback) {
         advancePlayback(1);
-      } else {
+      } else if (currentMode !== 'op-ed') {
         pause();
       }
       return;
@@ -469,7 +524,6 @@
 
   function createAddButton() {
     let wrapper = document.getElementById('d-op-add-wrapper');
-    if (wrapper && wrapper.isConnected) return wrapper;
     if (!wrapper) {
       wrapper = document.createElement('div');
       wrapper.id = 'd-op-add-wrapper';
@@ -482,14 +536,33 @@
       btn.setAttribute('aria-label', 'プレイリストに追加');
 
       const popup = document.createElement('div');
+      popup.id = 'd-op-add-popup';
       popup.className = 'd-op-popup';
-
-      popup.appendChild(createPopupRow('OPを追加', () => openPlaylistModal('op')));
-      popup.appendChild(createPopupRow('EDを追加', () => openPlaylistModal('ed')));
-      popup.appendChild(createPopupRow('カスタム範囲', () => showCustomRangeBar()));
 
       wrapper.appendChild(btn);
       wrapper.appendChild(popup);
+    }
+
+    const popup = wrapper.querySelector('.d-op-popup');
+    const currentPartId = chaptersInfo ? chaptersInfo.partId : null;
+    const shouldRebuildPopup = popup && currentPartId &&
+      (wrapper.dataset.dopPopupPartId !== currentPartId || !wrapper.dataset.dopPopupBuilt);
+    if (shouldRebuildPopup) {
+      popup.innerHTML = '';
+      const video = getVideo();
+      const durationSec = video && video.duration ? video.duration : Infinity;
+      const ranges = getNoneRanges(durationSec);
+      if (ranges.length === 0) {
+        popup.appendChild(createPopupRow('スキップ区間なし', () => {}));
+      } else {
+        ranges.forEach((r) => {
+          const label = `${r.name} (${formatTime(seconds(r.start))}-${formatTime(seconds(r.end))})`;
+          popup.appendChild(createPopupRow(`${label} を追加`, () => openPlaylistModal(r.name, r)));
+        });
+      }
+      popup.appendChild(createPopupRow('カスタム範囲', () => showCustomRangeBar()));
+      wrapper.dataset.dopPopupPartId = currentPartId;
+      wrapper.dataset.dopPopupBuilt = 'true';
     }
 
     const timeEl = document.querySelector('.buttonArea .time');
@@ -584,9 +657,8 @@
       return;
     }
 
-    document.body.classList.add('d-op-playlist-active');
-
     if (currentPlayback) {
+      document.body.classList.add('d-op-playlist-active');
       prevWrapper.style.display = 'inline-flex';
       nextWrapper.style.display = 'inline-flex';
       prevBtn.disabled = currentPlayback.index <= 0;
@@ -598,6 +670,7 @@
         }
       });
     } else {
+      document.body.classList.remove('d-op-playlist-active');
       prevWrapper.style.display = 'none';
       nextWrapper.style.display = 'none';
     }
@@ -682,18 +755,14 @@
     resetPanelHideTimer();
   }
 
-  async function getSeekRanges() {
+  async function getSeekRanges(durationSec) {
     const ranges = [];
-    const none = getNoneChapters();
-    const noneRanges = none.map((c, i, arr) => ({
-      ...c,
-      label: i === 0 ? 'OP' : i === arr.length - 1 ? 'ED' : 'OP/ED'
-    }));
-    ranges.push(...noneRanges);
+    const none = getNoneRanges(durationSec);
+    ranges.push(...none.map((c) => ({ ...c, label: c.name })));
 
     if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
       const r = currentPlayback.item.range;
-      const label = r.name || r.type.toUpperCase();
+      const label = r.name || '範囲';
       const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
       if (!dup) ranges.push({ ...r, label });
     }
@@ -713,7 +782,7 @@
             const dup = ranges.some((c) => c.start === item.range.start && c.end === item.range.end);
             if (!dup) {
               const r = item.range;
-              const label = r.name || (r.type === 'op' ? 'OP' : r.type === 'ed' ? 'ED' : 'CUSTOM');
+              const label = r.name || '範囲';
               ranges.push({ ...r, label });
             }
           }
@@ -769,47 +838,62 @@
     });
   }
 
-  async function updateSeekMarkers() {
-    const video = getVideo();
-    const seekArea = document.querySelector('.seekArea');
-    if (!video || !seekArea || !video.duration) return;
+  function scheduleUpdateSeekMarkers() {
+    if (seekMarkerDebounceTimer) clearTimeout(seekMarkerDebounceTimer);
+    seekMarkerDebounceTimer = setTimeout(() => runUpdateSeekMarkers(), 100);
+  }
 
-    let container = document.getElementById('d-op-seek-markers');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'd-op-seek-markers';
-      container.className = 'd-op-seek-markers';
-      seekArea.appendChild(container);
-    }
+  async function runUpdateSeekMarkers() {
+    if (seekMarkerRunning) return;
+    seekMarkerRunning = true;
+    try {
+      const video = getVideo();
+      const seekArea = document.querySelector('.seekArea');
+      if (!video || !seekArea || !video.duration) return;
 
-    container.innerHTML = '';
-    const duration = video.duration;
-    const ranges = await getSeekRanges();
-    currentSeekRanges = ranges;
-    const canSeekColor = currentMode === 'op-ed' || currentMode === 'custom-test' || customSelecting;
-
-    ranges.forEach((r) => {
-      const start = seconds(r.start);
-      const end = seconds(r.end);
-      if (start >= duration || end <= 0) return;
-      const left = Math.max(0, start / duration * 100);
-      const width = Math.min(100 - left, (end - start) / duration * 100);
-      if (width <= 0) return;
-
-      const marker = document.createElement('div');
-      marker.className = 'd-op-seek-marker';
-      marker.style.left = left + '%';
-      marker.style.width = width + '%';
-      marker.title = `${r.label}: ${formatTime(start)}-${formatTime(end)}`;
-      if (canSeekColor) {
-        if (r.label === 'OP') marker.classList.add('op');
-        if (r.label === 'ED') marker.classList.add('ed');
-        if (r.label === 'CUSTOM' || r.type === 'custom') marker.classList.add('custom');
+      let container = document.getElementById('d-op-seek-markers');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'd-op-seek-markers';
+        container.className = 'd-op-seek-markers';
+        seekArea.appendChild(container);
       }
-      container.appendChild(marker);
-    });
 
-    attachSeekPopupListener();
+      container.innerHTML = '';
+      const duration = video.duration;
+      const ranges = await getSeekRanges(duration);
+      currentSeekRanges = ranges;
+      const canSeekColor = currentMode === 'op-ed' || currentMode === 'custom-test' || customSelecting;
+
+      ranges.forEach((r) => {
+        const start = seconds(r.start);
+        const end = seconds(r.end);
+        if (start >= duration || end <= 0) return;
+        const left = Math.max(0, start / duration * 100);
+        const width = Math.min(100 - left, (end - start) / duration * 100);
+        if (width <= 0) return;
+
+        const marker = document.createElement('div');
+        marker.className = 'd-op-seek-marker';
+        marker.style.left = left + '%';
+        marker.style.width = width + '%';
+        marker.title = `${r.label}: ${formatTime(start)}-${formatTime(end)}`;
+        if (canSeekColor) {
+          if (r.label === 'OP') marker.classList.add('op');
+          if (r.label === 'ED') marker.classList.add('ed');
+          if (r.label === 'イントロ' || r.label === 'CUSTOM') marker.classList.add('custom');
+        }
+        container.appendChild(marker);
+      });
+
+      attachSeekPopupListener();
+    } finally {
+      seekMarkerRunning = false;
+    }
+  }
+
+  function updateSeekMarkers() {
+    scheduleUpdateSeekMarkers();
   }
 
   function showModal(title, content, buttons) {
@@ -865,7 +949,7 @@
     });
   }
 
-  async function openPlaylistModal(rangeType) {
+  async function openPlaylistModal(defaultName, range) {
     const playlists = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
     if (playlists.length === 0) {
       await showModal('新規プレイリスト', 'プレイリストがありません。管理画面から作成してください。', [
@@ -897,9 +981,19 @@
     newInput.placeholder = '新規プレイリスト名';
     newRow.appendChild(newInput);
 
+    const nameRow = document.createElement('div');
+    nameRow.className = 'd-op-modal-new-row';
+    nameRow.style.marginTop = '10px';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = '区間名';
+    nameInput.value = defaultName || '';
+    nameRow.appendChild(nameInput);
+
     const content = document.createElement('div');
     content.appendChild(list);
     content.appendChild(newRow);
+    content.appendChild(nameRow);
 
     const result = await showModal('プレイリストに追加', content, [
       { label: 'キャンセル', value: null },
@@ -908,15 +1002,18 @@
 
     if (result !== 'add') return;
 
+    const itemName = nameInput.value.trim() || defaultName || '範囲';
+    const rangeToAdd = { start: range.start, end: range.end, name: itemName };
+
     if (selectedId) {
-      await addCurrentToPlaylist(selectedId, rangeType);
+      await addCurrentRangeToPlaylist(selectedId, rangeToAdd);
       return;
     }
 
-    const name = newInput.value.trim();
-    if (name) {
-      const playlist = await dopCreatePlaylist(name);
-      await addCurrentToPlaylist(playlist.id, rangeType);
+    const playlistName = newInput.value.trim();
+    if (playlistName) {
+      const playlist = await dopCreatePlaylist(playlistName);
+      await addCurrentRangeToPlaylist(playlist.id, rangeToAdd);
     }
   }
 
@@ -986,7 +1083,12 @@
     addBtn.className = 'primary';
     addBtn.addEventListener('click', async () => {
       if (!customStart || !customEnd) return;
-      await openPlaylistModal('custom');
+      const range = {
+        start: Math.min(customStart, customEnd),
+        end: Math.max(customStart, customEnd),
+        name: customName || 'CUSTOM'
+      };
+      await openPlaylistModal(range.name, range);
     });
 
     const cancelBtn = document.createElement('button');
@@ -1020,32 +1122,9 @@
     document.body.appendChild(bar);
   }
 
-  async function addCurrentToPlaylist(playlistId, rangeType) {
+  async function addCurrentRangeToPlaylist(playlistId, range) {
     const data = chaptersInfo;
-    if (!data) return;
-
-    let range = null;
-    if (rangeType === 'op') {
-      const r = getOpRange();
-      if (r) range = { type: 'op', start: r.start, end: r.end };
-    } else if (rangeType === 'ed') {
-      const r = getEdRange();
-      if (r) range = { type: 'ed', start: r.start, end: r.end };
-    } else if (rangeType === 'custom') {
-      if (customStart && customEnd) {
-        range = {
-          type: 'custom',
-          start: Math.min(customStart, customEnd),
-          end: Math.max(customStart, customEnd),
-          name: customName || undefined
-        };
-      }
-    }
-
-    if (!range) {
-      await showModal('エラー', '範囲を取得できませんでした。', [{ label: 'OK', value: null, primary: true }]);
-      return;
-    }
+    if (!data || !range) return;
 
     const item = {
       partId: data.partId,
@@ -1058,17 +1137,19 @@
 
     await dopAddItemToPlaylist(playlistId, item);
 
-    stopEnforcer();
-    resetNativeSkip();
-    currentMode = 'none';
-    targetRanges = [];
     customStart = null;
     customEnd = null;
     customName = '';
     customSelecting = false;
+    if (currentMode === 'custom-test') {
+      currentMode = 'none';
+      targetRanges = [];
+      stopEnforcer();
+      resetNativeSkip();
+    }
     const bar = document.getElementById('d-op-custom-bar');
     if (bar) bar.remove();
-    updateSeekMarkers();
+    await updateSeekMarkers();
 
     await showModal('追加完了', 'プレイリストに追加しました。', [{ label: 'OK', value: null, primary: true }]);
   }
@@ -1076,7 +1157,7 @@
   async function resumePlaybackIfAny() {
     if (currentPlayback) return;
     if (currentMode !== 'none') return;
-    if (readUrlParams().rangeType || readUrlParams().playlistId) return;
+    if (readUrlParams().rangeIndex !== null || readUrlParams().playlistId) return;
 
     const playback = await dopGetPlayback();
     if (!playback) return;
@@ -1135,11 +1216,13 @@
 
     if (partIdChanged) {
       lastPartId = info.partId;
-      if (!currentPlayback) {
+      if (!currentPlayback && currentMode !== 'op-ed') {
         currentMode = 'none';
         targetRanges = [];
         stopEnforcer();
         resetNativeSkip();
+      } else if (!currentPlayback && currentMode === 'op-ed') {
+        await enterOpEdMode(0);
       }
       await updateSeekMarkers();
     }
@@ -1151,6 +1234,17 @@
     updatePlaylistUI();
     await checkUrlParams();
     await resumePlaybackIfAny();
+
+    if (currentMode === 'none' && !currentPlayback) {
+      const opEdMode = await dopGetOpEdMode();
+      if (opEdMode && opEdMode.active) {
+        if (Date.now() - opEdMode.updatedAt < OPED_MODE_MAX_AGE_MS) {
+          await enterOpEdMode(0);
+        } else {
+          await dopSetOpEdMode(false);
+        }
+      }
+    }
   }
 
   function init() {
