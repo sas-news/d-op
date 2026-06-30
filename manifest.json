@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "dアニメ OPED Player",
-  "version": "0.1.0",
+  "name": "d-OP",
+  "version": "1.0.0",
   "description": "dアニメストアの動画からOP/EDのみを抽出して再生するChrome拡張機能",
+  "homepage_url": "https://github.com/sas-news/d-op",
   "permissions": [
     "scripting",
-    "activeTab",
     "tabs",
     "storage"
   ],
@@ -18,7 +18,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "dアニメ OPED Player"
+    "default_title": "d-OP"
   },
   "options_page": "options.html",
   "content_scripts": [
@@ -38,10 +38,12 @@
     },
     {
       "matches": [
-        "https://animestore.docomo.ne.jp/animestore/*"
+        "https://animestore.docomo.ne.jp/animestore/*",
+        "https://anime.dmkt-sp.jp/animestore/*"
       ],
       "exclude_matches": [
-        "https://animestore.docomo.ne.jp/animestore/sc_d_pc?*"
+        "https://animestore.docomo.ne.jp/animestore/sc_d_pc?*",
+        "https://anime.dmkt-sp.jp/animestore/sc_d_pc?*"
       ],
       "js": [
         "common.js",

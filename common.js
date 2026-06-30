@@ -2,6 +2,7 @@ const DOP_STORAGE_KEY = 'dop_playlists';
 const DOP_PLAYBACK_KEY = 'dop_playback';
 const DOP_PENDING_KEY = 'dop_pending';
 const DOP_OPED_MODE_KEY = 'dop_oped_mode';
+const DOP_WINDOW_MODE_KEY = 'dop_window_mode';
 
 function dopGenerateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -68,7 +69,14 @@ async function dopGetPlaylists() {
 }
 
 async function dopSavePlaylists(playlists) {
-  await chrome.storage.local.set({ [DOP_STORAGE_KEY]: playlists });
+  try {
+    await chrome.storage.local.set({ [DOP_STORAGE_KEY]: playlists });
+  } catch (err) {
+    if (err.message && err.message.includes('QUOTA')) {
+      throw new Error('ストレージ容量が不足しています。不要なプレイリストを削除してください。');
+    }
+    throw err;
+  }
 }
 
 async function dopGetPlayback() {
@@ -77,7 +85,21 @@ async function dopGetPlayback() {
 }
 
 async function dopSetPlayback(playback) {
+  if (!playback) {
+    await chrome.storage.local.remove(DOP_PLAYBACK_KEY);
+    return;
+  }
+  playback.windowId = await dopGetWindowId();
   await chrome.storage.local.set({ [DOP_PLAYBACK_KEY]: playback });
+}
+
+async function dopClearPlaybackForWindow(windowId) {
+  const playback = await dopGetPlayback();
+  if (playback && playback.windowId === windowId) {
+    await dopClearPlayback();
+    return true;
+  }
+  return false;
 }
 
 async function dopClearPlayback() {
@@ -108,6 +130,25 @@ async function dopSetOpEdMode(active) {
   } else {
     await chrome.storage.local.remove(DOP_OPED_MODE_KEY);
   }
+}
+
+async function dopGetWindowMode() {
+  const result = await chrome.storage.local.get(DOP_WINDOW_MODE_KEY);
+  return result[DOP_WINDOW_MODE_KEY] || 'window';
+}
+
+async function dopSetWindowMode(mode) {
+  await chrome.storage.local.set({ [DOP_WINDOW_MODE_KEY]: mode });
+}
+
+async function dopGetWindowId() {
+  try {
+    if (chrome.windows && chrome.windows.getCurrent) {
+      const w = await chrome.windows.getCurrent();
+      if (w && w.id) return 'w' + w.id;
+    }
+  } catch (_) {}
+  return 's' + dopGenerateId();
 }
 
 async function dopCreatePlaylist(name) {

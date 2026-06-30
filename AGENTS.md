@@ -1,4 +1,4 @@
-# AGENTS.md — dアニメ OPED Player
+# AGENTS.md — d-OP
 
 ## What this repo is
 

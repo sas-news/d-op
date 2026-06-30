@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from manifest
+        id: version
+        run: |
+          VERSION=$(grep '"version"' manifest.json | head -1 | sed 's/.*"version"\s*:\s*"\([^"]*\)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create ZIP package
+        run: |
+          zip -r "d-op-v${{ steps.version.outputs.version }}.zip" . \
+            -x ".git/*" ".github/*" "memo/*" ".gitignore" "*.pem" "*.crx"
+
+      - name: Create CRX package (if key available)
+        if: env.CRX_PRIVATE_KEY != ''
+        env:
+          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
+        run: |
+          echo "$CRX_PRIVATE_KEY" > key.pem
+          npx crx3 pack \
+            --crxPath "d-op-v${{ steps.version.outputs.version }}.crx" \
+            --keyPath key.pem \
+            --zipPath "d-op-v${{ steps.version.outputs.version }}.zip" \
+            -o "d-op-v${{ steps.version.outputs.version }}.crx"
+          rm key.pem
+
+      - name: Generate release notes
+        id: notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: commits } = await github.rest.repos.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              per_page: 50
+            });
+            const lines = commits.map(c => {
+              const msg = c.commit.message.split('\n')[0];
+              return `- ${msg} (${c.sha.substring(0, 7)})`;
+            });
+            return lines.join('\n');
+
+      - name: Delete existing tag/release if exists
+        continue-on-error: true
+        run: |
+          git push origin :refs/tags/v${{ steps.version.outputs.version }} 2>/dev/null || true
+          gh release delete "v${{ steps.version.outputs.version }}" --yes 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          body: ${{ steps.notes.outputs.result }}
+          files: |
+            d-op-v${{ steps.version.outputs.version }}.zip
+            d-op-v${{ steps.version.outputs.version }}.crx
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

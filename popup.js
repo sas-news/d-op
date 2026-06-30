@@ -72,6 +72,20 @@
     renderPlaylistItems(playlist, playbackState.index);
   }
 
+  async function openPlayerUrl(url) {
+    const mode = await dopGetWindowMode();
+    if (mode === 'tab') {
+      await chrome.tabs.create({ url: url, active: true });
+    } else {
+      await chrome.windows.create({
+        url: url,
+        type: 'popup',
+        width: 1280,
+        height: 800
+      });
+    }
+  }
+
   async function startPlaylistItem(playlist, index) {
     const item = playlist.items[index];
     if (!item || !item.range) return;
@@ -80,7 +94,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlist.id);
     url.searchParams.set('dopIndex', String(index));
-    await chrome.tabs.create({ url: url.toString(), active: true });
+    await openPlayerUrl(url.toString());
   }
 
   function renderPlaylistList(playlists) {

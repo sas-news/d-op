@@ -105,10 +105,11 @@
       params.set('dopTitle', workTitle);
       params.set('dopEpisodeTitle', episodeTitle);
       const url = `https://animestore.docomo.ne.jp/animestore/sc_d_pc?${params.toString()}`;
-      const newTab = window.open(url, '_blank');
-      if (!newTab) {
-        showError('ポップアップがブロックされました。');
-      }
+      chrome.runtime.sendMessage({
+        type: 'OPEN_PLAYER',
+        url: url,
+        closeCurrentWindow: false
+      });
     } catch (err) {
       console.error('[d-op store] playEpisode failed', err);
       showError('再生の準備に失敗しました: ' + err.message);

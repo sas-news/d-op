@@ -316,6 +316,20 @@
     });
   }
 
+  async function openPlayerUrl(url) {
+    const mode = await dopGetWindowMode();
+    if (mode === 'tab') {
+      await chrome.tabs.create({ url: url, active: true });
+    } else {
+      await chrome.windows.create({
+        url: url,
+        type: 'popup',
+        width: 1280,
+        height: 800
+      });
+    }
+  }
+
   async function startPlaylistPlayback(playlistId, index = 0) {
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === playlistId);
@@ -333,7 +347,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlistId);
     url.searchParams.set('dopIndex', String(index));
-    await chrome.tabs.create({ url: url.toString(), active: true });
+    await openPlayerUrl(url.toString());
   }
 
   function parseTimeInput(str) {
@@ -408,5 +422,20 @@
     e.target.value = '';
   });
 
+  function initWindowModeSetting() {
+    const radios = document.querySelectorAll('input[name="windowMode"]');
+    if (radios.length === 0) return;
+    dopGetWindowMode().then((mode) => {
+      const target = document.querySelector(`input[name="windowMode"][value="${mode}"]`);
+      if (target) target.checked = true;
+    });
+    radios.forEach((radio) => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) dopSetWindowMode(radio.value);
+      });
+    });
+  }
+
   renderPlaylists();
+  initWindowModeSetting();
 })();
