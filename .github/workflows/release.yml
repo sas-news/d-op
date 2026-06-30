@@ -38,23 +38,6 @@ jobs:
             -o "d-op-v${{ steps.version.outputs.version }}.crx"
           rm key.pem
 
-      - name: Generate release notes
-        id: notes
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: commits } = await github.rest.repos.listCommits({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: context.sha,
-              per_page: 50
-            });
-            const lines = commits.map(c => {
-              const msg = c.commit.message.split('\n')[0];
-              return `- ${msg} (${c.sha.substring(0, 7)})`;
-            });
-            return lines.join('\n');
-
       - name: Delete existing tag/release if exists
         continue-on-error: true
         run: |
@@ -68,7 +51,20 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
-          body: ${{ steps.notes.outputs.result }}
+          draft: true
+          generate_release_notes: true
+          body: |
+            ## Summary
+            <!-- 1-3行で今回の目的を書く -->
+
+            ## Changes
+            - 
+
+            ## Verification
+            - [ ] 動作確認済み
+
+            ## Notes
+            - 
           files: |
             d-op-v${{ steps.version.outputs.version }}.zip
             d-op-v${{ steps.version.outputs.version }}.crx
