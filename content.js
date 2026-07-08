@@ -27,6 +27,8 @@
   let currentSeekRanges = [];
   let seekMarkerDebounceTimer = null;
   let seekMarkerRunning = false;
+  let currentSessionId = null;
+  let isInputFocused = false;
 
   function getVideo() {
     return document.getElementById('video');
@@ -49,6 +51,14 @@
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function isEditableElement(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (el.isContentEditable) return true;
+    return false;
   }
 
   function getNoneChapters() {
@@ -143,6 +153,9 @@
       originalOpSkip = getCookieValue('op_skip') || '1';
     }
     setCookieValue('op_skip', enabled ? originalOpSkip : '0');
+    if (!enabled) {
+      sendCommand('BLOCK_AUTO_ADVANCE', {});
+    }
   }
 
   function resetNativeSkip() {
@@ -150,6 +163,7 @@
       setCookieValue('op_skip', originalOpSkip);
       originalOpSkip = null;
     }
+    sendCommand('UNBLOCK_AUTO_ADVANCE', {});
   }
 
   function startEnforcer() {
@@ -164,14 +178,21 @@
     }
   }
 
-  function clearPlaylistState() {
+  async function clearPlaylistState() {
     stopEnforcer();
     resetNativeSkip();
     currentPlayback = null;
     currentMode = 'none';
     targetRanges = [];
-    dopClearPlayback();
-    dopSetOpEdMode(false);
+    seekCooldownUntil = 0;
+    lastActionTime = 0;
+    startupLockUntil = 0;
+    const cleanup = currentSessionId
+      ? dopClearPlaybackForWindow(currentSessionId)
+      : dopClearPlayback();
+    await cleanup;
+    await dopSetOpEdMode(false);
+    history.replaceState(null, '', removeDopParamsFromUrl(location.href));
     updatePlaylistUI();
     updateSeekMarkers();
   }
@@ -246,7 +267,7 @@
     currentPlayback = { playlistId: playlist.id, index, item };
     dopSetPlayback({ playlistId: playlist.id, index, updatedAt: Date.now() });
     targetRanges = buildRanges();
-    seekCooldownUntil = 0;
+    seekCooldownUntil = Date.now() + 5000;
     lastActionTime = 0;
     log('startPlayback', { playlist: playlist.name, index, type: item.range.type });
 
@@ -284,13 +305,16 @@
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
     if (!playlist) {
-      clearPlaylistState();
+      await clearPlaylistState();
       return false;
     }
     const newIndex = currentPlayback.index + direction;
     if (newIndex < 0 || newIndex >= playlist.items.length) {
       if (newIndex >= playlist.items.length) {
-        showEndOfPlaylistPopup(playlist);
+        if (!currentPlayback._endPopupShown) {
+          currentPlayback._endPopupShown = true;
+          showEndOfPlaylistPopup(playlist);
+        }
       } else {
         pause();
       }
@@ -319,13 +343,16 @@
 
     showModal('再生終了', content, [
       { label: '最初から再生', value: 'restart' },
-      { label: 'このまま見る', value: 'continue', primary: true },
-      { label: '閉じる', value: 'close' }
-    ]).then((value) => {
+      { label: 'dOPを続ける', value: 'continue', primary: true },
+      { label: 'dOPを終了する', value: 'close' }
+    ]).then(async (value) => {
       if (value === 'restart') {
-        playPlaylistIndex(playlist, 0);
+        await clearPlaylistState();
+        startPlayback(playlist, 0);
+      } else if (value === 'continue') {
+        // 一時停止のまま、フラグはリセットしない（insideRange 到達時にリセット）
       } else {
-        clearPlaylistState();
+        await clearPlaylistState();
       }
     });
   }
@@ -417,7 +444,7 @@
       return;
     }
 
-    clearPlaylistState();
+    await clearPlaylistState();
     await dopSetOpEdMode(true);
     await enterOpEdMode(rangeIndex);
   }
@@ -449,6 +476,9 @@
     const duration = video.duration || Infinity;
 
     if (insideRange(t)) {
+      if (currentPlayback && currentPlayback._endPopupShown) {
+        currentPlayback._endPopupShown = false;
+      }
       return;
     }
 
@@ -463,8 +493,9 @@
       return;
     }
 
-    if (t > lastEnd || t >= duration - 0.3 || video.ended) {
+    if (t > lastEnd || video.ended) {
       if (currentPlayback) {
+        pause();
         advancePlayback(1);
       } else if (currentMode !== 'op-ed') {
         pause();
@@ -622,23 +653,17 @@
         nextWrapper.appendChild(nextBtn);
       }
 
-      const addWrapper = document.getElementById('d-op-add-wrapper');
-      if (addWrapper && addWrapper.parentNode) {
-        if (prevWrapper.parentNode !== addWrapper.parentNode) {
-          addWrapper.parentNode.insertBefore(prevWrapper, addWrapper);
+      const nativePrev = document.querySelector('.buttonArea .prev');
+      const nativeNext = document.querySelector('.buttonArea .next');
+
+      if (nativePrev && nativePrev.parentNode) {
+        if (prevWrapper.parentNode !== nativePrev.parentNode) {
+          nativePrev.parentNode.insertBefore(prevWrapper, nativePrev);
         }
-        if (nextWrapper.parentNode !== addWrapper.parentNode) {
-          addWrapper.parentNode.insertBefore(nextWrapper, addWrapper.nextSibling);
-        }
-      } else {
-        const timeEl = document.querySelector('.buttonArea .time');
-        if (timeEl && timeEl.parentNode) {
-          if (prevWrapper.parentNode !== timeEl.parentNode) {
-            timeEl.parentNode.insertBefore(prevWrapper, timeEl.nextSibling);
-          }
-          if (nextWrapper.parentNode !== timeEl.parentNode) {
-            timeEl.parentNode.insertBefore(nextWrapper, timeEl.nextSibling);
-          }
+      }
+      if (nativeNext && nativeNext.parentNode) {
+        if (nextWrapper.parentNode !== nativeNext.parentNode) {
+          nativeNext.parentNode.insertBefore(nextWrapper, nativeNext.nextSibling);
         }
       }
     }
@@ -981,16 +1006,17 @@
 
   async function openPlaylistModal(defaultName, range) {
     const playlists = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
-    if (playlists.length === 0) {
-      await showModal('新規プレイリスト', 'プレイリストがありません。管理画面から作成してください。', [
-        { label: 'OK', value: null, primary: true }
-      ]);
-      return;
-    }
 
     const list = document.createElement('div');
     list.className = 'd-op-modal-playlist-list';
     let selectedId = null;
+
+    if (playlists.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:var(--dop-text-tertiary);font-size:13px;padding:var(--dop-space-3) 0;';
+      empty.textContent = 'プレイリストがありません。以下から新規作成してください。';
+      list.appendChild(empty);
+    }
 
     playlists.forEach((playlist) => {
       const row = document.createElement('button');
@@ -1062,7 +1088,7 @@
         ]
       );
       if (value !== 'ok') return;
-      clearPlaylistState();
+      await clearPlaylistState();
     }
 
     customSelecting = true;
@@ -1174,6 +1200,7 @@
       workId: data.workId || '',
       title: data.workTitle || data.title || data.partTitle || '',
       episodeTitle: data.partTitle || '',
+      episodeNumber: data.partDispNumber || '',
       url: location.href,
       range
     };
@@ -1317,6 +1344,27 @@
     });
 
     document.addEventListener('mousemove', onMouseMove);
+
+    // Block Home/End/Arrow keys when input/textarea/contenteditable is focused
+    // (prevent d-Anime player from capturing them)
+    document.addEventListener('focusin', (e) => {
+      isInputFocused = isEditableElement(e.target);
+    });
+
+    document.addEventListener('focusout', () => {
+      setTimeout(() => {
+        isInputFocused = isEditableElement(document.activeElement);
+      }, 0);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (!isInputFocused) return;
+      const blockedKeys = ['Home', 'End', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'];
+      if (blockedKeys.includes(e.key)) {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+    }, true);
 
     let observerPaused = false;
     const observer = new MutationObserver(() => {

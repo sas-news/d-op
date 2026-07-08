@@ -156,10 +156,42 @@
         playlist.items.forEach((item, idx) => {
           const row = document.createElement('div');
           row.className = 'playlist-card-item';
-          row.innerHTML = `
-            <span class="item-title">${escapeHtml(decodeHtmlEntities(item.title || item.episodeTitle) || '(タイトル不明)')}</span>
-            <span class="item-meta">${item.range ? formatRangeName(item.range) + ' ' + formatSec(item.range.start) + '-' + formatSec(item.range.end) : '範囲未設定'}</span>
-          `;
+
+          const episodeNum = item.episodeNumber || extractEpisodeNumber(item.episodeTitle);
+
+          const titleEl = document.createElement('div');
+          titleEl.className = 'item-title';
+          if (episodeNum) {
+            titleEl.textContent = decodeHtmlEntities(episodeNum) + ' - ' + (decodeHtmlEntities(item.title) || '(タイトル不明)');
+          } else {
+            titleEl.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
+          }
+
+          let episodeSub = null;
+          if (!episodeNum && item.episodeTitle) {
+            episodeSub = document.createElement('div');
+            episodeSub.className = 'item-episode';
+            episodeSub.textContent = decodeHtmlEntities(item.episodeTitle);
+          }
+
+          const metaEl = document.createElement('div');
+          metaEl.className = 'item-meta';
+
+          const rangeNameEl = document.createElement('span');
+          rangeNameEl.className = 'item-range-name';
+          rangeNameEl.textContent = item.range ? formatRangeName(item.range) : '範囲未設定';
+          metaEl.appendChild(rangeNameEl);
+
+          if (item.range) {
+            const timeEl = document.createElement('span');
+            timeEl.className = 'item-range-time';
+            timeEl.textContent = `${formatSec(item.range.start)}-${formatSec(item.range.end)}`;
+            metaEl.appendChild(timeEl);
+          }
+
+          row.appendChild(titleEl);
+          if (episodeSub) row.appendChild(episodeSub);
+          row.appendChild(metaEl);
           row.addEventListener('click', async (e) => {
             e.stopPropagation();
             if (!item.range) return;
@@ -188,17 +220,40 @@
       const info = document.createElement('div');
       info.className = 'item-info';
 
+      const episodeNum = item.episodeNumber || extractEpisodeNumber(item.episodeTitle);
+
       const title = document.createElement('div');
       title.className = 'item-title';
-      title.textContent = decodeHtmlEntities(item.title || item.episodeTitle) || '(タイトル不明)';
+      if (episodeNum) {
+        title.textContent = decodeHtmlEntities(episodeNum) + ' - ' + (decodeHtmlEntities(item.title) || '(タイトル不明)');
+      } else {
+        title.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
+      }
+
+      let episodeSub = null;
+      if (!episodeNum && item.episodeTitle) {
+        episodeSub = document.createElement('div');
+        episodeSub.className = 'item-episode';
+        episodeSub.textContent = decodeHtmlEntities(item.episodeTitle);
+      }
 
       const meta = document.createElement('div');
       meta.className = 'item-meta';
-      meta.textContent = item.range
-        ? `${formatRangeName(item.range)} ${formatSec(item.range.start)}-${formatSec(item.range.end)}`
-        : '範囲未設定';
+
+      const rangeNameEl = document.createElement('span');
+      rangeNameEl.className = 'item-range-name';
+      rangeNameEl.textContent = item.range ? formatRangeName(item.range) : '範囲未設定';
+      meta.appendChild(rangeNameEl);
+
+      if (item.range) {
+        const timeEl = document.createElement('span');
+        timeEl.className = 'item-range-time';
+        timeEl.textContent = `${formatSec(item.range.start)}-${formatSec(item.range.end)}`;
+        meta.appendChild(timeEl);
+      }
 
       info.appendChild(title);
+      if (episodeSub) info.appendChild(episodeSub);
       info.appendChild(meta);
       row.appendChild(thumb);
       row.appendChild(info);

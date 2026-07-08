@@ -82,20 +82,37 @@
         const info = document.createElement('div');
         info.className = 'item-info';
 
+        const episodeNum = item.episodeNumber || extractEpisodeNumber(item.episodeTitle);
+
         const title = document.createElement('div');
         title.className = 'item-title';
-        title.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
+        if (episodeNum) {
+          title.textContent = decodeHtmlEntities(episodeNum) + ' - ' + (decodeHtmlEntities(item.title) || '(タイトル不明)');
+        } else {
+          title.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
+        }
 
-        const episode = document.createElement('div');
-        episode.className = 'item-episode';
-        episode.textContent = decodeHtmlEntities(item.episodeTitle) || '';
+        let episodeSub = null;
+        if (!episodeNum && item.episodeTitle) {
+          episodeSub = document.createElement('div');
+          episodeSub.className = 'item-episode';
+          episodeSub.textContent = decodeHtmlEntities(item.episodeTitle);
+        }
 
         const meta = document.createElement('div');
         meta.className = 'item-meta';
-        const rangeText = item.range
-          ? `${formatRangeName(item.range)} ${formatSec(item.range.start)}-${formatSec(item.range.end)}`
-          : '範囲未設定';
-        meta.textContent = rangeText;
+
+        const rangeNameEl = document.createElement('span');
+        rangeNameEl.className = 'item-range-name';
+        rangeNameEl.textContent = item.range ? formatRangeName(item.range) : '範囲未設定';
+        meta.appendChild(rangeNameEl);
+
+        if (item.range) {
+          const timeEl = document.createElement('span');
+          timeEl.className = 'item-range-time';
+          timeEl.textContent = `${formatSec(item.range.start)}-${formatSec(item.range.end)}`;
+          meta.appendChild(timeEl);
+        }
 
         const editRow = document.createElement('div');
         editRow.className = 'item-edit-row';
@@ -152,7 +169,7 @@
         cancelBtn.textContent = 'キャンセル';
         cancelBtn.addEventListener('click', () => {
           editRow.classList.remove('open');
-          meta.style.display = 'block';
+          meta.style.display = '';
         });
 
         editRow.appendChild(titleInput);
@@ -163,7 +180,7 @@
         editRow.appendChild(cancelBtn);
 
         info.appendChild(title);
-        if (item.episodeTitle) info.appendChild(episode);
+        if (episodeSub) info.appendChild(episodeSub);
         info.appendChild(meta);
         info.appendChild(editRow);
 

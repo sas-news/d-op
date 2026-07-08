@@ -55,6 +55,53 @@
     tryPause();
   }
 
+  let origGoNext = null;
+  let origProcEndedEvent = null;
+  let blockAutoAdvance = false;
+
+  function applyPatches() {
+    const vc = window.vc;
+    if (!vc) return false;
+
+    if (!origGoNext && typeof vc.goNext === 'function') {
+      origGoNext = vc.goNext;
+    }
+    if (!origProcEndedEvent && typeof vc.procEndedEvent === 'function') {
+      origProcEndedEvent = vc.procEndedEvent;
+    }
+
+    if (blockAutoAdvance) {
+      if (origGoNext) {
+        vc.goNext = function () {};
+      }
+      if (origProcEndedEvent) {
+        vc.procEndedEvent = function () {
+          if (vc.sentPauseResumeTimerId != null) {
+            clearInterval(vc.sentPauseResumeTimerId);
+            vc.sentPauseResumeTimerId = null;
+          }
+        };
+      }
+    } else {
+      if (origGoNext) vc.goNext = origGoNext;
+      if (origProcEndedEvent) vc.procEndedEvent = origProcEndedEvent;
+    }
+
+    return true;
+  }
+
+  function ensureVcAndPatch(retries) {
+    if (applyPatches()) return;
+    if (retries > 0) {
+      setTimeout(() => ensureVcAndPatch(retries - 1), 200);
+    }
+  }
+
+  function setBlockAutoAdvance(block) {
+    blockAutoAdvance = block;
+    ensureVcAndPatch(15);
+  }
+
   function extractChapters() {
     const data = window.vc && window.vc.ws010105Data;
     if (!data || !Array.isArray(data.chapters) || data.chapters.length === 0) {
@@ -65,6 +112,7 @@
       partId: data.partId || null,
       workTitle: data.workTitle || null,
       partTitle: data.partTitle || null,
+      partDispNumber: (data.partDispNumber && data.partDispNumber !== '�@') ? data.partDispNumber : null,
       title: data.workTitle || data.partTitle || null,
       duration: data.duration || null,
       chapters: data.chapters.map((c, index) => ({
@@ -133,6 +181,12 @@
         break;
       case 'PAUSE':
         doPause();
+        break;
+      case 'BLOCK_AUTO_ADVANCE':
+        setBlockAutoAdvance(true);
+        break;
+      case 'UNBLOCK_AUTO_ADVANCE':
+        setBlockAutoAdvance(false);
         break;
     }
   });

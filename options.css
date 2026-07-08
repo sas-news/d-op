@@ -295,9 +295,21 @@ button:disabled {
 }
 
 .item-meta {
-  font-size: 12px;
-  color: var(--dop-text-tertiary);
+  display: flex;
+  align-items: baseline;
+  gap: var(--dop-space-3);
   margin-top: var(--dop-space-2);
+}
+
+.item-range-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dop-accent);
+}
+
+.item-range-time {
+  font-size: 11px;
+  color: var(--dop-text-tertiary);
 }
 
 .item-controls {

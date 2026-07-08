@@ -210,7 +210,7 @@ header button:hover {
   color: var(--dop-accent);
 }
 
-.playlist-item.current .item-meta {
+.playlist-item.current .item-range-time {
   color: var(--dop-text-secondary);
 }
 
@@ -241,7 +241,25 @@ header button:hover {
 }
 
 .item-meta {
-  font-size: 11px;
+  display: flex;
+  align-items: baseline;
+  gap: var(--dop-space-2);
+  margin-top: var(--dop-space-1);
+}
+
+.item-range-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dop-accent);
+}
+
+.item-range-time {
+  font-size: 10px;
+  color: var(--dop-text-tertiary);
+}
+
+.item-episode {
+  font-size: 10px;
   color: var(--dop-text-tertiary);
   margin-top: var(--dop-space-1);
 }
@@ -355,9 +373,18 @@ p.empty {
 }
 
 .playlist-card-item .item-meta {
-  font-size: 11px;
-  color: var(--dop-text-tertiary);
   margin-top: var(--dop-space-1);
+}
+
+.playlist-card-item .item-range-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dop-accent);
+}
+
+.playlist-card-item .item-range-time {
+  font-size: 10px;
+  color: var(--dop-text-tertiary);
 }
 
 .empty-state {

@@ -20,6 +20,17 @@ function deriveRangeName(range) {
   return null;
 }
 
+function extractEpisodeNumber(episodeTitle) {
+  if (!episodeTitle) return '';
+  // "第1話", "1話", "第12話"
+  const match = String(episodeTitle).match(/(?:第)?(\d+)\s*話/);
+  if (match) return `第${match[1]}話`;
+  // "#1", "#12"
+  const hashMatch = String(episodeTitle).match(/#(\d+)/);
+  if (hashMatch) return `第${hashMatch[1]}話`;
+  return '';
+}
+
 function cleanItem(item) {
   const range = item.range
     ? {
@@ -34,6 +45,7 @@ function cleanItem(item) {
     workId: item.workId,
     title: item.title,
     episodeTitle: item.episodeTitle,
+    episodeNumber: item.episodeNumber || '',
     url: item.url,
     range
   };
