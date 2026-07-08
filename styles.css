@@ -293,7 +293,7 @@ body.d-op-playlist-active .buttonArea .next {
   background: rgba(230, 0, 18, 0.25);
   border-color: var(--dop-accent);
   border-left: 3px solid var(--dop-accent);
-  padding-left: calc(var(--dop-space-5) - 2px);
+  padding-left: calc(var(--dop-space-5) - 3px);
 }
 
 .d-op-modal-playlist-item.selected::after {

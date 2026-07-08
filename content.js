@@ -1039,6 +1039,12 @@
 
     if (result !== 'add') return;
 
+    const playlistName = newInput.value.trim();
+    if (!selectedId && !playlistName) {
+      showModal('エラー', 'プレイリストを選択するか、新規プレイリスト名を入力してください。', [{ label: 'OK', value: null, primary: true }]);
+      return;
+    }
+
     const itemName = nameInput.value.trim() || defaultName || '範囲';
     const rangeToAdd = { start: range.start, end: range.end, name: itemName };
 
@@ -1047,7 +1053,6 @@
       return;
     }
 
-    const playlistName = newInput.value.trim();
     if (playlistName) {
       const playlist = await dopCreatePlaylist(playlistName);
       await addCurrentRangeToPlaylist(playlist.id, rangeToAdd);
