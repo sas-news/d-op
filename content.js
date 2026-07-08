@@ -144,6 +144,9 @@
       originalOpSkip = getCookieValue('op_skip') || '1';
     }
     setCookieValue('op_skip', enabled ? originalOpSkip : '0');
+    if (!enabled) {
+      sendCommand('BLOCK_AUTO_ADVANCE', {});
+    }
   }
 
   function resetNativeSkip() {
@@ -151,6 +154,7 @@
       setCookieValue('op_skip', originalOpSkip);
       originalOpSkip = null;
     }
+    sendCommand('UNBLOCK_AUTO_ADVANCE', {});
   }
 
   function startEnforcer() {
@@ -165,18 +169,21 @@
     }
   }
 
-  function clearPlaylistState() {
+  async function clearPlaylistState() {
     stopEnforcer();
     resetNativeSkip();
     currentPlayback = null;
     currentMode = 'none';
     targetRanges = [];
-    if (currentSessionId) {
-      dopClearPlaybackForWindow(currentSessionId);
-    } else {
-      dopClearPlayback();
-    }
-    dopSetOpEdMode(false);
+    seekCooldownUntil = 0;
+    lastActionTime = 0;
+    startupLockUntil = 0;
+    const cleanup = currentSessionId
+      ? dopClearPlaybackForWindow(currentSessionId)
+      : dopClearPlayback();
+    await cleanup;
+    await dopSetOpEdMode(false);
+    history.replaceState(null, '', removeDopParamsFromUrl(location.href));
     updatePlaylistUI();
     updateSeekMarkers();
   }
@@ -251,7 +258,7 @@
     currentPlayback = { playlistId: playlist.id, index, item };
     dopSetPlayback({ playlistId: playlist.id, index, updatedAt: Date.now() });
     targetRanges = buildRanges();
-    seekCooldownUntil = 0;
+    seekCooldownUntil = Date.now() + 5000;
     lastActionTime = 0;
     log('startPlayback', { playlist: playlist.name, index, type: item.range.type });
 
@@ -289,13 +296,16 @@
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
     if (!playlist) {
-      clearPlaylistState();
+      await clearPlaylistState();
       return false;
     }
     const newIndex = currentPlayback.index + direction;
     if (newIndex < 0 || newIndex >= playlist.items.length) {
       if (newIndex >= playlist.items.length) {
-        showEndOfPlaylistPopup(playlist);
+        if (!currentPlayback._endPopupShown) {
+          currentPlayback._endPopupShown = true;
+          showEndOfPlaylistPopup(playlist);
+        }
       } else {
         pause();
       }
@@ -325,13 +335,16 @@
 
     showModal('再生終了', content, [
       { label: '最初から再生', value: 'restart' },
-      { label: 'このまま見る', value: 'continue', primary: true },
-      { label: '閉じる', value: 'close' }
-    ]).then((value) => {
+      { label: 'dOPを続ける', value: 'continue', primary: true },
+      { label: 'dOPを終了する', value: 'close' }
+    ]).then(async (value) => {
       if (value === 'restart') {
-        playPlaylistIndex(playlist, 0);
+        await clearPlaylistState();
+        startPlayback(playlist, 0);
+      } else if (value === 'continue') {
+        // 一時停止のまま、フラグはリセットしない（insideRange 到達時にリセット）
       } else {
-        clearPlaylistState();
+        await clearPlaylistState();
       }
     });
   }
@@ -423,7 +436,7 @@
       return;
     }
 
-    clearPlaylistState();
+    await clearPlaylistState();
     await dopSetOpEdMode(true);
     await enterOpEdMode(rangeIndex);
   }
@@ -455,6 +468,9 @@
     const duration = video.duration || Infinity;
 
     if (insideRange(t)) {
+      if (currentPlayback && currentPlayback._endPopupShown) {
+        currentPlayback._endPopupShown = false;
+      }
       return;
     }
 
@@ -469,8 +485,9 @@
       return;
     }
 
-    if (t > lastEnd || t >= duration - 0.3 || video.ended) {
+    if (t > lastEnd || video.ended) {
       if (currentPlayback) {
+        pause();
         advancePlayback(1);
       } else if (currentMode !== 'op-ed') {
         pause();
@@ -1068,7 +1085,7 @@
         ]
       );
       if (value !== 'ok') return;
-      clearPlaylistState();
+      await clearPlaylistState();
     }
 
     customSelecting = true;
