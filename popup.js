@@ -37,7 +37,23 @@
     return typeof playlist.name === 'string' && playlist.name.startsWith('__dop_');
   }
 
+  let renderQueued = false;
+  let renderRunning = false;
+
   async function render() {
+    if (renderRunning) {
+      renderQueued = true;
+      return;
+    }
+    renderRunning = true;
+    do {
+      renderQueued = false;
+      await doRender();
+    } while (renderQueued);
+    renderRunning = false;
+  }
+
+  async function doRender() {
     const playbackState = await dopGetPlayback();
     const playlists = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
 
@@ -72,20 +88,6 @@
     renderPlaylistItems(playlist, playbackState.index);
   }
 
-  async function openPlayerUrl(url) {
-    const mode = await dopGetWindowMode();
-    if (mode === 'tab') {
-      await chrome.tabs.create({ url: url, active: true });
-    } else {
-      await chrome.windows.create({
-        url: url,
-        type: 'popup',
-        width: 1280,
-        height: 800
-      });
-    }
-  }
-
   async function startPlaylistItem(playlist, index) {
     const item = playlist.items[index];
     if (!item || !item.range) return;
@@ -94,7 +96,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlist.id);
     url.searchParams.set('dopIndex', String(index));
-    await openPlayerUrl(url.toString());
+    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
   }
 
   function renderPlaylistList(playlists) {
@@ -257,7 +259,7 @@
       row.appendChild(info);
 
       row.addEventListener('click', () => {
-        sendToActiveTab('PLAYLIST_JUMP', { index: idx });
+        chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_JUMP', payload: { index: idx } });
         render();
       });
 
@@ -269,22 +271,23 @@
     return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
-  async function sendToActiveTab(type, payload) {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab && tab.id) {
-      chrome.tabs.sendMessage(tab.id, { type, payload });
-    }
-  }
-
-  prevBtn.addEventListener('click', () => sendToActiveTab('PLAYLIST_PREV'));
-  nextBtn.addEventListener('click', () => sendToActiveTab('PLAYLIST_NEXT'));
+  prevBtn.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_PREV' });
+  });
+  nextBtn.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_NEXT' });
+  });
   stopBtn.addEventListener('click', async () => {
-    await sendToActiveTab('PLAYLIST_STOP');
-    await dopClearPlayback();
-    await dopClearPending();
-    render();
+    chrome.runtime.sendMessage({ type: 'RELEASE_PLAYER' });
+    await render();
   });
   openOptions.addEventListener('click', () => chrome.runtime.openOptionsPage());
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && changes.dop_playback) {
+      render();
+    }
+  });
 
   render();
 })();

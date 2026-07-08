@@ -333,20 +333,6 @@
     });
   }
 
-  async function openPlayerUrl(url) {
-    const mode = await dopGetWindowMode();
-    if (mode === 'tab') {
-      await chrome.tabs.create({ url: url, active: true });
-    } else {
-      await chrome.windows.create({
-        url: url,
-        type: 'popup',
-        width: 1280,
-        height: 800
-      });
-    }
-  }
-
   async function startPlaylistPlayback(playlistId, index = 0) {
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === playlistId);
@@ -364,7 +350,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlistId);
     url.searchParams.set('dopIndex', String(index));
-    await openPlayerUrl(url.toString());
+    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
   }
 
   function parseTimeInput(str) {

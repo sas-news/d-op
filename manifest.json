@@ -13,7 +13,8 @@
   "permissions": [
     "scripting",
     "tabs",
-    "storage"
+    "storage",
+    "windows"
   ],
   "host_permissions": [
     "https://animestore.docomo.ne.jp/*",
