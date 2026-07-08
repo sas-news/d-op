@@ -660,6 +660,7 @@
 
     if (!active) {
       document.body.classList.remove('d-op-playlist-active');
+      document.body.classList.remove('d-op-skip-hidden');
       prevWrapper.style.display = 'none';
       nextWrapper.style.display = 'none';
       hideTopRightPanel();
@@ -668,6 +669,7 @@
 
     if (currentPlayback) {
       document.body.classList.add('d-op-playlist-active');
+      document.body.classList.add('d-op-skip-hidden');
       prevWrapper.style.display = 'inline-flex';
       nextWrapper.style.display = 'inline-flex';
       prevBtn.disabled = currentPlayback.index <= 0;
@@ -680,6 +682,7 @@
       });
     } else {
       document.body.classList.remove('d-op-playlist-active');
+      document.body.classList.add('d-op-skip-hidden');
       prevWrapper.style.display = 'none';
       nextWrapper.style.display = 'none';
     }

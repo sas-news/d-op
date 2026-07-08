@@ -499,8 +499,8 @@ body.d-op-playlist-active .buttonArea .next {
   white-space: nowrap;
 }
 
-.skipUi,
-.skip-ui,
-[class*="skipUi"] {
+body.d-op-skip-hidden .skipUi,
+body.d-op-skip-hidden .skip-ui,
+body.d-op-skip-hidden [class*="skipUi"] {
   display: none !important;
 }
