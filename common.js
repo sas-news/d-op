@@ -3,6 +3,7 @@ const DOP_PLAYBACK_KEY = 'dop_playback';
 const DOP_PENDING_KEY = 'dop_pending';
 const DOP_OPED_MODE_KEY = 'dop_oped_mode';
 const DOP_WINDOW_MODE_KEY = 'dop_window_mode';
+const DOP_COLLAPSED_KEY = 'dop_collapsed_playlists';
 
 function dopGenerateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -139,6 +140,17 @@ async function dopGetWindowMode() {
 
 async function dopSetWindowMode(mode) {
   await chrome.storage.local.set({ [DOP_WINDOW_MODE_KEY]: mode });
+}
+
+async function dopGetCollapsedPlaylists() {
+  const result = await chrome.storage.local.get(DOP_COLLAPSED_KEY);
+  return result[DOP_COLLAPSED_KEY] || {};
+}
+
+async function dopSetCollapsedPlaylist(playlistId, collapsed) {
+  const state = await dopGetCollapsedPlaylists();
+  state[playlistId] = collapsed;
+  await chrome.storage.local.set({ [DOP_COLLAPSED_KEY]: state });
 }
 
 async function dopGetWindowId() {
