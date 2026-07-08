@@ -26,6 +26,7 @@
 
   async function renderPlaylists() {
     const playlists = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
+    const collapsedState = await dopGetCollapsedPlaylists();
     playlistsContainer.innerHTML = '';
 
     if (playlists.length === 0) {
@@ -44,6 +45,20 @@
 
       const header = document.createElement('div');
       header.className = 'playlist-header';
+
+      const toggleGroup = document.createElement('span');
+      toggleGroup.className = 'playlist-toggle-group';
+
+      const toggleBtn = document.createElement('span');
+      toggleBtn.className = 'playlist-toggle';
+      toggleBtn.textContent = collapsedState[playlist.id] !== false ? '\u25B6' : '\u25BC';
+
+      const count = document.createElement('span');
+      count.className = 'playlist-count';
+      count.textContent = `${playlist.items.length}件`;
+
+      toggleGroup.appendChild(toggleBtn);
+      toggleGroup.appendChild(count);
 
       const nameInput = document.createElement('input');
       nameInput.type = 'text';
@@ -69,9 +84,17 @@
 
       actions.appendChild(playBtn);
       actions.appendChild(deleteBtn);
+      header.appendChild(toggleGroup);
       header.appendChild(nameInput);
       header.appendChild(actions);
       card.appendChild(header);
+
+      header.addEventListener('click', (e) => {
+        if (e.target.closest('input, button')) return;
+        const collapsed = card.classList.toggle('collapsed');
+        toggleBtn.textContent = collapsed ? '\u25B6' : '\u25BC';
+        dopSetCollapsedPlaylist(playlist.id, collapsed);
+      });
 
       const itemsList = document.createElement('ol');
       itemsList.className = 'items-list';
@@ -261,7 +284,15 @@
         itemsList.appendChild(li);
       });
 
-      card.appendChild(itemsList);
+      const itemsWrapper = document.createElement('div');
+      itemsWrapper.className = 'playlist-items-wrapper';
+      itemsWrapper.appendChild(itemsList);
+
+      if (collapsedState[playlist.id] !== false) {
+        card.classList.add('collapsed');
+      }
+
+      card.appendChild(itemsWrapper);
       playlistsContainer.appendChild(card);
     });
   }
