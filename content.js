@@ -788,11 +788,25 @@
     const none = getNoneRanges(durationSec);
     ranges.push(...none.map((c) => ({ ...c, label: c.name })));
 
-    if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
-      const r = currentPlayback.item.range;
-      const label = r.name || '範囲';
-      const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
-      if (!dup) ranges.push({ ...r, label });
+    if (currentPlayback && currentPlayback.item) {
+      const playlists = await dopGetPlaylists();
+      const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
+      if (playlist) {
+        const currentPartId = currentPlayback.item.partId;
+        playlist.items.forEach((item) => {
+          if (item.partId === currentPartId && item.range) {
+            const r = item.range;
+            const label = r.name || '範囲';
+            const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+            if (!dup) ranges.push({ ...r, label });
+          }
+        });
+      } else if (currentPlayback.item.range) {
+        const r = currentPlayback.item.range;
+        const label = r.name || '範囲';
+        const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+        if (!dup) ranges.push({ ...r, label });
+      }
     }
 
     if ((currentMode === 'custom-test' || customSelecting) && targetRanges.length > 0) {
@@ -891,7 +905,7 @@
       const duration = video.duration;
       const ranges = await getSeekRanges(duration);
       currentSeekRanges = ranges;
-      const canSeekColor = currentMode === 'op-ed' || currentMode === 'custom-test' || customSelecting;
+      const canSeekColor = currentMode === 'op-ed' || currentMode === 'custom-test' || customSelecting || !!currentPlayback;
 
       ranges.forEach((r) => {
         const start = seconds(r.start);
@@ -910,6 +924,12 @@
           if (r.label === 'OP') marker.classList.add('op');
           if (r.label === 'ED') marker.classList.add('ed');
           if (r.label === 'イントロ' || r.label === 'CUSTOM') marker.classList.add('custom');
+          if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
+            const cr = currentPlayback.item.range;
+            if (r.start === cr.start && r.end === cr.end) {
+              marker.classList.add('active');
+            }
+          }
         }
         container.appendChild(marker);
       });

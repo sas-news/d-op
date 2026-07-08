@@ -488,6 +488,21 @@ body.d-op-playlist-active .buttonArea .next {
   border-color: rgba(255, 204, 0, 0.85);
 }
 
+.d-op-seek-marker.op.active {
+  background: rgba(230, 0, 18, 0.70);
+  border-color: rgba(230, 0, 18, 1);
+}
+
+.d-op-seek-marker.ed.active {
+  background: rgba(10, 132, 255, 0.70);
+  border-color: rgba(10, 132, 255, 1);
+}
+
+.d-op-seek-marker.custom.active {
+  background: rgba(255, 204, 0, 0.70);
+  border-color: rgba(255, 204, 0, 1);
+}
+
 .d-op-seek-popup-label {
   margin-top: 0;
   color: var(--dop-text-primary);
