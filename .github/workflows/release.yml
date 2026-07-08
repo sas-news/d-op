@@ -22,8 +22,24 @@ jobs:
 
       - name: Create ZIP package
         run: |
-          zip -r "d-op-v${{ steps.version.outputs.version }}.zip" . \
-            -x ".git/*" ".github/*" "memo/*" ".gitignore" "*.pem" "*.crx"
+          zip -r "d-op-v${{ steps.version.outputs.version }}.zip" \
+            manifest.json \
+            background.js \
+            common.js \
+            content.js \
+            content-store.js \
+            injected.js \
+            popup.html \
+            popup.css \
+            popup.js \
+            options.html \
+            options.css \
+            options.js \
+            styles.css \
+            styles-store.css \
+            icons/ \
+            PRIVACY.md \
+            README.md
 
       - name: Create CRX package (if key available)
         if: env.CRX_PRIVATE_KEY != ''
@@ -32,7 +48,6 @@ jobs:
         run: |
           echo "$CRX_PRIVATE_KEY" > key.pem
           npx crx3 pack \
-            --crxPath "d-op-v${{ steps.version.outputs.version }}.crx" \
             --keyPath key.pem \
             --zipPath "d-op-v${{ steps.version.outputs.version }}.zip" \
             -o "d-op-v${{ steps.version.outputs.version }}.crx"

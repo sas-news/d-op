@@ -71,10 +71,17 @@ header {
   margin-bottom: var(--dop-space-5);
 }
 
+header .header-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: var(--dop-space-3);
+}
+
 h1 {
   font-size: 16px;
   font-weight: 700;
   margin: 0;
+  margin-inline: 0.25em auto;
   letter-spacing: 0.02em;
 }
 
@@ -401,4 +408,19 @@ p.empty {
 
 .empty-state button {
   margin-top: var(--dop-space-5);
+  padding: var(--dop-space-4) var(--dop-space-6);
+  border: 1px solid var(--dop-border);
+  border-radius: var(--dop-radius-sm);
+  background: var(--dop-bg-panel);
+  color: var(--dop-text-primary);
+  font-family: var(--dop-font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dop-transition-fast), border-color var(--dop-transition-fast);
+}
+
+.empty-state button:hover {
+  background: var(--dop-bg-elevated);
+  border-color: var(--dop-border-strong);
 }
