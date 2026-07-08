@@ -575,6 +575,27 @@
 
       wrapper.appendChild(btn);
       wrapper.appendChild(popup);
+
+      let popupHideTimer = null;
+
+      const showPopup = () => {
+        if (popupHideTimer) {
+          clearTimeout(popupHideTimer);
+          popupHideTimer = null;
+        }
+        popup.style.display = 'block';
+      };
+
+      const scheduleHidePopup = () => {
+        popupHideTimer = setTimeout(() => {
+          popup.style.display = '';
+        }, 200);
+      };
+
+      wrapper.addEventListener('mouseenter', showPopup);
+      wrapper.addEventListener('mouseleave', scheduleHidePopup);
+      popup.addEventListener('mouseenter', showPopup);
+      popup.addEventListener('mouseleave', scheduleHidePopup);
     }
 
     const popup = wrapper.querySelector('.d-op-popup');

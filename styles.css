@@ -146,10 +146,9 @@
   height: 10px;
 }
 
-.d-op-add-wrapper:hover .d-op-popup,
-.d-op-popup:hover {
-  display: block;
-}
+/* Popup visibility is managed by JS (content.js createAddButton)
+   to prevent the CSS :hover chain from breaking when the mouse
+   transitions between the button and the popup. */
 
 .d-op-popup-item {
   padding: 5px 10px;
