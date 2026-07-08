@@ -1180,6 +1180,7 @@
       workId: data.workId || '',
       title: data.workTitle || data.title || data.partTitle || '',
       episodeTitle: data.partTitle || '',
+      episodeNumber: data.partDispNumber || '',
       url: location.href,
       range
     };
