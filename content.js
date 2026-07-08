@@ -28,6 +28,7 @@
   let seekMarkerDebounceTimer = null;
   let seekMarkerRunning = false;
   let currentSessionId = null;
+  let isInputFocused = false;
 
   function getVideo() {
     return document.getElementById('video');
@@ -50,6 +51,14 @@
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function isEditableElement(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (el.isContentEditable) return true;
+    return false;
   }
 
   function getNoneChapters() {
@@ -1326,6 +1335,27 @@
     });
 
     document.addEventListener('mousemove', onMouseMove);
+
+    // Block Home/End/Arrow keys when input/textarea/contenteditable is focused
+    // (prevent d-Anime player from capturing them)
+    document.addEventListener('focusin', (e) => {
+      isInputFocused = isEditableElement(e.target);
+    });
+
+    document.addEventListener('focusout', () => {
+      setTimeout(() => {
+        isInputFocused = isEditableElement(document.activeElement);
+      }, 0);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (!isInputFocused) return;
+      const blockedKeys = ['Home', 'End', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'];
+      if (blockedKeys.includes(e.key)) {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+    }, true);
 
     let observerPaused = false;
     const observer = new MutationObserver(() => {
