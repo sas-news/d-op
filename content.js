@@ -987,16 +987,17 @@
 
   async function openPlaylistModal(defaultName, range) {
     const playlists = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
-    if (playlists.length === 0) {
-      await showModal('新規プレイリスト', 'プレイリストがありません。管理画面から作成してください。', [
-        { label: 'OK', value: null, primary: true }
-      ]);
-      return;
-    }
 
     const list = document.createElement('div');
     list.className = 'd-op-modal-playlist-list';
     let selectedId = null;
+
+    if (playlists.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:var(--dop-text-tertiary);font-size:13px;padding:var(--dop-space-3) 0;';
+      empty.textContent = 'プレイリストがありません。以下から新規作成してください。';
+      list.appendChild(empty);
+    }
 
     playlists.forEach((playlist) => {
       const row = document.createElement('button');
