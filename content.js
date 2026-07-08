@@ -27,7 +27,6 @@
   let currentSeekRanges = [];
   let seekMarkerDebounceTimer = null;
   let seekMarkerRunning = false;
-  let currentSessionId = null;
 
   function getVideo() {
     return document.getElementById('video');
@@ -171,11 +170,7 @@
     currentPlayback = null;
     currentMode = 'none';
     targetRanges = [];
-    if (currentSessionId) {
-      dopClearPlaybackForWindow(currentSessionId);
-    } else {
-      dopClearPlayback();
-    }
+    dopClearPlayback();
     dopSetOpEdMode(false);
     updatePlaylistUI();
     updateSeekMarkers();
@@ -311,9 +306,8 @@
     url.searchParams.set('dopPlaylistId', playlistId);
     url.searchParams.set('dopIndex', String(index));
     chrome.runtime.sendMessage({
-      type: 'OPEN_PLAYER',
-      url: url.toString(),
-      closeCurrentWindow: true
+      type: 'REQUEST_PLAYER',
+      url: url.toString()
     });
   }
 
@@ -1299,7 +1293,6 @@
   function init() {
     if (window.__dOpInitialized) return;
     window.__dOpInitialized = true;
-    currentSessionId = 'cs' + dopGenerateId();
 
     chrome.runtime.sendMessage({ type: 'INJECT_SCRIPT' }, () => {
       chrome.runtime.lastError;
@@ -1319,9 +1312,7 @@
     });
 
     window.addEventListener('beforeunload', () => {
-      if (currentSessionId) {
-        dopClearPlaybackForWindow(currentSessionId);
-      }
+      dopClearPlayback();
       dopClearPending();
     });
 

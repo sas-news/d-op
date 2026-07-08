@@ -106,9 +106,8 @@
       params.set('dopEpisodeTitle', episodeTitle);
       const url = `https://animestore.docomo.ne.jp/animestore/sc_d_pc?${params.toString()}`;
       chrome.runtime.sendMessage({
-        type: 'OPEN_PLAYER',
-        url: url,
-        closeCurrentWindow: false
+        type: 'REQUEST_PLAYER',
+        url: url
       });
     } catch (err) {
       console.error('[d-op store] playEpisode failed', err);
