@@ -628,23 +628,17 @@
         nextWrapper.appendChild(nextBtn);
       }
 
-      const addWrapper = document.getElementById('d-op-add-wrapper');
-      if (addWrapper && addWrapper.parentNode) {
-        if (prevWrapper.parentNode !== addWrapper.parentNode) {
-          addWrapper.parentNode.insertBefore(prevWrapper, addWrapper);
+      const nativePrev = document.querySelector('.buttonArea .prev');
+      const nativeNext = document.querySelector('.buttonArea .next');
+
+      if (nativePrev && nativePrev.parentNode) {
+        if (prevWrapper.parentNode !== nativePrev.parentNode) {
+          nativePrev.parentNode.insertBefore(prevWrapper, nativePrev);
         }
-        if (nextWrapper.parentNode !== addWrapper.parentNode) {
-          addWrapper.parentNode.insertBefore(nextWrapper, addWrapper.nextSibling);
-        }
-      } else {
-        const timeEl = document.querySelector('.buttonArea .time');
-        if (timeEl && timeEl.parentNode) {
-          if (prevWrapper.parentNode !== timeEl.parentNode) {
-            timeEl.parentNode.insertBefore(prevWrapper, timeEl.nextSibling);
-          }
-          if (nextWrapper.parentNode !== timeEl.parentNode) {
-            timeEl.parentNode.insertBefore(nextWrapper, timeEl.nextSibling);
-          }
+      }
+      if (nativeNext && nativeNext.parentNode) {
+        if (nextWrapper.parentNode !== nativeNext.parentNode) {
+          nativeNext.parentNode.insertBefore(nextWrapper, nativeNext.nextSibling);
         }
       }
     }

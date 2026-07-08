@@ -69,7 +69,7 @@
   border-radius: var(--dop-radius-sm);
   background: transparent;
   color: #9b9b9a;
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -86,13 +86,13 @@
 }
 
 .d-op-playlist-btn {
-  width: 32px;
-  height: 32px;
+  width: 52px;
+  height: 52px;
   border: none;
   border-radius: var(--dop-radius-sm);
   background: transparent;
   color: var(--dop-text-secondary);
-  font-size: 18px;
+  font-size: 32px;
   line-height: 1;
   cursor: pointer;
   display: flex;
@@ -100,12 +100,12 @@
   justify-content: center;
   padding: 0;
   margin: 0;
-  transition: background var(--dop-transition-fast), color var(--dop-transition-fast);
+  transform: translateY(-3px);
+  transition: color var(--dop-transition-fast);
 }
 
 .d-op-playlist-btn:hover:not(:disabled) {
-  background: var(--dop-bg-elevated);
-  color: var(--dop-text-primary);
+  color: #ffffff;
 }
 
 .d-op-playlist-btn:disabled {
