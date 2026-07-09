@@ -236,26 +236,6 @@
           renderPlaylists();
         });
 
-        const upBtn = document.createElement('button');
-        upBtn.className = 'btn-icon';
-        upBtn.textContent = '↑';
-        upBtn.title = '上へ';
-        upBtn.disabled = idx === 0;
-        upBtn.addEventListener('click', async () => {
-          await dopMoveItem(playlist.id, item.id, -1);
-          renderPlaylists();
-        });
-
-        const downBtn = document.createElement('button');
-        downBtn.className = 'btn-icon';
-        downBtn.textContent = '↓';
-        downBtn.title = '下へ';
-        downBtn.disabled = idx === playlist.items.length - 1;
-        downBtn.addEventListener('click', async () => {
-          await dopMoveItem(playlist.id, item.id, 1);
-          renderPlaylists();
-        });
-
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '削除';
         removeBtn.className = 'btn-danger-text';
@@ -275,13 +255,54 @@
         controls.appendChild(editBtn);
         controls.appendChild(copyBtn);
         addDivider();
-        controls.appendChild(upBtn);
-        controls.appendChild(downBtn);
-        addDivider();
         controls.appendChild(removeBtn);
         li.appendChild(info);
         li.appendChild(controls);
+        li.draggable = true;
+        li.dataset.itemId = item.id;
         itemsList.appendChild(li);
+      });
+
+      let dragSrcItemId = null;
+      itemsList.addEventListener('dragstart', (e) => {
+        const row = e.target.closest('.item-row');
+        if (!row) return;
+        dragSrcItemId = row.dataset.itemId;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragSrcItemId);
+      });
+      itemsList.addEventListener('dragend', (e) => {
+        const row = e.target.closest('.item-row');
+        if (row) row.classList.remove('dragging');
+        itemsList.querySelectorAll('.item-row').forEach((r) => r.classList.remove('drag-over'));
+        dragSrcItemId = null;
+      });
+      itemsList.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const row = e.target.closest('.item-row');
+        itemsList.querySelectorAll('.item-row').forEach((r) => r.classList.remove('drag-over'));
+        if (row && row.dataset.itemId !== dragSrcItemId) {
+          row.classList.add('drag-over');
+        }
+      });
+      itemsList.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const row = e.target.closest('.item-row');
+        itemsList.querySelectorAll('.item-row').forEach((r) => r.classList.remove('drag-over'));
+        if (!row || !dragSrcItemId || row.dataset.itemId === dragSrcItemId) return;
+        const playlists = await dopGetPlaylists();
+        const pl = playlists.find((p) => p.id === playlist.id);
+        if (!pl) return;
+        const srcIdx = pl.items.findIndex((i) => i.id === dragSrcItemId);
+        const dstIdx = pl.items.findIndex((i) => i.id === row.dataset.itemId);
+        if (srcIdx < 0 || dstIdx < 0 || srcIdx === dstIdx) return;
+        const [moved] = pl.items.splice(srcIdx, 1);
+        pl.items.splice(dstIdx, 0, moved);
+        await dopSavePlaylists(playlists);
+        dragSrcItemId = null;
+        renderPlaylists();
       });
 
       const itemsWrapper = document.createElement('div');

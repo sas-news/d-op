@@ -315,6 +315,15 @@ button:disabled {
   border-bottom: none;
 }
 
+.item-row.dragging {
+  opacity: 0.4;
+}
+
+.item-row.drag-over {
+  border-top: 2px solid var(--dop-accent);
+  background: var(--dop-accent-subtle);
+}
+
 .item-info {
   flex: 1;
   min-width: 0;

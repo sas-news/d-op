@@ -255,3 +255,42 @@ async function dopCopyItemToPlaylist(targetPlaylistId, item) {
   await dopSavePlaylists(playlists);
   return true;
 }
+
+function dopCreateShuffledIndices(n) {
+  const indices = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return indices;
+}
+
+function dopCreateShuffledFromIndex(n, startIndex) {
+  const prefix = Array.from({ length: startIndex + 1 }, (_, i) => i);
+  const suffixLen = n - startIndex - 1;
+  if (suffixLen <= 0) return { indices: prefix, newPosition: startIndex };
+  const suffix = Array.from({ length: suffixLen }, (_, i) => startIndex + 1 + i);
+  for (let i = suffix.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [suffix[i], suffix[j]] = [suffix[j], suffix[i]];
+  }
+  return { indices: [...prefix, ...suffix], newPosition: startIndex };
+}
+
+function dopReshuffleFromPosition(shuffledIndices, currentPos) {
+  const prefix = shuffledIndices.slice(0, currentPos + 1);
+  const suffix = shuffledIndices.slice(currentPos + 1);
+  for (let i = suffix.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [suffix[i], suffix[j]] = [suffix[j], suffix[i]];
+  }
+  return [...prefix, ...suffix];
+}
+
+function dopResolvePlaybackIndex(playbackState) {
+  if (!playbackState) return null;
+  if (playbackState.shuffledIndices && playbackState.shuffledIndices.length > 0) {
+    return playbackState.shuffledIndices[playbackState.index];
+  }
+  return playbackState.index;
+}

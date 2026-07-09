@@ -10,6 +10,7 @@
   const prevBtn = document.getElementById('prevBtn');
   const nextBtn = document.getElementById('nextBtn');
   const stopBtn = document.getElementById('stopBtn');
+  const shuffleBadge = document.getElementById('shuffleBadge');
   const openOptions = document.getElementById('openOptions');
   const playlistList = document.getElementById('playlistList');
   const playlistItems = document.getElementById('playlistItems');
@@ -35,6 +36,41 @@
 
   function isSystemPlaylist(playlist) {
     return typeof playlist.name === 'string' && playlist.name.startsWith('__dop_');
+  }
+
+  function createShuffleIconSvg() {
+    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>';
+  }
+
+  async function startShufflePlayback(playlist) {
+    if (playlist.items.length === 0) return;
+    const indices = dopCreateShuffledIndices(playlist.items.length);
+    const realIndex = indices[0];
+    const item = playlist.items[realIndex];
+    if (!item || !item.range) return;
+    await dopSetPlayback({ playlistId: playlist.id, index: 0, shuffledIndices: indices, updatedAt: Date.now() });
+    await dopClearPending();
+    const url = new URL(item.url);
+    url.searchParams.set('dopPlaylistId', playlist.id);
+    url.searchParams.set('dopIndex', String(realIndex));
+    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+  }
+
+  async function startShuffleFromHere(playlist, currentRealIndex, currentShuffledIndices, currentShufflePos) {
+    let indices;
+    if (currentShuffledIndices) {
+      indices = dopReshuffleFromPosition(currentShuffledIndices, currentShufflePos);
+    } else {
+      indices = dopCreateShuffledFromIndex(playlist.items.length, currentRealIndex).indices;
+    }
+    const item = playlist.items[currentRealIndex];
+    if (!item || !item.range) return;
+    await dopSetPlayback({ playlistId: playlist.id, index: currentShufflePos, shuffledIndices: indices, updatedAt: Date.now() });
+    await dopClearPending();
+    const url = new URL(item.url);
+    url.searchParams.set('dopPlaylistId', playlist.id);
+    url.searchParams.set('dopIndex', String(currentRealIndex));
+    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
   }
 
   let renderQueued = false;
@@ -65,7 +101,10 @@
     }
 
     const playlist = playlists.find((p) => p.id === playbackState.playlistId);
-    if (!playlist || playbackState.index >= playlist.items.length) {
+    const maxCount = playbackState.shuffledIndices
+      ? playbackState.shuffledIndices.length
+      : playlist ? playlist.items.length : 0;
+    if (!playlist || playbackState.index >= maxCount) {
       playbackSection.classList.add('hidden');
       playlistListSection.classList.remove('hidden');
       renderPlaylistList(playlists);
@@ -73,19 +112,30 @@
     }
 
     const item = playlist.items[playbackState.index];
+    const shuffledIndices = playbackState.shuffledIndices || null;
+    const realIndex = shuffledIndices ? shuffledIndices[playbackState.index] : playbackState.index;
+    const realItem = playlist.items[realIndex];
+    if (!realItem) {
+      playbackSection.classList.add('hidden');
+      playlistListSection.classList.remove('hidden');
+      renderPlaylistList(playlists);
+      return;
+    }
 
     playbackSection.classList.remove('hidden');
     playlistListSection.classList.add('hidden');
 
     playlistNameEl.textContent = playlist.name;
-    trackInfoEl.textContent = decodeHtmlEntities(item.title || item.episodeTitle) || '(タイトル不明)';
-    trackDetailEl.textContent = decodeHtmlEntities(item.episodeTitle) || '';
-    trackProgressEl.textContent = `${playbackState.index + 1} / ${playlist.items.length}`;
+    shuffleBadge.classList.toggle('hidden', !shuffledIndices);
+    trackInfoEl.textContent = decodeHtmlEntities(realItem.title || realItem.episodeTitle) || '(タイトル不明)';
+    trackDetailEl.textContent = decodeHtmlEntities(realItem.episodeTitle) || '';
+    const orderLength = shuffledIndices ? shuffledIndices.length : playlist.items.length;
+    trackProgressEl.textContent = `${playbackState.index + 1} / ${orderLength}`;
 
     prevBtn.disabled = playbackState.index <= 0;
-    nextBtn.disabled = playbackState.index >= playlist.items.length - 1;
+    nextBtn.disabled = playbackState.index >= orderLength - 1;
 
-    renderPlaylistItems(playlist, playbackState.index);
+    renderPlaylistItems(playlist, playbackState.index, shuffledIndices);
   }
 
   async function startPlaylistItem(playlist, index) {
@@ -145,9 +195,19 @@
         await startPlaylistItem(playlist, 0);
       });
 
+      const shuffleBtn = document.createElement('button');
+      shuffleBtn.className = 'playlist-card-shuffle';
+      shuffleBtn.innerHTML = createShuffleIconSvg();
+      shuffleBtn.title = 'シャッフル再生';
+      shuffleBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await startShufflePlayback(playlist);
+      });
+
       header.appendChild(title);
       header.appendChild(count);
       header.appendChild(playBtn);
+      header.appendChild(shuffleBtn);
       card.appendChild(header);
 
       if (expandedPlaylistId === playlist.id) {
@@ -207,15 +267,19 @@
     });
   }
 
-  function renderPlaylistItems(playlist, currentIndex) {
+  function renderPlaylistItems(playlist, currentShufflePos, shuffledIndices) {
     playlistItems.innerHTML = '';
-    playlist.items.forEach((item, idx) => {
+    const isShuffleActive = Boolean(shuffledIndices);
+
+    const order = shuffledIndices || Array.from({ length: playlist.items.length }, (_, i) => i);
+    order.forEach((realIdx, displayPos) => {
+      const item = playlist.items[realIdx];
       const row = document.createElement('div');
-      row.className = 'playlist-item' + (idx === currentIndex ? ' current' : '');
+      row.className = 'playlist-item' + (displayPos === currentShufflePos ? ' current' : '');
 
       const thumb = document.createElement('div');
       thumb.className = 'item-thumb';
-      thumb.textContent = idx + 1;
+      thumb.textContent = displayPos + 1;
 
       const info = document.createElement('div');
       info.className = 'item-info';
@@ -259,12 +323,41 @@
       row.appendChild(info);
 
       row.addEventListener('click', () => {
-        chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_JUMP', payload: { index: idx } });
+        chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_JUMP', payload: { index: displayPos } });
         render();
       });
 
       playlistItems.appendChild(row);
     });
+
+    const shuffleActions = document.getElementById('shuffleActions');
+    if (shuffleActions) {
+      shuffleActions.classList.remove('hidden');
+
+      const realCurrentIndex = shuffledIndices
+        ? shuffledIndices[currentShufflePos]
+        : currentShufflePos;
+
+      const fullBtn = document.getElementById('shuffleFullBtn');
+      if (fullBtn) {
+        const newFullBtn = fullBtn.cloneNode(true);
+        fullBtn.parentNode.replaceChild(newFullBtn, fullBtn);
+        newFullBtn.addEventListener('click', async () => {
+          await startShufflePlayback(playlist);
+          render();
+        });
+      }
+
+      const hereBtn = document.getElementById('shuffleHereBtn');
+      if (hereBtn) {
+        const newHereBtn = hereBtn.cloneNode(true);
+        hereBtn.parentNode.replaceChild(newHereBtn, hereBtn);
+        newHereBtn.addEventListener('click', async () => {
+          await startShuffleFromHere(playlist, realCurrentIndex, shuffledIndices, currentShufflePos);
+          render();
+        });
+      }
+    }
   }
 
   function escapeHtml(str) {

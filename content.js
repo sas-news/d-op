@@ -234,15 +234,17 @@
     trySeek();
   }
 
-  function playItemInCurrentVideo(playlist, index) {
-    const item = playlist.items[index];
+  function playItemInCurrentVideo(playlist, realIndex, storedShuffledIndices) {
+    const item = playlist.items[realIndex];
     if (!item || !item.range) return;
-    currentPlayback = { playlistId: playlist.id, index, item };
-    dopSetPlayback({ playlistId: playlist.id, index, updatedAt: Date.now() });
+    const si = (currentPlayback && currentPlayback.shuffledIndices) || storedShuffledIndices || null;
+    const shufflePos = si ? si.indexOf(realIndex) : realIndex;
+    currentPlayback = { playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, item, shuffledIndices: si };
+    dopSetPlayback({ playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, shuffledIndices: si, updatedAt: Date.now() });
     targetRanges = buildRanges();
-    seekCooldownUntil = 0;
+    seekCooldownUntil = Date.now() + 5000;
     lastActionTime = 0;
-    log('playItemInCurrentVideo', { playlist: playlist.name, index, type: item.range.type });
+    log('playItemInCurrentVideo', { playlist: playlist.name, index: realIndex, type: item.range.type });
 
     if (targetRanges.length === 0) {
       currentPlayback = null;
@@ -261,15 +263,17 @@
     seekToStartWhenReady(start, () => play());
   }
 
-  function startPlayback(playlist, index) {
-    const item = playlist.items[index];
+  function startPlayback(playlist, realIndex, shuffledIndices) {
+    const item = playlist.items[realIndex];
     if (!item || !item.range) return;
-    currentPlayback = { playlistId: playlist.id, index, item };
-    dopSetPlayback({ playlistId: playlist.id, index, updatedAt: Date.now() });
+    const si = shuffledIndices || null;
+    const shufflePos = si ? si.indexOf(realIndex) : realIndex;
+    currentPlayback = { playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, item, shuffledIndices: si };
+    dopSetPlayback({ playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, shuffledIndices: si, updatedAt: Date.now() });
     targetRanges = buildRanges();
     seekCooldownUntil = Date.now() + 5000;
     lastActionTime = 0;
-    log('startPlayback', { playlist: playlist.name, index, type: item.range.type });
+    log('startPlayback', { playlist: playlist.name, index: realIndex, type: item.range.type });
 
     if (targetRanges.length === 0) {
       currentPlayback = null;
@@ -289,14 +293,14 @@
     seekToStartWhenReady(start, () => play());
   }
 
-  async function playPlaylistIndex(playlist, index) {
+  async function playPlaylistIndex(playlist, index, storedShuffledIndices) {
     const item = playlist.items[index];
     if (!item || !item.range) return;
     const currentPartId = new URLSearchParams(location.search).get('partId');
     if (currentPartId === item.partId) {
-      playItemInCurrentVideo(playlist, index);
+      playItemInCurrentVideo(playlist, index, storedShuffledIndices);
     } else {
-      await goToPlaylistItem(playlist.id, index, item);
+      await goToPlaylistItem(playlist.id, index, item, storedShuffledIndices);
     }
   }
 
@@ -308,9 +312,11 @@
       await clearPlaylistState();
       return false;
     }
-    const newIndex = currentPlayback.index + direction;
-    if (newIndex < 0 || newIndex >= playlist.items.length) {
-      if (newIndex >= playlist.items.length) {
+    const shuffled = currentPlayback.shuffledIndices;
+    const maxCount = shuffled ? shuffled.length : playlist.items.length;
+    const newShufflePos = currentPlayback.index + direction;
+    if (newShufflePos < 0 || newShufflePos >= maxCount) {
+      if (newShufflePos >= maxCount) {
         if (!currentPlayback._endPopupShown) {
           currentPlayback._endPopupShown = true;
           showEndOfPlaylistPopup(playlist);
@@ -320,15 +326,18 @@
       }
       return false;
     }
-    await playPlaylistIndex(playlist, newIndex);
+    const realIndex = shuffled ? shuffled[newShufflePos] : newShufflePos;
+    await playPlaylistIndex(playlist, realIndex);
     return true;
   }
 
-  async function goToPlaylistItem(playlistId, index, item) {
-    await dopSetPlayback({ playlistId, index, updatedAt: Date.now() });
+  async function goToPlaylistItem(playlistId, realIndex, item, storedShuffledIndices) {
+    const shuffled = (currentPlayback && currentPlayback.shuffledIndices) || storedShuffledIndices || null;
+    const shufflePos = shuffled ? shuffled.indexOf(realIndex) : realIndex;
+    await dopSetPlayback({ playlistId, index: shufflePos >= 0 ? shufflePos : realIndex, shuffledIndices: shuffled, updatedAt: Date.now() });
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlistId);
-    url.searchParams.set('dopIndex', String(index));
+    url.searchParams.set('dopIndex', String(realIndex));
     chrome.runtime.sendMessage({
       type: 'REQUEST_PLAYER',
       url: url.toString()
@@ -399,7 +408,10 @@
       const playlist = playlists.find((p) => p.id === params.playlistId);
       if (playlist && params.index >= 0 && params.index < playlist.items.length) {
         history.replaceState(null, '', removeDopParamsFromUrl(location.href));
-        startPlayback(playlist, params.index);
+        const stored = await dopGetPlayback();
+        const shuffledIndices = (stored && stored.playlistId === params.playlistId)
+          ? stored.shuffledIndices || null : null;
+        startPlayback(playlist, params.index, shuffledIndices);
         return;
       }
     }
@@ -583,12 +595,12 @@
           clearTimeout(popupHideTimer);
           popupHideTimer = null;
         }
-        popup.style.display = 'block';
+        popup.classList.add('d-op-popup-visible');
       };
 
       const scheduleHidePopup = () => {
         popupHideTimer = setTimeout(() => {
-          popup.style.display = '';
+          popup.classList.remove('d-op-popup-visible');
         }, 200);
       };
 
@@ -717,7 +729,10 @@
       dopGetPlaylists().then((playlists) => {
         const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
         if (playlist) {
-          nextBtn.disabled = currentPlayback.index >= playlist.items.length - 1;
+          const maxCount = currentPlayback.shuffledIndices
+            ? currentPlayback.shuffledIndices.length
+            : playlist.items.length;
+          nextBtn.disabled = currentPlayback.index >= maxCount - 1;
         }
       });
     } else {
@@ -751,7 +766,7 @@
     }
 
     let label = 'OP/ED';
-    let sub = 'プレイリスト再生中';
+    let sub = currentPlayback && currentPlayback.shuffledIndices ? 'SHUFFLE - プレイリスト再生中' : 'プレイリスト再生中';
     let meta = '';
     if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
       const range = currentPlayback.item.range;
@@ -796,7 +811,10 @@
         const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
         if (playlist) {
           subText.textContent = playlist.name;
-          metaText.textContent = `${currentPlayback.index + 1} / ${playlist.items.length}`;
+          const maxCount = currentPlayback.shuffledIndices
+            ? currentPlayback.shuffledIndices.length
+            : playlist.items.length;
+          metaText.textContent = `${currentPlayback.index + 1} / ${maxCount}`;
         }
       });
     }
@@ -1287,17 +1305,22 @@
 
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === playback.playlistId);
-    if (!playlist || playback.index >= playlist.items.length) {
+    if (!playlist) {
       await dopClearPlayback();
       return;
     }
-    const item = playlist.items[playback.index];
-    const currentPartId = new URLSearchParams(location.search).get('partId');
-    if (currentPartId !== item.partId) {
-      await goToPlaylistItem(playlist.id, playback.index, item);
+    const realIndex = dopResolvePlaybackIndex(playback);
+    if (realIndex === null || realIndex >= playlist.items.length) {
+      await dopClearPlayback();
       return;
     }
-    startPlayback(playlist, playback.index);
+    const item = playlist.items[realIndex];
+    const currentPartId = new URLSearchParams(location.search).get('partId');
+    if (currentPartId !== item.partId) {
+      await goToPlaylistItem(playlist.id, realIndex, item);
+      return;
+    }
+    startPlayback(playlist, realIndex, playback.shuffledIndices);
   }
 
   async function jumpToPlaylistIndex(index) {
@@ -1305,8 +1328,12 @@
     if (!playback) return;
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === playback.playlistId);
-    if (!playlist || index < 0 || index >= playlist.items.length) return;
-    await playPlaylistIndex(playlist, index);
+    if (!playlist) return;
+    const realIndex = playback.shuffledIndices
+      ? playback.shuffledIndices[index]
+      : index;
+    if (realIndex < 0 || realIndex >= playlist.items.length) return;
+    await playPlaylistIndex(playlist, realIndex, playback.shuffledIndices);
   }
 
   function handleRuntimeMessage(message) {
@@ -1322,8 +1349,8 @@
         clearPlaylistState();
         break;
       case 'PLAYLIST_JUMP':
-        if (message.index !== undefined) {
-          jumpToPlaylistIndex(message.index);
+        if (message.payload && message.payload.index !== undefined) {
+          jumpToPlaylistIndex(message.payload.index);
         }
         break;
     }
@@ -1388,7 +1415,6 @@
     });
 
     window.addEventListener('beforeunload', () => {
-      dopClearPlayback();
       dopClearPending();
     });
 
