@@ -941,6 +941,11 @@
         container = document.createElement('div');
         container.id = 'd-op-seek-markers';
         container.className = 'd-op-seek-markers';
+      }
+      const seekThumb = seekArea.querySelector('#seekThumb');
+      if (seekThumb && seekThumb.previousSibling !== container) {
+        seekArea.insertBefore(container, seekThumb);
+      } else if (!seekThumb && container.parentNode !== seekArea) {
         seekArea.appendChild(container);
       }
 

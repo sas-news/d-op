@@ -473,6 +473,10 @@ body.d-op-playlist-active .buttonArea .next {
   right: 0;
   bottom: 0;
   pointer-events: none;
+  z-index: 1;
+}
+
+#seekThumb {
   z-index: 2;
 }
 
