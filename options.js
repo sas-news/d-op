@@ -51,11 +51,13 @@
 
       const toggleBtn = document.createElement('span');
       toggleBtn.className = 'playlist-toggle';
-      toggleBtn.textContent = collapsedState[playlist.id] !== false ? '\u25B6' : '\u25BC';
+      toggleBtn.textContent = '\u25B6';
+      if (collapsedState[playlist.id] === false) toggleBtn.classList.add('expanded');
 
       const count = document.createElement('span');
       count.className = 'playlist-count';
-      count.textContent = `${playlist.items.length}件`;
+      const totalMs = playlist.items.reduce((s, it) => it.range ? s + (it.range.end - it.range.start) : s, 0);
+      count.textContent = `${playlist.items.length}件 / ${formatSec(totalMs)}`;
 
       toggleGroup.appendChild(toggleBtn);
       toggleGroup.appendChild(count);
@@ -78,6 +80,8 @@
       deleteBtn.textContent = '削除';
       deleteBtn.className = 'btn-danger-text';
       deleteBtn.addEventListener('click', async () => {
+        const ok = await showConfirm(`プレイリスト「${playlist.name}」を削除しますか？`);
+        if (!ok) return;
         await dopDeletePlaylist(playlist.id);
         renderPlaylists();
       });
@@ -92,7 +96,7 @@
       header.addEventListener('click', (e) => {
         if (e.target.closest('input, button')) return;
         const collapsed = card.classList.toggle('collapsed');
-        toggleBtn.textContent = collapsed ? '\u25B6' : '\u25BC';
+        toggleBtn.classList.toggle('expanded', !collapsed);
         dopSetCollapsedPlaylist(playlist.id, collapsed);
       });
 
@@ -139,7 +143,6 @@
 
         const editRow = document.createElement('div');
         editRow.className = 'item-edit-row';
-        editRow.style.display = 'none';
 
         const titleInput = document.createElement('input');
         titleInput.type = 'text';
@@ -240,6 +243,8 @@
         removeBtn.textContent = '削除';
         removeBtn.className = 'btn-danger-text';
         removeBtn.addEventListener('click', async () => {
+          const ok = await showConfirm('このアイテムを削除しますか？');
+          if (!ok) return;
           await dopRemoveItem(playlist.id, item.id);
           renderPlaylists();
         });
@@ -256,53 +261,139 @@
         controls.appendChild(copyBtn);
         addDivider();
         controls.appendChild(removeBtn);
+
+        const grip = document.createElement('div');
+        grip.className = 'drag-grip';
+        for (let i = 0; i < 3; i++) {
+          const line = document.createElement('div');
+          line.className = 'drag-grip-line';
+          grip.appendChild(line);
+        }
+
+        li.appendChild(grip);
         li.appendChild(info);
         li.appendChild(controls);
-        li.draggable = true;
         li.dataset.itemId = item.id;
         itemsList.appendChild(li);
       });
 
-      let dragSrcItemId = null;
-      itemsList.addEventListener('dragstart', (e) => {
-        const row = e.target.closest('.item-row');
+      let dragState = null;
+
+      function flipAnimate(listEl, skipRow) {
+        const rows = [...listEl.querySelectorAll('.item-row')];
+        const firsts = {};
+        rows.forEach((r) => { firsts[r.dataset.itemId] = r.getBoundingClientRect().top; });
+        return () => {
+          const newRows = [...listEl.querySelectorAll('.item-row')];
+          newRows.forEach((r) => {
+            if (r === skipRow) return;
+            const prev = firsts[r.dataset.itemId];
+            if (prev === undefined) return;
+            const curr = r.getBoundingClientRect().top;
+            const diff = prev - curr;
+            if (Math.abs(diff) > 0.5) {
+              r.style.transform = `translateY(${diff}px)`;
+              r.style.transition = 'none';
+              r.offsetHeight;
+              r.style.transition = 'transform 120ms ease-out';
+              r.style.transform = '';
+            }
+          });
+        };
+      }
+
+      itemsList.addEventListener('mousedown', (e) => {
+        const grip = e.target.closest('.drag-grip');
+        if (!grip) return;
+        e.preventDefault();
+        const row = grip.closest('.item-row');
         if (!row) return;
-        dragSrcItemId = row.dataset.itemId;
+
+        const rowRect = row.getBoundingClientRect();
+        const clone = row.cloneNode(true);
+        clone.classList.add('drag-clone');
+        clone.style.width = rowRect.width + 'px';
+        clone.style.left = rowRect.left + 'px';
+        clone.style.top = rowRect.top + 'px';
+        document.body.appendChild(clone);
+
         row.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', dragSrcItemId);
+
+        dragState = {
+          row,
+          clone,
+          playlistId: playlist.id,
+          offsetY: e.clientY - rowRect.top,
+          lastTarget: null
+        };
       });
-      itemsList.addEventListener('dragend', (e) => {
-        const row = e.target.closest('.item-row');
-        if (row) row.classList.remove('dragging');
-        itemsList.querySelectorAll('.item-row').forEach((r) => r.classList.remove('drag-over'));
-        dragSrcItemId = null;
-      });
-      itemsList.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        const row = e.target.closest('.item-row');
-        itemsList.querySelectorAll('.item-row').forEach((r) => r.classList.remove('drag-over'));
-        if (row && row.dataset.itemId !== dragSrcItemId) {
-          row.classList.add('drag-over');
+
+      document.addEventListener('mousemove', (e) => {
+        if (!dragState) return;
+
+        const listRect = itemsList.getBoundingClientRect();
+        const rowH = dragState.row.getBoundingClientRect().height;
+        const minY = listRect.top;
+        const maxY = listRect.bottom - rowH;
+        const clampedY = Math.max(minY, Math.min(maxY, e.clientY - dragState.offsetY));
+        dragState.clone.style.left = dragState.row.getBoundingClientRect().left + 'px';
+        dragState.clone.style.top = clampedY + 'px';
+
+        const rows = [...itemsList.querySelectorAll('.item-row')];
+        let target = null;
+        let minDist = Infinity;
+        rows.forEach((r) => {
+          if (r === dragState.row) return;
+          const mid = r.getBoundingClientRect().top + r.getBoundingClientRect().height / 2;
+          const d = Math.abs(e.clientY - mid);
+          if (d < minDist) { minDist = d; target = r; }
+        });
+
+        if (!target) return;
+
+        const rect = target.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+
+        const play = flipAnimate(itemsList, dragState.row);
+        if (e.clientY < mid) {
+          itemsList.insertBefore(dragState.row, target);
+        } else {
+          itemsList.insertBefore(dragState.row, target.nextSibling);
         }
+        play();
       });
-      itemsList.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        const row = e.target.closest('.item-row');
-        itemsList.querySelectorAll('.item-row').forEach((r) => r.classList.remove('drag-over'));
-        if (!row || !dragSrcItemId || row.dataset.itemId === dragSrcItemId) return;
+
+      document.addEventListener('mouseup', async (e) => {
+        if (!dragState) return;
+        const state = dragState;
+        dragState = null;
+
+        const finalRect = state.row.getBoundingClientRect();
+        state.clone.style.transition = 'left 150ms ease-out, top 150ms ease-out, opacity 150ms ease-out';
+        state.clone.style.left = finalRect.left + 'px';
+        state.clone.style.top = finalRect.top + 'px';
+        state.clone.style.opacity = '0';
+        state.clone.addEventListener('transitionend', () => {
+          if (state.clone.parentNode) state.clone.remove();
+        }, { once: true });
+
+        state.row.classList.remove('dragging');
+        itemsList.querySelectorAll('.item-row').forEach((r) => {
+          r.style.transition = '';
+          r.style.transform = '';
+        });
+
+        const rows = itemsList.querySelectorAll('.item-row');
+        const newOrder = Array.from(rows).map((r) => r.dataset.itemId);
         const playlists = await dopGetPlaylists();
-        const pl = playlists.find((p) => p.id === playlist.id);
-        if (!pl) return;
-        const srcIdx = pl.items.findIndex((i) => i.id === dragSrcItemId);
-        const dstIdx = pl.items.findIndex((i) => i.id === row.dataset.itemId);
-        if (srcIdx < 0 || dstIdx < 0 || srcIdx === dstIdx) return;
-        const [moved] = pl.items.splice(srcIdx, 1);
-        pl.items.splice(dstIdx, 0, moved);
-        await dopSavePlaylists(playlists);
-        dragSrcItemId = null;
-        renderPlaylists();
+        const pl = playlists.find((p) => p.id === state.playlistId);
+        if (pl) {
+          const ordered = newOrder.map((id) => pl.items.find((i) => i.id === id)).filter(Boolean);
+          if (ordered.length === pl.items.length) {
+            pl.items = ordered;
+            await dopSavePlaylists(playlists);
+          }
+        }
       });
 
       const itemsWrapper = document.createElement('div');
@@ -323,6 +414,63 @@
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return `${m}:${String(sec).padStart(2, '0')}`;
+  }
+
+  function showConfirm(message) {
+    return new Promise((resolve) => {
+      let modal = document.getElementById('d-op-confirm-modal');
+      if (modal) modal.remove();
+
+      function dismiss(result) {
+        modal.classList.add('modal-out');
+        const panel = modal.querySelector('.d-op-modal-panel');
+        if (panel) panel.style.animation = 'panel-out 100ms ease-in forwards';
+        modal.addEventListener('animationend', () => {
+          modal.remove();
+          resolve(result);
+        }, { once: true });
+      }
+
+      modal = document.createElement('div');
+      modal.id = 'd-op-confirm-modal';
+      modal.className = 'd-op-modal';
+
+      const panel = document.createElement('div');
+      panel.className = 'd-op-modal-panel';
+      panel.style.minWidth = '260px';
+
+      const msg = document.createElement('p');
+      msg.textContent = message;
+      panel.appendChild(msg);
+
+      const footer = document.createElement('div');
+      footer.className = 'd-op-modal-footer';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'キャンセル';
+      cancelBtn.className = 'btn-text';
+      cancelBtn.addEventListener('click', () => dismiss(false));
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.textContent = '削除';
+      confirmBtn.style.background = 'var(--dop-danger)';
+      confirmBtn.style.color = '#fff';
+      confirmBtn.style.border = 'none';
+      confirmBtn.style.padding = 'var(--dop-space-4) var(--dop-space-6)';
+      confirmBtn.style.borderRadius = 'var(--dop-radius-sm)';
+      confirmBtn.style.cursor = 'pointer';
+      confirmBtn.addEventListener('click', () => dismiss(true));
+
+      footer.appendChild(cancelBtn);
+      footer.appendChild(confirmBtn);
+      panel.appendChild(footer);
+      modal.appendChild(panel);
+
+      modal.addEventListener('click', (e) => { if (e.target === modal) dismiss(false); });
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape') { dismiss(false); document.removeEventListener('keydown', onKey); }
+      });
+      document.body.appendChild(modal);
+    });
   }
 
   function showCopyDialog(playlists, currentPlaylistId) {
