@@ -450,7 +450,6 @@ button:disabled {
   padding: 3px var(--dop-space-4);
   font-size: 12px;
 }
-}
 
 .file-btn {
   display: inline-flex;

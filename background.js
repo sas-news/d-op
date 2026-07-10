@@ -22,12 +22,15 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     const wId = parseInt(playback.windowId.substring(1), 10);
     if (!isNaN(wId)) {
       try {
-        await chrome.windows.get(wId);
-        const tabs = await chrome.tabs.query({ windowId: wId });
-        if (tabs[0]) {
-          playerState = { windowId: wId, tabId: tabs[0].id };
+        const win = await chrome.windows.get(wId);
+        if (win.type === 'popup') {
+          const tabs = await chrome.tabs.query({ windowId: wId });
+          if (tabs[0]) {
+            playerState = { windowId: wId, tabId: tabs[0].id };
+          }
         }
       } catch (_) {
+        playerState = null;
         await chrome.storage.local.remove('dop_playback');
         await chrome.storage.local.remove('dop_pending');
       }
@@ -40,24 +43,20 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // ---------------------------------------------------------------------------
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   if (removeInfo.isWindowClosing) return;
-  await onPlayerRemoved(removeInfo.windowId, tabId);
-});
-
-chrome.windows.onRemoved.addListener(async (windowId) => {
-  await onPlayerRemoved(windowId, null);
-});
-
-async function onPlayerRemoved(windowId, tabId) {
-  if (playerState && (playerState.windowId === windowId || playerState.tabId === tabId)) {
+  if (playerState && playerState.tabId === tabId) {
     playerState = null;
-  }
-  const wId = 'w' + windowId;
-  const result = await chrome.storage.local.get('dop_playback');
-  if (result.dop_playback?.windowId === wId) {
     await chrome.storage.local.remove('dop_playback');
     await chrome.storage.local.remove('dop_pending');
   }
-}
+});
+
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  if (playerState && playerState.windowId === windowId) {
+    playerState = null;
+    await chrome.storage.local.remove('dop_playback');
+    await chrome.storage.local.remove('dop_pending');
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Message router
@@ -130,7 +129,12 @@ async function handleReleasePlayer() {
       if (tabs[0]?.id) {
         chrome.tabs.sendMessage(tabs[0].id, { type: 'PLAYLIST_STOP' }).catch(() => {});
       }
-      chrome.windows.remove(playerState.windowId).catch(() => {});
+      const win = await chrome.windows.get(playerState.windowId);
+      if (win && win.type === 'popup') {
+        chrome.windows.remove(playerState.windowId).catch(() => {});
+      } else {
+        chrome.tabs.remove(playerState.tabId).catch(() => {});
+      }
     } catch (_) {}
     playerState = null;
   }
