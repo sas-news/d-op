@@ -30,6 +30,20 @@
   let currentSessionId = null;
   let isInputFocused = false;
 
+  function getPlayerPageInfo() {
+    const backInfo = document.getElementById('backInfo');
+    if (!backInfo) return {};
+    const txt = function (sel) {
+      const el = backInfo.querySelector(sel);
+      return el ? el.textContent.trim() : '';
+    };
+    return {
+      workTitle: txt('.backInfoTxt1'),
+      episodeNumber: txt('.backInfoTxt2'),
+      episodeTitle: txt('.backInfoTxt3')
+    };
+  }
+
   function getVideo() {
     return document.getElementById('video');
   }
@@ -1134,6 +1148,14 @@
 
     if (result !== 'add') return;
 
+    const playlistName = newInput.value.trim();
+
+    if (!selectedId && !playlistName) {
+      await showModal('エラー', 'プレイリストを選択するか、新規プレイリスト名を入力してください。', [{ label: 'OK', value: null, primary: true }]);
+      await openPlaylistModal(defaultName, range);
+      return;
+    }
+
     const itemName = nameInput.value.trim() || defaultName || '範囲';
     const rangeToAdd = { start: range.start, end: range.end, name: itemName };
 
@@ -1142,7 +1164,6 @@
       return;
     }
 
-    const playlistName = newInput.value.trim();
     if (playlistName) {
       const playlist = await dopCreatePlaylist(playlistName);
       await addCurrentRangeToPlaylist(playlist.id, rangeToAdd);
@@ -1271,12 +1292,14 @@
     const data = chaptersInfo;
     if (!data || !range) return;
 
+    const page = getPlayerPageInfo();
+
     const item = {
       partId: data.partId,
       workId: data.workId || '',
-      title: data.workTitle || data.title || data.partTitle || '',
-      episodeTitle: data.partTitle || '',
-      episodeNumber: data.partDispNumber || '',
+      title: data.workTitle || page.workTitle || '',
+      episodeTitle: data.partTitle || page.episodeTitle || '',
+      episodeNumber: data.partDispNumber || page.episodeNumber || '',
       url: location.href,
       range
     };

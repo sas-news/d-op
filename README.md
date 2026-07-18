@@ -80,7 +80,7 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 ## 必要環境
 
 - Google Chrome 88 以降（Manifest V3 対応）
-- Mozilla Firefox 121 以降（Manifest V3 対応。`background.scripts` と `service_worker` の両立が必要）
+- Mozilla Firefox 121 以降（Manifest V3 対応）
 - dアニメストアのアカウント
 
 ## ライセンス

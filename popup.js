@@ -217,22 +217,17 @@
           const row = document.createElement('div');
           row.className = 'playlist-card-item';
 
-          const episodeNum = item.episodeNumber || extractEpisodeNumber(item.episodeTitle);
+          const epNum = item.episodeNumber ? decodeHtmlEntities(item.episodeNumber) : '';
+          const epTitle = item.episodeTitle ? decodeHtmlEntities(item.episodeTitle) : '';
+          const workTitle = decodeHtmlEntities(item.title) || '';
 
           const titleEl = document.createElement('div');
-          titleEl.className = 'item-title';
-          if (episodeNum) {
-            titleEl.textContent = decodeHtmlEntities(episodeNum) + ' - ' + (decodeHtmlEntities(item.title) || '(タイトル不明)');
-          } else {
-            titleEl.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
-          }
+          titleEl.className = 'item-episode';
+          titleEl.textContent = [epNum, epTitle].filter(Boolean).join(' ') || workTitle || '(タイトル不明)';
 
-          let episodeSub = null;
-          if (!episodeNum && item.episodeTitle) {
-            episodeSub = document.createElement('div');
-            episodeSub.className = 'item-episode';
-            episodeSub.textContent = decodeHtmlEntities(item.episodeTitle);
-          }
+          const episodeSub = document.createElement('div');
+          episodeSub.className = 'item-work';
+          episodeSub.textContent = workTitle;
 
           const metaEl = document.createElement('div');
           metaEl.className = 'item-meta';
@@ -250,7 +245,7 @@
           }
 
           row.appendChild(titleEl);
-          if (episodeSub) row.appendChild(episodeSub);
+          row.appendChild(episodeSub);
           row.appendChild(metaEl);
           row.addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -284,22 +279,17 @@
       const info = document.createElement('div');
       info.className = 'item-info';
 
-      const episodeNum = item.episodeNumber || extractEpisodeNumber(item.episodeTitle);
+      const epNum = item.episodeNumber ? decodeHtmlEntities(item.episodeNumber) : '';
+      const epTitle = item.episodeTitle ? decodeHtmlEntities(item.episodeTitle) : '';
+      const workTitle = decodeHtmlEntities(item.title) || '';
 
       const title = document.createElement('div');
       title.className = 'item-title';
-      if (episodeNum) {
-        title.textContent = decodeHtmlEntities(episodeNum) + ' - ' + (decodeHtmlEntities(item.title) || '(タイトル不明)');
-      } else {
-        title.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
-      }
+      title.textContent = [epNum, epTitle].filter(Boolean).join(' ') || workTitle || '(タイトル不明)';
 
-      let episodeSub = null;
-      if (!episodeNum && item.episodeTitle) {
-        episodeSub = document.createElement('div');
-        episodeSub.className = 'item-episode';
-        episodeSub.textContent = decodeHtmlEntities(item.episodeTitle);
-      }
+      const episodeSub = document.createElement('div');
+      episodeSub.className = 'item-episode';
+      episodeSub.textContent = workTitle;
 
       const meta = document.createElement('div');
       meta.className = 'item-meta';
@@ -317,7 +307,7 @@
       }
 
       info.appendChild(title);
-      if (episodeSub) info.appendChild(episodeSub);
+      info.appendChild(episodeSub);
       info.appendChild(meta);
       row.appendChild(thumb);
       row.appendChild(info);

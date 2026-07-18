@@ -254,7 +254,7 @@ header button:hover {
   min-width: 0;
 }
 
-.item-title {
+.item-episode {
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
@@ -280,7 +280,7 @@ header button:hover {
   color: var(--dop-text-tertiary);
 }
 
-.item-episode {
+.item-work {
   font-size: 10px;
   color: var(--dop-text-tertiary);
   margin-top: var(--dop-space-1);
@@ -386,7 +386,7 @@ p.empty {
   background: var(--dop-bg-elevated);
 }
 
-.playlist-card-item .item-title {
+.playlist-card-item .item-episode {
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;

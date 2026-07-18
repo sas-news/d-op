@@ -1,5 +1,4 @@
-// Load the cross-browser API polyfill in Chrome service workers.
-// Firefox loads it via the manifest background.scripts array before this file.
+// Load the cross-browser API polyfill in service workers (both Chrome and Firefox).
 if (typeof browser === 'undefined' && typeof importScripts === 'function') {
   importScripts('browser-polyfill.js');
 }

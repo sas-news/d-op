@@ -372,13 +372,13 @@ button:disabled {
   min-width: 0;
 }
 
-.item-title {
+.item-episode {
   font-weight: 600;
   font-size: 14px;
   color: var(--dop-text-primary);
 }
 
-.item-episode {
+.item-work {
   font-size: 12px;
   color: var(--dop-text-secondary);
   margin-top: var(--dop-space-1);

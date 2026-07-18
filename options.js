@@ -109,22 +109,17 @@
         const info = document.createElement('div');
         info.className = 'item-info';
 
-        const episodeNum = item.episodeNumber || extractEpisodeNumber(item.episodeTitle);
+        const epNum = item.episodeNumber ? decodeHtmlEntities(item.episodeNumber) : '';
+        const epTitle = item.episodeTitle ? decodeHtmlEntities(item.episodeTitle) : '';
+        const workTitle = decodeHtmlEntities(item.title) || '';
 
         const title = document.createElement('div');
-        title.className = 'item-title';
-        if (episodeNum) {
-          title.textContent = decodeHtmlEntities(episodeNum) + ' - ' + (decodeHtmlEntities(item.title) || '(タイトル不明)');
-        } else {
-          title.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
-        }
+        title.className = 'item-episode';
+        title.textContent = [epNum, epTitle].filter(Boolean).join(' ') || workTitle || '(タイトル不明)';
 
-        let episodeSub = null;
-        if (!episodeNum && item.episodeTitle) {
-          episodeSub = document.createElement('div');
-          episodeSub.className = 'item-episode';
-          episodeSub.textContent = decodeHtmlEntities(item.episodeTitle);
-        }
+        const episodeSub = document.createElement('div');
+        episodeSub.className = 'item-work';
+        episodeSub.textContent = workTitle;
 
         const meta = document.createElement('div');
         meta.className = 'item-meta';
@@ -206,7 +201,7 @@
         editRow.appendChild(cancelBtn);
 
         info.appendChild(title);
-        if (episodeSub) info.appendChild(episodeSub);
+        info.appendChild(episodeSub);
         info.appendChild(meta);
         info.appendChild(editRow);
 
@@ -610,7 +605,7 @@
           id: i.id || dopGenerateId(),
           partId: i.partId || '',
           workId: i.workId || '',
-          title: i.title || i.episodeTitle || '',
+          title: i.title || '',
           episodeTitle: i.episodeTitle || '',
           url: i.url || '',
           range: i.range ? { ...i.range } : null

@@ -110,10 +110,10 @@
 
     return {
       partId: data.partId || null,
+      workId: data.workId || null,
       workTitle: data.workTitle || null,
       partTitle: data.partTitle || null,
       partDispNumber: (data.partDispNumber && data.partDispNumber !== '�@') ? data.partDispNumber : null,
-      title: data.workTitle || data.partTitle || null,
       duration: data.duration || null,
       chapters: data.chapters.map((c, index) => ({
         index,
