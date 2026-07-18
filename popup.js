@@ -53,7 +53,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlist.id);
     url.searchParams.set('dopIndex', String(realIndex));
-    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+    browser.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
   }
 
   async function startShuffleFromHere(playlist, currentRealIndex, currentShuffledIndices, currentShufflePos) {
@@ -70,7 +70,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlist.id);
     url.searchParams.set('dopIndex', String(currentRealIndex));
-    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+    browser.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
   }
 
   let renderQueued = false;
@@ -146,7 +146,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlist.id);
     url.searchParams.set('dopIndex', String(index));
-    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+    browser.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
   }
 
   function renderPlaylistList(playlists) {
@@ -161,7 +161,7 @@
       `;
       const emptyCreateBtn = document.getElementById('emptyCreateBtn');
       if (emptyCreateBtn) {
-        emptyCreateBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
+        emptyCreateBtn.addEventListener('click', () => browser.runtime.openOptionsPage());
       }
       return;
     }
@@ -323,7 +323,7 @@
       row.appendChild(info);
 
       row.addEventListener('click', () => {
-        chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_JUMP', payload: { index: displayPos } });
+        browser.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_JUMP', payload: { index: displayPos } });
         render();
       });
 
@@ -365,18 +365,18 @@
   }
 
   prevBtn.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_PREV' });
+    browser.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_PREV' });
   });
   nextBtn.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_NEXT' });
+    browser.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_NEXT' });
   });
   stopBtn.addEventListener('click', async () => {
-    chrome.runtime.sendMessage({ type: 'RELEASE_PLAYER' });
+    browser.runtime.sendMessage({ type: 'RELEASE_PLAYER' });
     await render();
   });
-  openOptions.addEventListener('click', () => chrome.runtime.openOptionsPage());
+  openOptions.addEventListener('click', () => browser.runtime.openOptionsPage());
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
+  browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local' && changes.dop_playback) {
       render();
     }

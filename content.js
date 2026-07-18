@@ -136,6 +136,15 @@
     window.postMessage({ source: APP_TAG, direction: 'to-page', type, payload }, window.location.origin);
   }
 
+  function injectPageScript() {
+    if (document.getElementById('d-op-injected-script')) return;
+    const script = document.createElement('script');
+    script.id = 'd-op-injected-script';
+    script.src = browser.runtime.getURL('injected.js');
+    script.setAttribute('data-dop-injected', 'true');
+    (document.head || document.documentElement).appendChild(script);
+  }
+
   function seek(timeSec) {
     sendCommand('SEEK', { time: timeSec });
   }
@@ -338,7 +347,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlistId);
     url.searchParams.set('dopIndex', String(realIndex));
-    chrome.runtime.sendMessage({
+    browser.runtime.sendMessage({
       type: 'REQUEST_PLAYER',
       url: url.toString()
     });
@@ -1397,9 +1406,7 @@
     if (window.__dOpInitialized) return;
     window.__dOpInitialized = true;
 
-    chrome.runtime.sendMessage({ type: 'INJECT_SCRIPT' }, () => {
-      chrome.runtime.lastError;
-    });
+    injectPageScript();
 
     window.addEventListener('message', (event) => {
       if (event.origin !== window.location.origin) return;
@@ -1410,7 +1417,7 @@
       }
     });
 
-    chrome.runtime.onMessage.addListener((message) => {
+    browser.runtime.onMessage.addListener((message) => {
       handleRuntimeMessage(message);
     });
 

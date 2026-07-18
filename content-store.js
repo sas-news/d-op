@@ -105,7 +105,7 @@
       params.set('dopTitle', workTitle);
       params.set('dopEpisodeTitle', episodeTitle);
       const url = `https://animestore.docomo.ne.jp/animestore/sc_d_pc?${params.toString()}`;
-      chrome.runtime.sendMessage({
+      browser.runtime.sendMessage({
         type: 'REQUEST_PLAYER',
         url: url
       });

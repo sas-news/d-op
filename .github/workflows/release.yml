@@ -25,6 +25,7 @@ jobs:
           zip -r "d-op-v${{ steps.version.outputs.version }}.zip" \
             manifest.json \
             background.js \
+            browser-polyfill.js \
             common.js \
             content.js \
             content-store.js \
@@ -40,6 +41,10 @@ jobs:
             icons/ \
             PRIVACY.md \
             README.md
+
+      - name: Create XPI package (Firefox)
+        run: |
+          cp "d-op-v${{ steps.version.outputs.version }}.zip" "d-op-v${{ steps.version.outputs.version }}.xpi"
 
       - name: Create CRX package (if key available)
         if: env.CRX_PRIVATE_KEY != ''
@@ -82,6 +87,7 @@ jobs:
             - 
           files: |
             d-op-v${{ steps.version.outputs.version }}.zip
+            d-op-v${{ steps.version.outputs.version }}.xpi
             d-op-v${{ steps.version.outputs.version }}.crx
           fail_on_unmatched_files: false
         env:

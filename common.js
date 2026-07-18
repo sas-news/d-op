@@ -76,14 +76,14 @@ function migratePlaylist(playlist) {
 }
 
 async function dopGetPlaylists() {
-  const result = await chrome.storage.local.get(DOP_STORAGE_KEY);
+  const result = await browser.storage.local.get(DOP_STORAGE_KEY);
   const playlists = (result[DOP_STORAGE_KEY] || []).map(migratePlaylist);
   return playlists;
 }
 
 async function dopSavePlaylists(playlists) {
   try {
-    await chrome.storage.local.set({ [DOP_STORAGE_KEY]: playlists });
+    await browser.storage.local.set({ [DOP_STORAGE_KEY]: playlists });
   } catch (err) {
     if (err.message && err.message.includes('QUOTA')) {
       throw new Error('ストレージ容量が不足しています。不要なプレイリストを削除してください。');
@@ -93,17 +93,17 @@ async function dopSavePlaylists(playlists) {
 }
 
 async function dopGetPlayback() {
-  const result = await chrome.storage.local.get(DOP_PLAYBACK_KEY);
+  const result = await browser.storage.local.get(DOP_PLAYBACK_KEY);
   return result[DOP_PLAYBACK_KEY] || null;
 }
 
 async function dopSetPlayback(playback) {
   if (!playback) {
-    await chrome.storage.local.remove(DOP_PLAYBACK_KEY);
+    await browser.storage.local.remove(DOP_PLAYBACK_KEY);
     return;
   }
   playback.windowId = await dopGetWindowId();
-  await chrome.storage.local.set({ [DOP_PLAYBACK_KEY]: playback });
+  await browser.storage.local.set({ [DOP_PLAYBACK_KEY]: playback });
 }
 
 async function dopClearPlaybackForWindow(windowId) {
@@ -116,59 +116,59 @@ async function dopClearPlaybackForWindow(windowId) {
 }
 
 async function dopClearPlayback() {
-  await chrome.storage.local.remove(DOP_PLAYBACK_KEY);
+  await browser.storage.local.remove(DOP_PLAYBACK_KEY);
 }
 
 async function dopGetPending() {
-  const result = await chrome.storage.local.get(DOP_PENDING_KEY);
+  const result = await browser.storage.local.get(DOP_PENDING_KEY);
   return result[DOP_PENDING_KEY] || null;
 }
 
 async function dopSetPending(pending) {
-  await chrome.storage.local.set({ [DOP_PENDING_KEY]: pending });
+  await browser.storage.local.set({ [DOP_PENDING_KEY]: pending });
 }
 
 async function dopClearPending() {
-  await chrome.storage.local.remove(DOP_PENDING_KEY);
+  await browser.storage.local.remove(DOP_PENDING_KEY);
 }
 
 async function dopGetOpEdMode() {
-  const result = await chrome.storage.local.get(DOP_OPED_MODE_KEY);
+  const result = await browser.storage.local.get(DOP_OPED_MODE_KEY);
   return result[DOP_OPED_MODE_KEY] || null;
 }
 
 async function dopSetOpEdMode(active) {
   if (active) {
-    await chrome.storage.local.set({ [DOP_OPED_MODE_KEY]: { active: true, updatedAt: Date.now() } });
+    await browser.storage.local.set({ [DOP_OPED_MODE_KEY]: { active: true, updatedAt: Date.now() } });
   } else {
-    await chrome.storage.local.remove(DOP_OPED_MODE_KEY);
+    await browser.storage.local.remove(DOP_OPED_MODE_KEY);
   }
 }
 
 async function dopGetWindowMode() {
-  const result = await chrome.storage.local.get(DOP_WINDOW_MODE_KEY);
+  const result = await browser.storage.local.get(DOP_WINDOW_MODE_KEY);
   return result[DOP_WINDOW_MODE_KEY] || 'window';
 }
 
 async function dopSetWindowMode(mode) {
-  await chrome.storage.local.set({ [DOP_WINDOW_MODE_KEY]: mode });
+  await browser.storage.local.set({ [DOP_WINDOW_MODE_KEY]: mode });
 }
 
 async function dopGetCollapsedPlaylists() {
-  const result = await chrome.storage.local.get(DOP_COLLAPSED_KEY);
+  const result = await browser.storage.local.get(DOP_COLLAPSED_KEY);
   return result[DOP_COLLAPSED_KEY] || {};
 }
 
 async function dopSetCollapsedPlaylist(playlistId, collapsed) {
   const state = await dopGetCollapsedPlaylists();
   state[playlistId] = collapsed;
-  await chrome.storage.local.set({ [DOP_COLLAPSED_KEY]: state });
+  await browser.storage.local.set({ [DOP_COLLAPSED_KEY]: state });
 }
 
 async function dopGetWindowId() {
   try {
-    if (chrome.windows && chrome.windows.getCurrent) {
-      const w = await chrome.windows.getCurrent();
+    if (browser.windows && browser.windows.getCurrent) {
+      const w = await browser.windows.getCurrent();
       if (w && w.id) return 'w' + w.id;
     }
   } catch (_) {}

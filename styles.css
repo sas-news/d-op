@@ -347,6 +347,12 @@ body.d-op-playlist-active .buttonArea .next {
   pointer-events: auto;
 }
 
+@supports not (backdrop-filter: blur(12px)) {
+  .d-op-top-panel {
+    background: rgba(0, 0, 0, 0.55);
+  }
+}
+
 .d-op-top-panel::before {
   content: '';
   width: 3px;

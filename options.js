@@ -550,7 +550,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlistId);
     url.searchParams.set('dopIndex', String(index));
-    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+    browser.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
   }
 
   function parseTimeInput(str) {
