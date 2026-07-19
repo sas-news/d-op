@@ -83,8 +83,8 @@
     const none = getNoneChapters();
     if (currentMode === 'op-ed') return none.slice();
     if (currentMode === 'custom-test') return targetRanges.slice();
-    if (customSelecting && customStart && customEnd) {
-      return [{ start: Math.min(customStart, customEnd), end: Math.max(customStart, customEnd) }];
+    if (customSelecting && customStart && customEnd && customStart < customEnd) {
+      return [{ start: customStart, end: customEnd }];
     }
     return [];
   }
@@ -288,8 +288,8 @@
 
     showModal('再生終了', content, [
       { label: '最初から再生', value: 'restart' },
-      { label: 'dOPを続ける', value: 'continue', primary: true },
-      { label: 'dOPを終了する', value: 'close' }
+      { label: 'このまま継続', value: 'continue', primary: true },
+      { label: 'モードを解除', value: 'close' }
     ]).then(async (value) => {
       if (value === 'restart') {
         await clearPlaylistState();
@@ -726,8 +726,8 @@
     metaText.className = 'd-op-top-meta';
 
     const stopBtn = document.createElement('button');
-    stopBtn.textContent = '終了';
-    stopBtn.title = 'プレイリスト再生を終了';
+    stopBtn.textContent = '解除';
+    stopBtn.title = 'プレイリスト再生を解除';
     stopBtn.addEventListener('click', () => {
       clearPlaylistState();
     });
@@ -805,11 +805,24 @@
       }
     }
 
-    if ((currentMode === 'custom-test' || customSelecting) && targetRanges.length > 0) {
-      const r = targetRanges[0];
-      const label = customName || 'CUSTOM';
-      const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
-      if (!dup) ranges.push({ ...r, label });
+    if (currentMode === 'custom-test' || customSelecting) {
+      if (targetRanges.length > 0) {
+        const r = targetRanges[0];
+        const label = customName || 'CUSTOM';
+        const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+        if (!dup) ranges.push({ ...r, label });
+      } else if (customSelecting) {
+        const label = customName || 'CUSTOM';
+        if (customStart !== null && customEnd !== null && customStart < customEnd) {
+          const r = { start: customStart, end: customEnd };
+          const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+          if (!dup) ranges.push({ ...r, label });
+        } else if (customStart !== null || customEnd !== null) {
+          const point = customStart !== null ? customStart : customEnd;
+          const dup = ranges.some((c) => c.start === point && c.end === point);
+          if (!dup) ranges.push({ start: point, end: point, label });
+        }
+      }
     }
 
     if (chaptersInfo && chaptersInfo.partId) {
@@ -910,13 +923,16 @@
       const end = seconds(r.end);
       if (start >= duration || end <= 0) return;
       const left = Math.max(0, start / duration * 100);
-      const width = Math.min(100 - left, (end - start) / duration * 100);
-      if (width <= 0) return;
+      const width = Math.max(0, Math.min(100 - left, (end - start) / duration * 100));
 
       const marker = document.createElement('div');
       marker.className = 'd-op-seek-marker';
       marker.style.left = left + '%';
-      marker.style.width = width + '%';
+      if (width > 0) {
+        marker.style.width = width + '%';
+      } else {
+        marker.classList.add('point');
+      }
       marker.title = `${r.label}: ${formatTime(start)}-${formatTime(end)}`;
       if (canSeekColor) {
         if (r.label === 'OP') marker.classList.add('op');
@@ -1083,11 +1099,11 @@
   async function showCustomRangeBar() {
     if (currentMode !== 'none' || currentPlayback) {
       const value = await showModal(
-        '再生モードを終了',
-        'カスタム範囲を選択するには、現在の再生モードを終了してください。',
+        '再生モードを解除',
+        'カスタム範囲を選択するには、現在の再生モードを解除してください。',
         [
           { label: 'キャンセル', value: 'cancel' },
-          { label: '終了して続行', value: 'ok', primary: true }
+          { label: '解除して続行', value: 'ok', primary: true }
         ]
       );
       if (value !== 'ok') return;
@@ -1140,12 +1156,16 @@
     const testBtn = document.createElement('button');
     testBtn.textContent = 'テスト';
     testBtn.addEventListener('click', () => {
-      if (!customStart || !customEnd) return;
+      if (customStart === null || customEnd === null) return;
+      if (customStart >= customEnd) {
+        showModal('エラー', '開始地点は終了地点より前に設定してください。', [{ label: 'OK', value: null, primary: true }]);
+        return;
+      }
       currentMode = 'custom-test';
-      targetRanges = [{ start: Math.min(customStart, customEnd), end: Math.max(customStart, customEnd) }];
+      targetRanges = [{ start: customStart, end: customEnd }];
       setNativeSkip(false);
       updateSeekMarkers();
-      seek(seconds(targetRanges[0].start));
+      seek(seconds(customStart));
       play();
     });
 
@@ -1153,10 +1173,14 @@
     addBtn.textContent = '追加';
     addBtn.className = 'primary';
     addBtn.addEventListener('click', async () => {
-      if (!customStart || !customEnd) return;
+      if (customStart === null || customEnd === null) return;
+      if (customStart >= customEnd) {
+        showModal('エラー', '開始地点は終了地点より前に設定してください。', [{ label: 'OK', value: null, primary: true }]);
+        return;
+      }
       const range = {
-        start: Math.min(customStart, customEnd),
-        end: Math.max(customStart, customEnd),
+        start: customStart,
+        end: customEnd,
         name: customName || 'CUSTOM'
       };
       await openPlaylistModal(range.name, range);
