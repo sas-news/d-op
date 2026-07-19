@@ -490,3 +490,15 @@ p.empty {
   color: var(--dop-accent);
   border-color: var(--dop-accent);
 }
+
+.popup-footer {
+  text-align: center;
+  padding: var(--dop-space-3) 0 var(--dop-space-3);
+  border-top: 1px solid var(--dop-border);
+  margin-top: var(--dop-space-3);
+}
+
+.popup-version {
+  font-size: 10px;
+  color: var(--dop-text-tertiary);
+}
