@@ -23,22 +23,19 @@ browser.runtime.onInstalled.addListener(async (details) => {
 (async function recoverPlayerState() {
   const result = await browser.storage.local.get('dop_playback');
   const playback = result.dop_playback;
-  if (playback?.windowId) {
-    const wId = parseInt(playback.windowId.substring(1), 10);
-    if (!isNaN(wId)) {
-      try {
-        const win = await browser.windows.get(wId);
-        if (win.type === 'popup') {
-          const tabs = await browser.tabs.query({ windowId: wId });
-          if (tabs[0]) {
-            playerState = { windowId: wId, tabId: tabs[0].id };
-          }
+  if (playback?.windowId && playback.windowId > 0) {
+    try {
+      const win = await browser.windows.get(playback.windowId);
+      if (win.type === 'popup') {
+        const tabs = await browser.tabs.query({ windowId: playback.windowId });
+        if (tabs[0]) {
+          playerState = { windowId: playback.windowId, tabId: tabs[0].id };
         }
-      } catch (_) {
-        playerState = null;
-        await browser.storage.local.remove('dop_playback');
-        await browser.storage.local.remove('dop_pending');
       }
+    } catch (_) {
+      playerState = null;
+      await browser.storage.local.remove('dop_playback');
+      await browser.storage.local.remove('dop_pending');
     }
   }
 })();

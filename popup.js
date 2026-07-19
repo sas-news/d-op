@@ -17,21 +17,8 @@
 
   let expandedPlaylistId = null;
 
-  function decodeHtmlEntities(str) {
-    const txt = document.createElement('textarea');
-    txt.innerHTML = str || '';
-    return txt.value;
-  }
-
   function formatRangeName(range) {
     return range.name || '範囲';
-  }
-
-  function formatSec(ms) {
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${String(sec).padStart(2, '0')}`;
   }
 
   function isSystemPlaylist(playlist) {
@@ -77,15 +64,9 @@
   let renderRunning = false;
 
   async function render() {
-    if (renderRunning) {
-      renderQueued = true;
-      return;
-    }
+    if (renderRunning) { renderQueued = true; return; }
     renderRunning = true;
-    do {
-      renderQueued = false;
-      await doRender();
-    } while (renderQueued);
+    do { renderQueued = false; await doRender(); } while (renderQueued);
     renderRunning = false;
   }
 
@@ -330,28 +311,20 @@
 
       const fullBtn = document.getElementById('shuffleFullBtn');
       if (fullBtn) {
-        const newFullBtn = fullBtn.cloneNode(true);
-        fullBtn.parentNode.replaceChild(newFullBtn, fullBtn);
-        newFullBtn.addEventListener('click', async () => {
+        fullBtn.onclick = async () => {
           await startShufflePlayback(playlist);
           render();
-        });
+        };
       }
 
       const hereBtn = document.getElementById('shuffleHereBtn');
       if (hereBtn) {
-        const newHereBtn = hereBtn.cloneNode(true);
-        hereBtn.parentNode.replaceChild(newHereBtn, hereBtn);
-        newHereBtn.addEventListener('click', async () => {
+        hereBtn.onclick = async () => {
           await startShuffleFromHere(playlist, realCurrentIndex, shuffledIndices, currentShufflePos);
           render();
-        });
+        };
       }
     }
-  }
-
-  function escapeHtml(str) {
-    return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
   prevBtn.addEventListener('click', () => {

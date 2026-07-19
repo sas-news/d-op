@@ -18,12 +18,6 @@
     return '範囲';
   }
 
-  function decodeHtmlEntities(str) {
-    const txt = document.createElement('textarea');
-    txt.innerHTML = str || '';
-    return txt.value;
-  }
-
   async function renderPlaylists() {
     const playlists = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
     const collapsedState = await dopGetCollapsedPlaylists();
@@ -289,7 +283,7 @@
             if (Math.abs(diff) > 0.5) {
               r.style.transform = `translateY(${diff}px)`;
               r.style.transition = 'none';
-              r.offsetHeight;
+              void r.offsetHeight;
               r.style.transition = 'transform 120ms ease-out';
               r.style.transform = '';
             }
@@ -402,13 +396,6 @@
       card.appendChild(itemsWrapper);
       playlistsContainer.appendChild(card);
     });
-  }
-
-  function formatSec(ms) {
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${String(sec).padStart(2, '0')}`;
   }
 
   function showConfirm(message) {

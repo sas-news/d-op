@@ -113,7 +113,7 @@
       workId: data.workId || null,
       workTitle: data.workTitle || null,
       partTitle: data.partTitle || null,
-      partDispNumber: (data.partDispNumber && data.partDispNumber !== '�@') ? data.partDispNumber : null,
+      partDispNumber: (data.partDispNumber && !data.partDispNumber.includes('\uFFFD')) ? data.partDispNumber : null,
       duration: data.duration || null,
       chapters: data.chapters.map((c, index) => ({
         index,
@@ -130,19 +130,25 @@
   let timer = null;
   let lastPartId = null;
   let lastUrl = location.href;
+  let pollCount = 0;
+  const MAX_POLL_COUNT = 30;
 
   function poll() {
+    pollCount++;
     const info = extractChapters();
     if (info && info.partId !== lastPartId) {
       lastPartId = info.partId;
       send('CHAPTERS_FOUND', info);
       log('chapters sent', { partId: info.partId, count: info.chapters.length });
       stopPolling();
+    } else if (pollCount >= MAX_POLL_COUNT) {
+      stopPolling();
     }
   }
 
   function startPolling() {
     if (timer) return;
+    pollCount = 0;
     timer = setInterval(poll, 500);
   }
 

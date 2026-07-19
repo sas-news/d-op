@@ -1,3 +1,6 @@
+// =============================================================================
+// d-OP shared constants
+// =============================================================================
 const DOP_STORAGE_KEY = 'dop_playlists';
 const DOP_PLAYBACK_KEY = 'dop_playback';
 const DOP_PENDING_KEY = 'dop_pending';
@@ -5,9 +8,183 @@ const DOP_OPED_MODE_KEY = 'dop_oped_mode';
 const DOP_WINDOW_MODE_KEY = 'dop_window_mode';
 const DOP_COLLAPSED_KEY = 'dop_collapsed_playlists';
 
+// ---------------------------------------------------------------------------
+// Timing constants — all in milliseconds unless noted
+// ---------------------------------------------------------------------------
+const DOP_RESUME_MAX_AGE_MS = 5 * 60 * 1000;    // playback state expires after 5 min
+const DOP_OPED_MODE_MAX_AGE_MS = 5 * 60 * 1000; // OP/ED mode expires after 5 min
+const DOP_SEEK_COOLDOWN_PLAYBACK_MS = 5000;     // seek cooldown after playlist start
+const DOP_SEEK_COOLDOWN_SEEKING_MS = 1000;      // seek cooldown after user seeking
+const DOP_SEEK_COOLDOWN_SEEKED_MS = 800;        // seek cooldown after seek completes
+const DOP_STARTUP_LOCK_ITEM_MS = 800;           // startup lock after playItemInCurrentVideo
+const DOP_STARTUP_LOCK_PLAYBACK_MS = 1500;      // startup lock after fresh playback start
+const DOP_ENFORCE_MIN_GAP_MS = 200;             // minimum gap between enforce actions
+const DOP_SEEK_READY_POLL_MS = 100;             // seekToStartWhenReady polling interval
+const DOP_SEEK_READY_DEADLINE_MS = 3000;        // seekToStartWhenReady deadline
+const DOP_DOUBLE_CLICK_WINDOW_MS = 1500;        // prev-button double-click window
+const DOP_PANEL_HIDE_DELAY_MS = 3000;           // top-right panel auto-hide delay
+const DOP_POPUP_HIDE_DELAY_MS = 200;            // add-button popup hide delay
+const DOP_SEEK_MARKER_DEBOUNCE_MS = 100;        // seek marker update debounce
+const DOP_STORE_DEBOUNCE_MS = 300;              // content-store MutationObserver debounce
+
+// ---------------------------------------------------------------------------
+// Heuristic constants — for guessRangeName (OP/ED inference)
+// ---------------------------------------------------------------------------
+const DOP_GUESS_NEAR_START_SEC = 180;           // within 3 min of video start → "near start"
+const DOP_GUESS_VERY_START_SEC = 15;            // within 15 sec → "very start"
+const DOP_GUESS_NEAR_END_SEC = 300;             // within 5 min of video end → "near end"
+const DOP_GUESS_OPED_DURATION_MIN = 75;         // OP/ED minimum duration in seconds
+const DOP_GUESS_OPED_DURATION_MAX = 105;        // OP/ED maximum duration in seconds
+const DOP_GUESS_INTRO_DURATION_MAX = 15;        // intro maximum duration in seconds
+
+// ---------------------------------------------------------------------------
+// Enforcer tolerance for floating point comparison
+// ---------------------------------------------------------------------------
+const DOP_RANGE_TOLERANCE_SEC = 0.05;
+
+// =============================================================================
+// Utility functions
+// =============================================================================
+
+/**
+ * Convert milliseconds to seconds.
+ */
+function seconds(ms) {
+  return ms / 1000;
+}
+
+/**
+ * Format seconds as m:ss string.
+ */
+function formatTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/**
+ * Format milliseconds as m:ss string (used by popup/options).
+ */
+function formatSec(ms) {
+  return formatTime(seconds(ms));
+}
+
+/**
+ * Escape HTML special characters.
+ */
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, function (m) {
+    switch (m) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#39;';
+      default: return m;
+    }
+  });
+}
+
+/**
+ * Decode common HTML entities (textarea trick).
+ */
+function decodeHtmlEntities(str) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = str || '';
+  return txt.value;
+}
+
+/**
+ * Generate a unique ID. Uses crypto.randomUUID() when available.
+ */
 function dopGenerateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto (shouldn't happen in modern browsers)
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
+
+/**
+ * Shared debounce utility.
+ */
+function debounce(fn, wait) {
+  let timer = null;
+  return function () {
+    const context = this;
+    const args = arguments;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function () {
+      timer = null;
+      fn.apply(context, args);
+    }, wait);
+  };
+}
+
+// =============================================================================
+// OP/ED range name guessing (heuristic — d-Anime does not label chapters)
+// =============================================================================
+
+/**
+ * Guess a human-readable name for a "none" chapter based on duration and position.
+ * This is inherently heuristic because d-Anime's ws010105Data.chapters only has
+ * type === 'none' for skippable sections — no 'op'/'ed' flag exists.
+ *
+ * Heuristics used:
+ *   - ~75-105 sec + near start → OP
+ *   - ~75-105 sec + near end   → ED
+ *   - <15 sec + position 0     → イントロ (intro/recap)
+ *   - otherwise                 → パートN
+ */
+function guessRangeName(chapter, index, total, durationSec) {
+  const startSec = seconds(chapter.start);
+  const endSec = seconds(chapter.end);
+  const lenSec = endSec - startSec;
+
+  const nearStart = startSec < DOP_GUESS_NEAR_START_SEC;
+  const veryStart = startSec < DOP_GUESS_VERY_START_SEC;
+  const nearEnd = durationSec - endSec < DOP_GUESS_NEAR_END_SEC;
+  const opEdDuration = lenSec >= DOP_GUESS_OPED_DURATION_MIN && lenSec <= DOP_GUESS_OPED_DURATION_MAX;
+  const introDuration = lenSec < DOP_GUESS_INTRO_DURATION_MAX;
+
+  // Track used names to avoid duplicates (e.g. two near-start ranges)
+  const used = new Set();
+  function makeName(candidate) {
+    if (!used.has(candidate)) {
+      used.add(candidate);
+      return candidate;
+    }
+    return `パート${index + 1}`;
+  }
+
+  if (total === 1) {
+    if (opEdDuration && nearStart) return makeName('OP');
+    if (introDuration && veryStart) return makeName('イントロ');
+    return `パート1`;
+  }
+
+  if (total === 2) {
+    if (index === 0) {
+      if (opEdDuration && nearStart) return makeName('OP');
+      if (introDuration && veryStart) return makeName('イントロ');
+      return `パート1`;
+    }
+    if (opEdDuration && nearEnd) return makeName('ED');
+    if (introDuration && veryStart) return makeName('イントロ');
+    return `パート2`;
+  }
+
+  // total >= 3
+  if (index === 0 && introDuration && veryStart) return makeName('イントロ');
+  if (index === total - 1 && opEdDuration && nearEnd) return makeName('ED');
+  if (index > 0 && index < total - 1 && opEdDuration && nearStart) return makeName('OP');
+  return `パート${index + 1}`;
+}
+
+// =============================================================================
+// Range name derivation (legacy + modern)
+// =============================================================================
 
 function deriveRangeName(range) {
   if (!range) return null;
@@ -20,6 +197,10 @@ function deriveRangeName(range) {
   }
   return null;
 }
+
+// =============================================================================
+// Data cleaning / migration (legacy opRange/edRange → range[])
+// =============================================================================
 
 function cleanItem(item) {
   const range = item.range
@@ -63,6 +244,10 @@ function migratePlaylist(playlist) {
   const items = (playlist.items || []).flatMap(migrateItem);
   return { ...playlist, items };
 }
+
+// =============================================================================
+// Storage layer
+// =============================================================================
 
 async function dopGetPlaylists() {
   const result = await browser.storage.local.get(DOP_STORAGE_KEY);
@@ -154,15 +339,27 @@ async function dopSetCollapsedPlaylist(playlistId, collapsed) {
   await browser.storage.local.set({ [DOP_COLLAPSED_KEY]: state });
 }
 
+/**
+ * Get the current browser window ID. Stored as numeric ID in playback state.
+ * Falls back to a session-scoped random ID when window API is unavailable
+ * (e.g. in a service worker context).
+ */
 async function dopGetWindowId() {
   try {
     if (browser.windows && browser.windows.getCurrent) {
       const w = await browser.windows.getCurrent();
-      if (w && w.id) return 'w' + w.id;
+      if (w && typeof w.id === 'number') return w.id;
     }
-  } catch (_) {}
-  return 's' + dopGenerateId();
+  } catch (_) {
+    // Window API unavailable (service worker, etc.)
+  }
+  // Fallback: negative random ID to distinguish from real window IDs
+  return -(Date.now() % 0x7FFFFFFF);
 }
+
+// =============================================================================
+// Playlist CRUD
+// =============================================================================
 
 async function dopCreatePlaylist(name) {
   const playlists = await dopGetPlaylists();
@@ -244,6 +441,10 @@ async function dopCopyItemToPlaylist(targetPlaylistId, item) {
   await dopSavePlaylists(playlists);
   return true;
 }
+
+// =============================================================================
+// Shuffle helpers
+// =============================================================================
 
 function dopCreateShuffledIndices(n) {
   const indices = Array.from({ length: n }, (_, i) => i);

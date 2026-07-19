@@ -3,8 +3,6 @@
 
   const APP_TAG = 'd-op-injected';
   const DEBUG = false;
-  const RESUME_MAX_AGE_MS = 5 * 60 * 1000;
-  const OPED_MODE_MAX_AGE_MS = 5 * 60 * 1000;
 
   let chaptersInfo = null;
   let lastPartId = null;
@@ -13,7 +11,6 @@
   let originalOpSkip = null;
   let lastActionTime = 0;
   let attachedVideo = null;
-  let enforcerTimer = null;
   let currentPlayback = null;
   let customStart = null;
   let customEnd = null;
@@ -23,10 +20,8 @@
   let startupLockUntil = 0;
   let lastPrevClickTime = 0;
   let panelHideTimer = null;
-  const PANEL_HIDE_DELAY = 3000;
   let currentSeekRanges = [];
   let seekMarkerDebounceTimer = null;
-  let seekMarkerRunning = false;
   let currentSessionId = null;
   let isInputFocused = false;
 
@@ -57,16 +52,6 @@
     document.cookie = `${name}=${encodeURIComponent(value)}; path=/; SameSite=Lax`;
   }
 
-  function seconds(ms) {
-    return ms / 1000;
-  }
-
-  function formatTime(sec) {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
-
   function isEditableElement(el) {
     if (!el) return false;
     const tag = el.tagName;
@@ -81,48 +66,6 @@
       .filter((c) => c.type === 'none')
       .slice()
       .sort((a, b) => a.start - b.start);
-  }
-
-  function guessRangeName(chapter, index, total, durationSec) {
-    const startSec = seconds(chapter.start);
-    const endSec = seconds(chapter.end);
-    const lenSec = endSec - startSec;
-    const nearStart = startSec < 180;
-    const veryStart = startSec < 15;
-    const nearEnd = durationSec - endSec < 300;
-    const opEdDuration = lenSec >= 75 && lenSec <= 105;
-    const introDuration = lenSec < 15;
-
-    const used = new Set();
-    const makeName = (candidate) => {
-      if (!used.has(candidate)) {
-        used.add(candidate);
-        return candidate;
-      }
-      return `パート${index + 1}`;
-    };
-
-    if (total === 1) {
-      if (opEdDuration && nearStart) return makeName('OP');
-      if (introDuration && veryStart) return makeName('イントロ');
-      return `パート1`;
-    }
-
-    if (total === 2) {
-      if (index === 0) {
-        if (opEdDuration && nearStart) return makeName('OP');
-        if (introDuration && veryStart) return makeName('イントロ');
-        return `パート1`;
-      }
-      if (opEdDuration && nearEnd) return makeName('ED');
-      if (introDuration && veryStart) return makeName('イントロ');
-      return `パート2`;
-    }
-
-    if (index === 0 && introDuration && veryStart) return makeName('イントロ');
-    if (index === total - 1 && opEdDuration && nearEnd) return makeName('ED');
-    if (index > 0 && index < total - 1 && opEdDuration && nearStart) return makeName('OP');
-    return `パート${index + 1}`;
   }
 
   function getNoneRanges(durationSec) {
@@ -189,20 +132,7 @@
     sendCommand('UNBLOCK_AUTO_ADVANCE', {});
   }
 
-  function startEnforcer() {
-    if (enforcerTimer) return;
-    enforcerTimer = setInterval(() => enforceRanges(false), 100);
-  }
-
-  function stopEnforcer() {
-    if (enforcerTimer) {
-      clearInterval(enforcerTimer);
-      enforcerTimer = null;
-    }
-  }
-
   async function clearPlaylistState() {
-    stopEnforcer();
     resetNativeSkip();
     currentPlayback = null;
     currentMode = 'none';
@@ -226,75 +156,55 @@
     log('activateMode', { mode, ranges: targetRanges.map((r) => [seconds(r.start), seconds(r.end)]) });
 
     if (mode === 'none' || targetRanges.length === 0) {
-      stopEnforcer();
       resetNativeSkip();
       currentMode = 'none';
       return;
     }
 
     setNativeSkip(false);
-    startEnforcer();
     const start = seconds(targetRanges[0].start);
     seek(start);
     play();
   }
 
   function seekToStartWhenReady(startSec, onReady) {
-    const deadline = Date.now() + 3000;
-    const trySeek = () => {
-      const video = getVideo();
-      if (video && video.readyState >= 1 && video.duration) {
-        seek(startSec);
-        if (onReady) setTimeout(onReady, 100);
-        return;
-      }
-      if (Date.now() < deadline) {
-        setTimeout(trySeek, 100);
-      } else if (onReady) {
-        onReady();
-      }
-    };
-    trySeek();
-  }
-
-  function playItemInCurrentVideo(playlist, realIndex, storedShuffledIndices) {
-    const item = playlist.items[realIndex];
-    if (!item || !item.range) return;
-    const si = (currentPlayback && currentPlayback.shuffledIndices) || storedShuffledIndices || null;
-    const shufflePos = si ? si.indexOf(realIndex) : realIndex;
-    currentPlayback = { playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, item, shuffledIndices: si };
-    dopSetPlayback({ playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, shuffledIndices: si, updatedAt: Date.now() });
-    targetRanges = buildRanges();
-    seekCooldownUntil = Date.now() + 5000;
-    lastActionTime = 0;
-    log('playItemInCurrentVideo', { playlist: playlist.name, index: realIndex, type: item.range.type });
-
-    if (targetRanges.length === 0) {
-      currentPlayback = null;
-      dopClearPlayback();
-      updatePlaylistUI();
+    const video = getVideo();
+    if (!video) {
+      if (onReady) onReady();
       return;
     }
-
-    setNativeSkip(false);
-    startupLockUntil = Date.now() + 800;
-    startEnforcer();
-    updatePlaylistUI();
-    updateSeekMarkers();
-
-    const start = seconds(targetRanges[0].start);
-    seekToStartWhenReady(start, () => play());
+    // Video already loaded — seek immediately
+    if (video.readyState >= 1 && video.duration) {
+      seek(startSec);
+      if (onReady) setTimeout(onReady, DOP_SEEK_READY_POLL_MS);
+      return;
+    }
+    // Wait for loadedmetadata (fires ~300ms after navigation, duration guaranteed)
+    const onMeta = function () {
+      video.removeEventListener('loadedmetadata', onMeta);
+      clearTimeout(fallback);
+      seek(startSec);
+      if (onReady) setTimeout(onReady, DOP_SEEK_READY_POLL_MS);
+    };
+    const fallback = setTimeout(function () {
+      video.removeEventListener('loadedmetadata', onMeta);
+      if (onReady) onReady();
+    }, DOP_SEEK_READY_DEADLINE_MS);
+    video.addEventListener('loadedmetadata', onMeta);
   }
 
-  function startPlayback(playlist, realIndex, shuffledIndices) {
+  function startPlayback(playlist, realIndex, shuffledIndices, opts) {
     const item = playlist.items[realIndex];
     if (!item || !item.range) return;
-    const si = shuffledIndices || null;
+    const isSameEpisode = !!(opts && opts.isSameEpisode);
+    const si = isSameEpisode
+      ? ((currentPlayback && currentPlayback.shuffledIndices) || shuffledIndices || null)
+      : (shuffledIndices || null);
     const shufflePos = si ? si.indexOf(realIndex) : realIndex;
     currentPlayback = { playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, item, shuffledIndices: si };
     dopSetPlayback({ playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, shuffledIndices: si, updatedAt: Date.now() });
     targetRanges = buildRanges();
-    seekCooldownUntil = Date.now() + 5000;
+    seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_PLAYBACK_MS;
     lastActionTime = 0;
     log('startPlayback', { playlist: playlist.name, index: realIndex, type: item.range.type });
 
@@ -306,14 +216,17 @@
     }
 
     setNativeSkip(false);
-    startupLockUntil = Date.now() + 1500;
-    startEnforcer();
+    startupLockUntil = Date.now() + (isSameEpisode ? DOP_STARTUP_LOCK_ITEM_MS : DOP_STARTUP_LOCK_PLAYBACK_MS);
     updatePlaylistUI();
     updateSeekMarkers();
 
     const start = seconds(targetRanges[0].start);
-    pause();
+    if (!isSameEpisode) pause();
     seekToStartWhenReady(start, () => play());
+  }
+
+  function playItemInCurrentVideo(playlist, realIndex, storedShuffledIndices) {
+    startPlayback(playlist, realIndex, storedShuffledIndices, { isSameEpisode: true });
   }
 
   async function playPlaylistIndex(playlist, index, storedShuffledIndices) {
@@ -395,7 +308,7 @@
     const start = seconds(currentPlayback.item.range.start);
     const now = Date.now();
     const nearStart = video && Math.abs(video.currentTime - start) < 1.0;
-    const doubleClick = nearStart && (now - lastPrevClickTime < 1500);
+    const doubleClick = nearStart && (now - lastPrevClickTime < DOP_DOUBLE_CLICK_WINDOW_MS);
 
     if (doubleClick) {
       advancePlayback(-1);
@@ -456,7 +369,6 @@
     currentMode = 'op-ed';
     targetRanges = none.map((c) => ({ start: c.start, end: c.end, name: c.name }));
     setNativeSkip(false);
-    startEnforcer();
     updatePlaylistUI();
     await updateSeekMarkers();
 
@@ -491,14 +403,14 @@
 
   function insideRange(t) {
     for (const r of targetRanges) {
-      if (t >= seconds(r.start) - 0.05 && t <= seconds(r.end) + 0.05) {
+      if (t >= seconds(r.start) - DOP_RANGE_TOLERANCE_SEC && t <= seconds(r.end) + DOP_RANGE_TOLERANCE_SEC) {
         return true;
       }
     }
     return false;
   }
 
-  function enforceRanges(fromEvent) {
+  function enforceRanges() {
     if ((currentMode === 'none' && !currentPlayback) || targetRanges.length === 0) return;
     if (Date.now() < seekCooldownUntil) return;
 
@@ -518,7 +430,7 @@
     }
 
     const now = Date.now();
-    if (now - lastActionTime < 200) return;
+    if (now - lastActionTime < DOP_ENFORCE_MIN_GAP_MS) return;
     lastActionTime = now;
 
     log('out of range', { t, firstStart, lastEnd });
@@ -547,7 +459,7 @@
   }
 
   function onTimeUpdate() {
-    enforceRanges(true);
+    enforceRanges();
 
     const video = getVideo();
     if (currentPlayback && video && Date.now() < startupLockUntil) {
@@ -559,11 +471,11 @@
   }
 
   function onSeeking() {
-    seekCooldownUntil = Date.now() + 1000;
+    seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_SEEKING_MS;
   }
 
   function onSeeked() {
-    seekCooldownUntil = Date.now() + 800;
+    seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_SEEKED_MS;
   }
 
   function onVideoEnded() {
@@ -624,7 +536,7 @@
       const scheduleHidePopup = () => {
         popupHideTimer = setTimeout(() => {
           popup.classList.remove('d-op-popup-visible');
-        }, 200);
+        }, DOP_POPUP_HIDE_DELAY_MS);
       };
 
       wrapper.addEventListener('mouseenter', showPopup);
@@ -776,7 +688,7 @@
     panelHideTimer = setTimeout(() => {
       const panel = document.getElementById('d-op-top-panel');
       if (panel) panel.style.opacity = '0';
-    }, PANEL_HIDE_DELAY);
+    }, DOP_PANEL_HIDE_DELAY_MS);
   }
 
   function showTopRightPanel() {
@@ -923,7 +835,7 @@
     for (const r of currentSeekRanges) {
       const start = seconds(r.start);
       const end = seconds(r.end);
-      if (timeSec >= start - 0.05 && timeSec <= end + 0.05) return r;
+      if (timeSec >= start - DOP_RANGE_TOLERANCE_SEC && timeSec <= end + DOP_RANGE_TOLERANCE_SEC) return r;
     }
     return null;
   }
@@ -966,67 +878,61 @@
 
   function scheduleUpdateSeekMarkers() {
     if (seekMarkerDebounceTimer) clearTimeout(seekMarkerDebounceTimer);
-    seekMarkerDebounceTimer = setTimeout(() => runUpdateSeekMarkers(), 100);
+    seekMarkerDebounceTimer = setTimeout(() => runUpdateSeekMarkers(), DOP_SEEK_MARKER_DEBOUNCE_MS);
   }
 
   async function runUpdateSeekMarkers() {
-    if (seekMarkerRunning) return;
-    seekMarkerRunning = true;
-    try {
-      const video = getVideo();
-      const seekArea = document.querySelector('.seekArea');
-      if (!video || !seekArea || !video.duration) return;
+    const video = getVideo();
+    const seekArea = document.querySelector('.seekArea');
+    if (!video || !seekArea || !video.duration) return;
 
-      let container = document.getElementById('d-op-seek-markers');
-      if (!container) {
-        container = document.createElement('div');
-        container.id = 'd-op-seek-markers';
-        container.className = 'd-op-seek-markers';
-      }
-      const seekThumb = seekArea.querySelector('#seekThumb');
-      if (seekThumb && seekThumb.previousSibling !== container) {
-        seekArea.insertBefore(container, seekThumb);
-      } else if (!seekThumb && container.parentNode !== seekArea) {
-        seekArea.appendChild(container);
-      }
+    let container = document.getElementById('d-op-seek-markers');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'd-op-seek-markers';
+      container.className = 'd-op-seek-markers';
+    }
+    const seekThumb = seekArea.querySelector('#seekThumb');
+    if (seekThumb && seekThumb.previousSibling !== container) {
+      seekArea.insertBefore(container, seekThumb);
+    } else if (!seekThumb && container.parentNode !== seekArea) {
+      seekArea.appendChild(container);
+    }
 
-      container.innerHTML = '';
-      const duration = video.duration;
-      const ranges = await getSeekRanges(duration);
-      currentSeekRanges = ranges;
-      const canSeekColor = currentMode === 'op-ed' || currentMode === 'custom-test' || customSelecting || !!currentPlayback;
+    container.innerHTML = '';
+    const duration = video.duration;
+    const ranges = await getSeekRanges(duration);
+    currentSeekRanges = ranges;
+    const canSeekColor = currentMode === 'op-ed' || currentMode === 'custom-test' || customSelecting || !!currentPlayback;
 
-      ranges.forEach((r) => {
-        const start = seconds(r.start);
-        const end = seconds(r.end);
-        if (start >= duration || end <= 0) return;
-        const left = Math.max(0, start / duration * 100);
-        const width = Math.min(100 - left, (end - start) / duration * 100);
-        if (width <= 0) return;
+    ranges.forEach((r) => {
+      const start = seconds(r.start);
+      const end = seconds(r.end);
+      if (start >= duration || end <= 0) return;
+      const left = Math.max(0, start / duration * 100);
+      const width = Math.min(100 - left, (end - start) / duration * 100);
+      if (width <= 0) return;
 
-        const marker = document.createElement('div');
-        marker.className = 'd-op-seek-marker';
-        marker.style.left = left + '%';
-        marker.style.width = width + '%';
-        marker.title = `${r.label}: ${formatTime(start)}-${formatTime(end)}`;
-        if (canSeekColor) {
-          if (r.label === 'OP') marker.classList.add('op');
-          if (r.label === 'ED') marker.classList.add('ed');
-          if (r.label === 'イントロ' || r.label === 'CUSTOM') marker.classList.add('custom');
-          if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
-            const cr = currentPlayback.item.range;
-            if (r.start === cr.start && r.end === cr.end) {
-              marker.classList.add('active');
-            }
+      const marker = document.createElement('div');
+      marker.className = 'd-op-seek-marker';
+      marker.style.left = left + '%';
+      marker.style.width = width + '%';
+      marker.title = `${r.label}: ${formatTime(start)}-${formatTime(end)}`;
+      if (canSeekColor) {
+        if (r.label === 'OP') marker.classList.add('op');
+        if (r.label === 'ED') marker.classList.add('ed');
+        if (r.label === 'イントロ' || r.label === 'CUSTOM') marker.classList.add('custom');
+        if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
+          const cr = currentPlayback.item.range;
+          if (r.start === cr.start && r.end === cr.end) {
+            marker.classList.add('active');
           }
         }
-        container.appendChild(marker);
-      });
+      }
+      container.appendChild(marker);
+    });
 
-      attachSeekPopupListener();
-    } finally {
-      seekMarkerRunning = false;
-    }
+    attachSeekPopupListener();
   }
 
   function updateSeekMarkers() {
@@ -1238,7 +1144,6 @@
       currentMode = 'custom-test';
       targetRanges = [{ start: Math.min(customStart, customEnd), end: Math.max(customStart, customEnd) }];
       setNativeSkip(false);
-      startEnforcer();
       updateSeekMarkers();
       seek(seconds(targetRanges[0].start));
       play();
@@ -1260,7 +1165,6 @@
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'キャンセル';
     cancelBtn.addEventListener('click', () => {
-      stopEnforcer();
       resetNativeSkip();
       currentMode = 'none';
       targetRanges = [];
@@ -1313,7 +1217,6 @@
     if (currentMode === 'custom-test') {
       currentMode = 'none';
       targetRanges = [];
-      stopEnforcer();
       resetNativeSkip();
     }
     const bar = document.getElementById('d-op-custom-bar');
@@ -1330,7 +1233,7 @@
 
     const playback = await dopGetPlayback();
     if (!playback) return;
-    if (playback.updatedAt && Date.now() - playback.updatedAt > RESUME_MAX_AGE_MS) {
+    if (playback.updatedAt && Date.now() - playback.updatedAt > DOP_RESUME_MAX_AGE_MS) {
       await dopClearPlayback();
       return;
     }
@@ -1397,7 +1300,6 @@
       if (!currentPlayback && currentMode !== 'op-ed') {
         currentMode = 'none';
         targetRanges = [];
-        stopEnforcer();
         resetNativeSkip();
       } else if (!currentPlayback && currentMode === 'op-ed') {
         await enterOpEdMode(0);
@@ -1416,7 +1318,7 @@
     if (currentMode === 'none' && !currentPlayback) {
       const opEdMode = await dopGetOpEdMode();
       if (opEdMode && opEdMode.active) {
-        if (Date.now() - opEdMode.updatedAt < OPED_MODE_MAX_AGE_MS) {
+        if (Date.now() - opEdMode.updatedAt < DOP_OPED_MODE_MAX_AGE_MS) {
           await enterOpEdMode(0);
         } else {
           await dopSetOpEdMode(false);
@@ -1471,10 +1373,8 @@
       }
     }, true);
 
-    let observerPaused = false;
     const observer = new MutationObserver(() => {
-      if (observerPaused) return;
-      observerPaused = true;
+      observer.disconnect();
       try {
         const video = getVideo();
         if (video && attachedVideo !== video) {
@@ -1484,7 +1384,7 @@
         createAddButton();
         createPlaylistControls();
       } finally {
-        observerPaused = false;
+        observer.observe(document.body, { childList: true, subtree: true });
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
