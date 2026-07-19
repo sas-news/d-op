@@ -206,7 +206,13 @@
         playBtn.textContent = '▶';
         playBtn.title = '再生';
         playBtn.className = 'btn-icon';
-        playBtn.addEventListener('click', () => startPlaylistPlayback(playlist.id, idx));
+        playBtn.addEventListener('click', async () => {
+          const pls = await dopGetPlaylists();
+          const pl = pls.find((p) => p.id === playlist.id);
+          if (!pl) return;
+          const itemIdx = pl.items.findIndex((i) => i.id === item.id);
+          if (itemIdx >= 0) startPlaylistPlayback(playlist.id, itemIdx);
+        });
 
         const editBtn = document.createElement('button');
         editBtn.textContent = '編集';
@@ -455,6 +461,68 @@
     });
   }
 
+  function showImportChoice() {
+    return new Promise((resolve) => {
+      let modal = document.getElementById('d-op-import-modal');
+      if (modal) modal.remove();
+
+      modal = document.createElement('div');
+      modal.className = 'd-op-modal';
+
+      const panel = document.createElement('div');
+      panel.className = 'd-op-modal-panel';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = 'インポート方法';
+      panel.appendChild(h3);
+
+      const msg = document.createElement('p');
+      msg.textContent = 'すでにプレイリストが存在します。インポートしたデータをマージしますか？それとも既存データをすべて上書きしますか？';
+      panel.appendChild(msg);
+
+      const footer = document.createElement('div');
+      footer.className = 'd-op-modal-footer';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'キャンセル';
+      cancelBtn.className = 'btn-text';
+      cancelBtn.addEventListener('click', () => { modal.remove(); resolve(null); });
+
+      const replaceBtn = document.createElement('button');
+      replaceBtn.textContent = '上書き';
+      replaceBtn.style.background = 'var(--dop-danger)';
+      replaceBtn.style.color = '#fff';
+      replaceBtn.style.border = 'none';
+      replaceBtn.style.padding = 'var(--dop-space-4) var(--dop-space-6)';
+      replaceBtn.style.borderRadius = 'var(--dop-radius-sm)';
+      replaceBtn.style.cursor = 'pointer';
+      replaceBtn.addEventListener('click', () => { modal.remove(); resolve('replace'); });
+
+      const mergeBtn = document.createElement('button');
+      mergeBtn.textContent = 'マージ';
+      mergeBtn.style.background = 'var(--dop-accent)';
+      mergeBtn.style.color = '#fff';
+      mergeBtn.style.border = 'none';
+      mergeBtn.style.padding = 'var(--dop-space-4) var(--dop-space-6)';
+      mergeBtn.style.borderRadius = 'var(--dop-radius-sm)';
+      mergeBtn.style.cursor = 'pointer';
+      mergeBtn.style.fontWeight = '600';
+      mergeBtn.addEventListener('click', () => { modal.remove(); resolve('merge'); });
+
+      footer.appendChild(cancelBtn);
+      footer.appendChild(replaceBtn);
+      footer.appendChild(mergeBtn);
+      panel.appendChild(footer);
+      modal.appendChild(panel);
+
+      modal.addEventListener('click', (e) => { if (e.target === modal) { modal.remove(); resolve(null); } });
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape') { modal.remove(); resolve(null); document.removeEventListener('keydown', onKey); }
+      });
+      document.body.appendChild(modal);
+    });
+  }
+
   function showCopyDialog(playlists, currentPlaylistId) {
     return new Promise((resolve) => {
       let modal = document.getElementById('d-op-copy-modal');
@@ -471,7 +539,7 @@
       h3.textContent = 'コピー先のプレイリスト';
       panel.appendChild(h3);
 
-      const targets = playlists.filter((p) => !isSystemPlaylist(p) && p.id !== currentPlaylistId);
+      const targets = playlists.filter((p) => !isSystemPlaylist(p));
       if (targets.length === 0) {
         const empty = document.createElement('p');
         empty.textContent = 'コピー先がありません。';
@@ -598,7 +666,30 @@
           range: i.range ? { ...i.range } : null
         })) : []
       }));
-      await dopSavePlaylists(cleaned);
+
+      const existing = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
+      if (existing.length > 0) {
+        const choice = await showImportChoice();
+        if (choice === 'merge') {
+          const merged = [...existing];
+          cleaned.forEach((p) => {
+            const dup = merged.find((m) => m.name === p.name);
+            if (dup) {
+              dup.items.push(...p.items);
+            } else {
+              merged.push(p);
+            }
+          });
+          await dopSavePlaylists(merged);
+        } else if (choice === 'replace') {
+          await dopSavePlaylists(cleaned);
+        } else {
+          e.target.value = '';
+          return;
+        }
+      } else {
+        await dopSavePlaylists(cleaned);
+      }
       renderPlaylists();
       showStatus('インポートしました。');
     } catch (err) {
@@ -620,6 +711,8 @@
       });
     });
   }
+
+  document.getElementById('optionsVersion').textContent = 'd-OP v' + browser.runtime.getManifest().version;
 
   renderPlaylists();
   initWindowModeSetting();

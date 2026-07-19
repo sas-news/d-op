@@ -345,5 +345,7 @@
     }
   });
 
+  document.getElementById('popupVersion').textContent = 'd-OP v' + browser.runtime.getManifest().version;
+
   render();
 })();

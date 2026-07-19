@@ -24,6 +24,9 @@
   let seekMarkerDebounceTimer = null;
   let currentSessionId = null;
   let isInputFocused = false;
+  let sameVideoItems = [];
+  let playlistRangeNames = {};
+  let addButtonCreating = false;
 
   function getPlayerPageInfo() {
     const backInfo = document.getElementById('backInfo');
@@ -114,12 +117,12 @@
     sendCommand('PAUSE', {});
   }
 
-  function setNativeSkip(enabled) {
+  function setNativeSkip(enabled, blockAutoAdvance = true) {
     if (originalOpSkip === null) {
       originalOpSkip = getCookieValue('op_skip') || '1';
     }
     setCookieValue('op_skip', enabled ? originalOpSkip : '0');
-    if (!enabled) {
+    if (!enabled && blockAutoAdvance) {
       sendCommand('BLOCK_AUTO_ADVANCE', {});
     }
   }
@@ -137,6 +140,7 @@
     currentPlayback = null;
     currentMode = 'none';
     targetRanges = [];
+    sameVideoItems = [];
     seekCooldownUntil = 0;
     lastActionTime = 0;
     startupLockUntil = 0;
@@ -145,6 +149,7 @@
       : dopClearPlayback();
     await cleanup;
     await dopSetOpEdMode(false);
+    sessionStorage.removeItem('dop_oped_active');
     history.replaceState(null, '', removeDopParamsFromUrl(location.href));
     updatePlaylistUI();
     updateSeekMarkers();
@@ -204,6 +209,13 @@
     currentPlayback = { playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, item, shuffledIndices: si };
     dopSetPlayback({ playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, shuffledIndices: si, updatedAt: Date.now() });
     targetRanges = buildRanges();
+
+    // Cache same-video items for enforceRanges cross-range jump
+    const currentPartId = new URLSearchParams(location.search).get('partId');
+    sameVideoItems = playlist.items
+      .map((it, i) => ({ item: it, index: i }))
+      .filter(({ item: it }) => it.partId === currentPartId && it.range);
+
     seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_PLAYBACK_MS;
     lastActionTime = 0;
     log('startPlayback', { playlist: playlist.name, index: realIndex, type: item.range.type });
@@ -293,7 +305,7 @@
     ]).then(async (value) => {
       if (value === 'restart') {
         await clearPlaylistState();
-        startPlayback(playlist, 0);
+        await playPlaylistIndex(playlist, 0);
       } else if (value === 'continue') {
         // 一時停止のまま、フラグはリセットしない（insideRange 到達時にリセット）
       } else {
@@ -368,12 +380,14 @@
     currentPlayback = null;
     currentMode = 'op-ed';
     targetRanges = none.map((c) => ({ start: c.start, end: c.end, name: c.name }));
-    setNativeSkip(false);
+    setNativeSkip(true, false);
+    sessionStorage.setItem('dop_oped_active', '1');
     updatePlaylistUI();
     await updateSeekMarkers();
 
     const start = seconds(none[index].start);
     pause();
+    startupLockUntil = Date.now() + DOP_STARTUP_LOCK_PLAYBACK_MS;
     seekToStartWhenReady(start, () => play());
     return true;
   }
@@ -403,7 +417,7 @@
 
   function insideRange(t) {
     for (const r of targetRanges) {
-      if (t >= seconds(r.start) - DOP_RANGE_TOLERANCE_SEC && t <= seconds(r.end) + DOP_RANGE_TOLERANCE_SEC) {
+      if (t >= seconds(r.start) - DOP_RANGE_TOLERANCE_SEC && t <= seconds(r.end) + 1 + DOP_RANGE_TOLERANCE_SEC) {
         return true;
       }
     }
@@ -419,7 +433,7 @@
 
     const t = video.currentTime;
     const firstStart = seconds(targetRanges[0].start);
-    const lastEnd = seconds(targetRanges[targetRanges.length - 1].end);
+    const lastEnd = seconds(targetRanges[targetRanges.length - 1].end) + 1;
     const duration = video.duration || Infinity;
 
     if (insideRange(t)) {
@@ -436,15 +450,23 @@
     log('out of range', { t, firstStart, lastEnd });
 
     if (t < firstStart) {
+      // Check if user manually seeked into a different range of the same playlist
+      if (currentPlayback && trySwitchToOtherRange(t)) return;
       seek(firstStart);
       return;
     }
 
     if (t > lastEnd || video.ended) {
       if (currentPlayback) {
+        if (trySwitchToOtherRange(t)) return;
         pause();
         advancePlayback(1);
-      } else if (currentMode !== 'op-ed') {
+      } else if (currentMode === 'op-ed') {
+        const duration = video.duration || Infinity;
+        if (duration !== Infinity && t > lastEnd && t < duration - 1) {
+          seek(duration - 0.5);
+        }
+      } else {
         pause();
       }
       return;
@@ -452,17 +474,40 @@
 
     for (const r of targetRanges) {
       if (t < seconds(r.start)) {
+        if (currentPlayback && trySwitchToOtherRange(t)) return;
         seek(seconds(r.start));
         return;
       }
     }
   }
 
+  function trySwitchToOtherRange(t) {
+    const matched = sameVideoItems.find(({ item: it }) => {
+      const rs = seconds(it.range.start);
+      const re = seconds(it.range.end) + 1;
+      return t >= rs && t <= re;
+    });
+    if (matched && matched.item !== currentPlayback.item) {
+      currentPlayback.item = matched.item;
+      targetRanges = buildRanges();
+      const si = currentPlayback.shuffledIndices;
+      const newPos = si ? si.indexOf(matched.index) : matched.index;
+      if (newPos >= 0) {
+        currentPlayback.index = newPos;
+        seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_PLAYBACK_MS;
+      }
+      updatePlaylistUI();
+      updateSeekMarkers();
+      return true;
+    }
+    return false;
+  }
+
   function onTimeUpdate() {
     enforceRanges();
 
     const video = getVideo();
-    if (currentPlayback && video && Date.now() < startupLockUntil) {
+    if (video && Date.now() < startupLockUntil && targetRanges.length > 0) {
       const start = seconds(targetRanges[0].start);
       if (Math.abs(video.currentTime - start) > 1.0) {
         seek(start);
@@ -503,7 +548,24 @@
     video.addEventListener('loadedmetadata', updateSeekMarkers);
   }
 
-  function createAddButton() {
+  async function loadPlaylistRangeNames(partId) {
+    const playlists = await dopGetPlaylists();
+    const map = {};
+    playlists.forEach((p) => {
+      p.items.forEach((it) => {
+        if (it.partId === partId && it.range && it.range.name) {
+          const key = `${it.range.start}|${it.range.end}`;
+          map[key] = it.range.name;
+        }
+      });
+    });
+    playlistRangeNames = map;
+  }
+
+  async function createAddButton() {
+    if (addButtonCreating) return;
+    addButtonCreating = true;
+    try {
     let wrapper = document.getElementById('d-op-add-wrapper');
     if (!wrapper) {
       wrapper = document.createElement('div');
@@ -553,13 +615,16 @@
       popup.innerHTML = '';
       const video = getVideo();
       const durationSec = video && video.duration ? video.duration : Infinity;
+      await loadPlaylistRangeNames(currentPartId);
       const ranges = getNoneRanges(durationSec);
       if (ranges.length === 0) {
         popup.appendChild(createPopupRow('スキップ区間なし', () => {}));
       } else {
         ranges.forEach((r) => {
-          const label = `${r.name} (${formatTime(seconds(r.start))}-${formatTime(seconds(r.end))})`;
-          popup.appendChild(createPopupRow(`${label} を追加`, () => openPlaylistModal(r.name, r)));
+          const key = `${r.start}|${r.end}`;
+          const displayName = playlistRangeNames[key] || r.name;
+          const label = `${displayName} (${formatTime(seconds(r.start))}-${formatTime(seconds(r.end))})`;
+          popup.appendChild(createPopupRow(`${label} を追加`, () => openPlaylistModal(displayName, r)));
         });
       }
       popup.appendChild(createPopupRow('カスタム範囲', () => showCustomRangeBar()));
@@ -578,6 +643,9 @@
     }
 
     return wrapper;
+    } finally {
+      addButtonCreating = false;
+    }
   }
 
   function createPopupRow(label, onClick) {
@@ -830,11 +898,19 @@
       playlists.forEach((playlist) => {
         playlist.items.forEach((item) => {
           if (item.partId === chaptersInfo.partId && item.range) {
-            const dup = ranges.some((c) => c.start === item.range.start && c.end === item.range.end);
-            if (!dup) {
-              const r = item.range;
-              const label = r.name || '範囲';
-              ranges.push({ ...r, label });
+            const r = item.range;
+            const customName = r.name;
+            if (customName) {
+              // Override heuristic label with custom name from playlist
+              const match = ranges.find((c) => c.start === r.start && c.end === r.end);
+              if (match) {
+                match.label = customName;
+              } else {
+                ranges.push({ ...r, label: customName });
+              }
+            } else {
+              const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+              if (!dup) ranges.push({ ...r, label: '範囲' });
             }
           }
         });
@@ -847,7 +923,7 @@
   function getRangeAt(timeSec) {
     for (const r of currentSeekRanges) {
       const start = seconds(r.start);
-      const end = seconds(r.end);
+      const end = seconds(r.end) + 1;
       if (timeSec >= start - DOP_RANGE_TOLERANCE_SEC && timeSec <= end + DOP_RANGE_TOLERANCE_SEC) return r;
     }
     return null;
@@ -955,7 +1031,7 @@
     scheduleUpdateSeekMarkers();
   }
 
-  function showModal(title, content, buttons) {
+  function showModal(title, content, buttons, onReady) {
     return new Promise((resolve) => {
       let modal = document.getElementById('d-op-modal');
       if (modal) modal.remove();
@@ -989,6 +1065,7 @@
         const button = document.createElement('button');
         button.textContent = btn.label;
         button.className = btn.primary ? 'primary' : '';
+        if (btn.disabled) button.disabled = true;
         button.addEventListener('click', () => {
           modal.remove();
           resolve(btn.value);
@@ -1013,6 +1090,8 @@
       };
       document.addEventListener('keydown', onKey);
       document.body.appendChild(modal);
+
+      if (onReady) onReady();
     });
   }
 
@@ -1021,7 +1100,7 @@
 
     const list = document.createElement('div');
     list.className = 'd-op-modal-playlist-list';
-    let selectedId = null;
+    const selectedIds = new Set();
 
     if (playlists.length === 0) {
       const empty = document.createElement('div');
@@ -1035,9 +1114,14 @@
       row.className = 'd-op-modal-playlist-item';
       row.textContent = `${playlist.name} (${playlist.items.length}曲)`;
       row.addEventListener('click', () => {
-        selectedId = playlist.id;
-        list.querySelectorAll('.d-op-modal-playlist-item').forEach((b) => b.classList.remove('selected'));
-        row.classList.add('selected');
+        if (selectedIds.has(playlist.id)) {
+          selectedIds.delete(playlist.id);
+          row.classList.remove('selected');
+        } else {
+          selectedIds.add(playlist.id);
+          row.classList.add('selected');
+        }
+        updateAddButton();
       });
       list.appendChild(row);
     });
@@ -1047,6 +1131,7 @@
     const newInput = document.createElement('input');
     newInput.type = 'text';
     newInput.placeholder = '新規プレイリスト名';
+    newInput.addEventListener('input', updateAddButton);
     newRow.appendChild(newInput);
 
     const nameRow = document.createElement('div');
@@ -1063,33 +1148,42 @@
     content.appendChild(newRow);
     content.appendChild(nameRow);
 
+    function updateAddButton() {
+      const hasSelection = selectedIds.size > 0;
+      const hasNewName = newInput.value.trim().length > 0;
+      // Find the add button in the modal footer (added after modal is created)
+      const footer = document.querySelector('#d-op-modal .d-op-modal-footer');
+      if (footer) {
+        const addBtn = footer.querySelector('button.primary');
+        if (addBtn) addBtn.disabled = !hasSelection && !hasNewName;
+      }
+    }
+
     const result = await showModal('プレイリストに追加', content, [
       { label: 'キャンセル', value: null },
-      { label: '追加', value: 'add', primary: true }
-    ]);
+      { label: '追加', value: 'add', primary: true, disabled: true }
+    ], updateAddButton);
 
     if (result !== 'add') return;
 
     const playlistName = newInput.value.trim();
 
-    if (!selectedId && !playlistName) {
-      await showModal('エラー', 'プレイリストを選択するか、新規プレイリスト名を入力してください。', [{ label: 'OK', value: null, primary: true }]);
-      await openPlaylistModal(defaultName, range);
-      return;
-    }
+    if (selectedIds.size === 0 && !playlistName) return;
 
     const itemName = nameInput.value.trim() || defaultName || '範囲';
     const rangeToAdd = { start: range.start, end: range.end, name: itemName };
 
-    if (selectedId) {
-      await addCurrentRangeToPlaylist(selectedId, rangeToAdd);
-      return;
-    }
+    const tasks = [];
+    selectedIds.forEach((id) => {
+      tasks.push(addCurrentRangeToPlaylist(id, rangeToAdd));
+    });
 
     if (playlistName) {
       const playlist = await dopCreatePlaylist(playlistName);
-      await addCurrentRangeToPlaylist(playlist.id, rangeToAdd);
+      tasks.push(addCurrentRangeToPlaylist(playlist.id, rangeToAdd));
     }
+
+    await Promise.all(tasks);
   }
 
   function isSystemPlaylist(playlist) {
@@ -1118,17 +1212,34 @@
     bar.id = 'd-op-custom-bar';
     bar.className = 'd-op-custom-bar';
 
-    const rangeText = document.createElement('span');
-    rangeText.className = 'd-op-custom-bar-text';
-    updateText();
+    const startTimeInput = document.createElement('input');
+    startTimeInput.type = 'text';
+    startTimeInput.className = 'd-op-custom-bar-time-input';
+    startTimeInput.placeholder = '--:--';
+    startTimeInput.addEventListener('change', () => {
+      const ms = parseTimeInput(startTimeInput.value);
+      if (ms !== null) {
+        customStart = ms;
+        updateSeekMarkers();
+      }
+      updateText();
+    });
 
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.placeholder = '名前（空欄でCUSTOM）';
-    nameInput.value = customName;
-    nameInput.addEventListener('input', () => {
-      customName = nameInput.value.trim();
-      updateSeekMarkers();
+    const sep = document.createElement('span');
+    sep.className = 'd-op-custom-bar-time-sep';
+    sep.textContent = ' - ';
+
+    const endTimeInput = document.createElement('input');
+    endTimeInput.type = 'text';
+    endTimeInput.className = 'd-op-custom-bar-time-input';
+    endTimeInput.placeholder = '--:--';
+    endTimeInput.addEventListener('change', () => {
+      const ms = parseTimeInput(endTimeInput.value);
+      if (ms !== null) {
+        customEnd = ms;
+        updateSeekMarkers();
+      }
+      updateText();
     });
 
     const startBtn = document.createElement('button');
@@ -1163,7 +1274,7 @@
       }
       currentMode = 'custom-test';
       targetRanges = [{ start: customStart, end: customEnd }];
-      setNativeSkip(false);
+      setNativeSkip(true, false);
       updateSeekMarkers();
       seek(seconds(customStart));
       play();
@@ -1181,7 +1292,7 @@
       const range = {
         start: customStart,
         end: customEnd,
-        name: customName || 'CUSTOM'
+        name: 'CUSTOM'
       };
       await openPlaylistModal(range.name, range);
     });
@@ -1201,13 +1312,15 @@
     });
 
     function updateText() {
-      const s = customStart ? formatTime(seconds(customStart)) : '--:--';
-      const e = customEnd ? formatTime(seconds(customEnd)) : '--:--';
-      rangeText.textContent = `${s} - ${e}`;
+      startTimeInput.value = customStart ? formatTime(seconds(customStart)) : '';
+      endTimeInput.value = customEnd ? formatTime(seconds(customEnd)) : '';
     }
 
-    bar.appendChild(rangeText);
-    bar.appendChild(nameInput);
+    updateText();
+
+    bar.appendChild(startTimeInput);
+    bar.appendChild(sep);
+    bar.appendChild(endTimeInput);
     bar.appendChild(startBtn);
     bar.appendChild(endBtn);
     bar.appendChild(testBtn);
@@ -1342,10 +1455,11 @@
     if (currentMode === 'none' && !currentPlayback) {
       const opEdMode = await dopGetOpEdMode();
       if (opEdMode && opEdMode.active) {
-        if (Date.now() - opEdMode.updatedAt < DOP_OPED_MODE_MAX_AGE_MS) {
+        if (sessionStorage.getItem('dop_oped_active') === '1' && Date.now() - opEdMode.updatedAt < DOP_OPED_MODE_MAX_AGE_MS) {
           await enterOpEdMode(0);
         } else {
           await dopSetOpEdMode(false);
+          sessionStorage.removeItem('dop_oped_active');
         }
       }
     }
@@ -1376,7 +1490,7 @@
 
     document.addEventListener('mousemove', onMouseMove);
 
-    // Block Home/End/Arrow keys when input/textarea/contenteditable is focused
+    // Block ALL keydown events when input/textarea/contenteditable is focused
     // (prevent d-Anime player from capturing them)
     document.addEventListener('focusin', (e) => {
       isInputFocused = isEditableElement(e.target);
@@ -1390,11 +1504,8 @@
 
     document.addEventListener('keydown', (e) => {
       if (!isInputFocused) return;
-      const blockedKeys = ['Home', 'End', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'];
-      if (blockedKeys.includes(e.key)) {
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      }
+      e.stopPropagation();
+      e.stopImmediatePropagation();
     }, true);
 
     const observer = new MutationObserver(() => {

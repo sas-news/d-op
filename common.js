@@ -25,7 +25,7 @@ const DOP_DOUBLE_CLICK_WINDOW_MS = 1500;        // prev-button double-click wind
 const DOP_PANEL_HIDE_DELAY_MS = 3000;           // top-right panel auto-hide delay
 const DOP_POPUP_HIDE_DELAY_MS = 200;            // add-button popup hide delay
 const DOP_SEEK_MARKER_DEBOUNCE_MS = 100;        // seek marker update debounce
-const DOP_STORE_DEBOUNCE_MS = 300;              // content-store MutationObserver debounce
+const DOP_STORE_DEBOUNCE_MS = 300;
 
 // ---------------------------------------------------------------------------
 // Heuristic constants — for guessRangeName (OP/ED inference)
@@ -120,6 +120,22 @@ function debounce(fn, wait) {
       fn.apply(context, args);
     }, wait);
   };
+}
+
+/**
+ * Parse time string (m:ss or seconds) to milliseconds.
+ */
+function parseTimeInput(str) {
+  if (!str) return null;
+  const parts = String(str).trim().split(':');
+  if (parts.length === 2) {
+    const m = parseInt(parts[0], 10);
+    const s = parseInt(parts[1], 10);
+    if (!isNaN(m) && !isNaN(s)) return (m * 60 + s) * 1000;
+  }
+  const sec = parseFloat(str);
+  if (!isNaN(sec)) return Math.floor(sec * 1000);
+  return null;
 }
 
 // =============================================================================

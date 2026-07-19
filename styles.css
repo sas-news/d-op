@@ -483,6 +483,27 @@ body.d-op-playlist-active .buttonArea .next {
   outline: none;
 }
 
+.d-op-custom-bar input.d-op-custom-bar-time-input,
+.d-op-custom-bar input.d-op-custom-bar-time-input:focus {
+  width: 42px;
+  min-width: 0;
+  padding: 0;
+  border: none !important;
+  background: transparent;
+  color: var(--dop-text-secondary);
+  font-family: var(--dop-font-mono);
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+  box-shadow: none;
+}
+
+.d-op-custom-bar-time-sep {
+  color: var(--dop-text-tertiary);
+  font-family: var(--dop-font-mono);
+  font-size: 12px;
+}
+
 .d-op-seek-markers {
   position: absolute;
   top: 0;

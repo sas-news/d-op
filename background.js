@@ -8,6 +8,27 @@ if (typeof browser === 'undefined' && typeof importScripts === 'function') {
 // ---------------------------------------------------------------------------
 let playerState = null;
 
+function isDAnimeUrl(url) {
+  return /^https?:\/\/(animestore\.docomo\.ne\.jp|anime\.dmkt-sp\.jp)\/animestore\/sc_d_pc\?/.test(url);
+}
+
+async function validatePlayerState() {
+  if (!playerState) return false;
+  try {
+    const tab = await browser.tabs.get(playerState.tabId);
+    if (!tab || !tab.url) return false;
+    if (!isDAnimeUrl(tab.url)) {
+      playerState = null;
+      return false;
+    }
+    await browser.windows.get(playerState.windowId);
+    return true;
+  } catch (_) {
+    playerState = null;
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // onInstalled — first-run onboarding
 // ---------------------------------------------------------------------------
@@ -25,12 +46,13 @@ browser.runtime.onInstalled.addListener(async (details) => {
   const playback = result.dop_playback;
   if (playback?.windowId && playback.windowId > 0) {
     try {
-      const win = await browser.windows.get(playback.windowId);
-      if (win.type === 'popup') {
-        const tabs = await browser.tabs.query({ windowId: playback.windowId });
-        if (tabs[0]) {
-          playerState = { windowId: playback.windowId, tabId: tabs[0].id };
-        }
+      await browser.windows.get(playback.windowId);
+      const tabs = await browser.tabs.query({ windowId: playback.windowId });
+      const tab = tabs.find((t) => isDAnimeUrl(t.url));
+      if (tab) {
+        playerState = { windowId: playback.windowId, tabId: tab.id };
+      } else if (tabs[0]) {
+        playerState = { windowId: playback.windowId, tabId: tabs[0].id };
       }
     } catch (_) {
       playerState = null;
@@ -44,17 +66,36 @@ browser.runtime.onInstalled.addListener(async (details) => {
 // Clean up playback when a tab/window is closed by the user
 // ---------------------------------------------------------------------------
 browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
-  if (removeInfo.isWindowClosing) return;
   if (playerState && playerState.tabId === tabId) {
     playerState = null;
     await browser.storage.local.remove('dop_playback');
     await browser.storage.local.remove('dop_pending');
+    return;
+  }
+  if (removeInfo.isWindowClosing) return;
+  const result = await browser.storage.local.get('dop_playback');
+  const ps = result.dop_playback;
+  if (ps?.windowId) {
+    try {
+      const tabs = await browser.tabs.query({ windowId: ps.windowId });
+      if (tabs.length === 0 || !tabs.some((t) => t.id === tabId)) {
+        const w = await browser.windows.get(ps.windowId);
+        if (!w) throw new Error('gone');
+      }
+    } catch (_) {
+      await browser.storage.local.remove('dop_playback');
+      await browser.storage.local.remove('dop_pending');
+    }
   }
 });
 
 browser.windows.onRemoved.addListener(async (windowId) => {
   if (playerState && playerState.windowId === windowId) {
     playerState = null;
+  }
+  const result = await browser.storage.local.get('dop_playback');
+  const ps = result.dop_playback;
+  if (ps?.windowId === windowId) {
     await browser.storage.local.remove('dop_playback');
     await browser.storage.local.remove('dop_pending');
   }
@@ -89,9 +130,23 @@ browser.runtime.onMessage.addListener((message) => {
 // REQUEST_PLAYER — reuse existing player window, or create one
 // ---------------------------------------------------------------------------
 async function handleRequestPlayer(url) {
-  if (playerState) {
+  if (!playerState) {
+    const result = await browser.storage.local.get('dop_playback');
+    const pb = result.dop_playback;
+    if (pb?.windowId && pb.windowId > 0) {
+      try {
+        await browser.windows.get(pb.windowId);
+        const tabs = await browser.tabs.query({ windowId: pb.windowId });
+        const tab = tabs.find((t) => isDAnimeUrl(t.url));
+        if (tab) {
+          playerState = { windowId: pb.windowId, tabId: tab.id };
+        }
+      } catch (_) {}
+    }
+  }
+
+  if (playerState && await validatePlayerState()) {
     try {
-      await browser.windows.get(playerState.windowId);
       await browser.tabs.update(playerState.tabId, { url, active: true });
       return;
     } catch (_) {
@@ -108,9 +163,7 @@ async function handleRequestPlayer(url) {
   } else {
     const win = await browser.windows.create({ url, type: 'popup', width: 1280, height: 800 });
     const tabs = await browser.tabs.query({ windowId: win.id });
-    if (tabs[0]) {
-      playerState = { windowId: win.id, tabId: tabs[0].id };
-    }
+    playerState = { windowId: win.id, tabId: tabs[0].id };
   }
 }
 
@@ -120,15 +173,15 @@ async function handleRequestPlayer(url) {
 async function handleReleasePlayer() {
   if (playerState) {
     try {
-      const tabs = await browser.tabs.query({ windowId: playerState.windowId });
-      if (tabs[0]?.id) {
-        browser.tabs.sendMessage(tabs[0].id, { type: 'PLAYLIST_STOP' }).catch(() => {});
-      }
-      const win = await browser.windows.get(playerState.windowId);
-      if (win && win.type === 'popup') {
-        browser.windows.remove(playerState.windowId).catch(() => {});
-      } else {
-        browser.tabs.remove(playerState.tabId).catch(() => {});
+      const tab = await browser.tabs.get(playerState.tabId).catch(() => null);
+      if (tab && tab.url && isDAnimeUrl(tab.url)) {
+        browser.tabs.sendMessage(playerState.tabId, { type: 'PLAYLIST_STOP' }).catch(() => {});
+        const win = await browser.windows.get(playerState.windowId);
+        if (win && win.type === 'popup') {
+          browser.windows.remove(playerState.windowId).catch(() => {});
+        } else {
+          browser.tabs.remove(playerState.tabId).catch(() => {});
+        }
       }
     } catch (_) {}
     playerState = null;

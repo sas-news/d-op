@@ -19,7 +19,7 @@ Extract and play OPs/EDs from d-Anime Store. You can also create playlists for i
 ## 詳細な説明（日本語）
 
 ```
-dアニメストアの動画からオープニング（OP）とエンディング（ED）だけを抽出して再生するChrome拡張機能です。作品一覧からワンクリックでOP/ED区間を選択し、お気に入りの曲だけを連続再生できます。
+作品一覧からワンクリックでOP/ED区間を選択し、お気に入りの範囲だけを連続再生できます。
 
 【主な機能】
 ・OP/EDスキップ再生：各エピソードの「OP/ED」ボタンからスキップ区間を選択して直接再生
@@ -47,7 +47,7 @@ dアニメストアのアカウントが必要です。本拡張機能はdアニ
 ## 詳細な説明（英語）
 
 ```
-This is a Chrome extension that extracts and plays only the opening (OP) and ending (ED) sequences from videos on d-Anime Store. You can select OP/ED segments from the episode list with a single click and play your favorite songs in a continuous loop.
+You can select OP/ED segments from the episode list with a single click and play your favorite scenes in a continuous loop.
 
 [Key Features]
 ・OP/ED Skip/Play: Select and play skip segments directly via the OP/ED buttons for each episode.

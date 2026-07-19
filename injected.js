@@ -194,6 +194,15 @@
       case 'UNBLOCK_AUTO_ADVANCE':
         setBlockAutoAdvance(false);
         break;
+      case 'GO_NEXT':
+        setBlockAutoAdvance(false);
+        if (window.vc && typeof window.vc.goNext === 'function') {
+          window.vc.goNext();
+        } else {
+          const nextBtn = document.querySelector('.buttonArea .next');
+          if (nextBtn && !nextBtn.disabled) nextBtn.click();
+        }
+        break;
     }
   });
 })();
