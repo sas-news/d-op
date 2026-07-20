@@ -495,7 +495,7 @@ p.empty {
   text-align: center;
   padding: var(--dop-space-3) 0 var(--dop-space-3);
   border-top: 1px solid var(--dop-border);
-  margin-top: var(--dop-space-3);
+  margin-top: var(--dop-space-5);
 }
 
 .popup-version {
