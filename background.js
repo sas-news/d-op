@@ -161,9 +161,15 @@ async function handleRequestPlayer(url) {
     const tab = await browser.tabs.create({ url, active: true });
     playerState = { windowId: tab.windowId, tabId: tab.id };
   } else {
-    const win = await browser.windows.create({ url, type: 'popup', width: 1280, height: 800 });
-    const tabs = await browser.tabs.query({ windowId: win.id });
-    playerState = { windowId: win.id, tabId: tabs[0].id };
+    try {
+      const win = await browser.windows.create({ url, type: 'popup', width: 1280, height: 800 });
+      const tabs = await browser.tabs.query({ windowId: win.id });
+      playerState = { windowId: win.id, tabId: tabs[0].id };
+    } catch (_) {
+      // Fallback: no windows permission (Chrome without optional, or permission denied)
+      const tab = await browser.tabs.create({ url, active: true });
+      playerState = { windowId: tab.windowId, tabId: tab.id };
+    }
   }
 }
 
@@ -176,12 +182,7 @@ async function handleReleasePlayer() {
       const tab = await browser.tabs.get(playerState.tabId).catch(() => null);
       if (tab && tab.url && isDAnimeUrl(tab.url)) {
         browser.tabs.sendMessage(playerState.tabId, { type: 'PLAYLIST_STOP' }).catch(() => {});
-        const win = await browser.windows.get(playerState.windowId);
-        if (win && win.type === 'popup') {
-          browser.windows.remove(playerState.windowId).catch(() => {});
-        } else {
-          browser.tabs.remove(playerState.tabId).catch(() => {});
-        }
+        browser.tabs.remove(playerState.tabId).catch(() => {});
       }
     } catch (_) {}
     playerState = null;
