@@ -17,16 +17,26 @@
 
   let expandedPlaylistId = null;
 
+  function createShuffleIconSvg() {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '16');
+    svg.setAttribute('height', '16');
+    svg.setAttribute('fill', 'currentColor');
+    svg.style.display = 'block';
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', 'M14.83 13.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13zM4 5.41l5.18 5.18 1.42-1.41L5.41 4 4 5.41zM20 4h-5.5l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4z');
+    svg.appendChild(path);
+    return svg;
+  }
+
   function formatRangeName(range) {
     return range.name || '範囲';
   }
 
   function isSystemPlaylist(playlist) {
     return typeof playlist.name === 'string' && playlist.name.startsWith('__dop_');
-  }
-
-  function createShuffleIconSvg() {
-    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>';
   }
 
   async function startShufflePlayback(playlist) {
@@ -153,14 +163,14 @@
 
       const header = document.createElement('div');
       header.className = 'playlist-card-header';
+      header.addEventListener('click', () => {
+        expandedPlaylistId = expandedPlaylistId === playlist.id ? null : playlist.id;
+        renderPlaylistList(playlists);
+      });
 
       const title = document.createElement('span');
       title.textContent = escapeHtml(playlist.name);
       title.className = 'playlist-card-title';
-      title.addEventListener('click', () => {
-        expandedPlaylistId = expandedPlaylistId === playlist.id ? null : playlist.id;
-        renderPlaylistList(playlists);
-      });
 
       const count = document.createElement('span');
       count.className = 'count';
@@ -178,7 +188,7 @@
 
       const shuffleBtn = document.createElement('button');
       shuffleBtn.className = 'playlist-card-shuffle';
-      shuffleBtn.innerHTML = createShuffleIconSvg();
+      shuffleBtn.replaceChildren(createShuffleIconSvg());
       shuffleBtn.title = 'シャッフル再生';
       shuffleBtn.addEventListener('click', async (e) => {
         e.stopPropagation();

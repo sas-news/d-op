@@ -20,9 +20,10 @@ jobs:
           VERSION=$(grep '"version"' manifest.json | head -1 | sed 's/.*"version"\s*:\s*"\([^"]*\)".*/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Create ZIP package
+      # --- Chrome package (uses manifest.json with service_worker) ---
+      - name: Create Chrome ZIP package
         run: |
-          zip -r "d-op-v${{ steps.version.outputs.version }}.zip" \
+          zip -r "d-op-v${{ steps.version.outputs.version }}-chrome.zip" \
             manifest.json \
             background.js \
             browser-polyfill.js \
@@ -42,9 +43,20 @@ jobs:
             PRIVACY.md \
             README.md
 
-      - name: Create XPI package (Firefox)
+      # --- Firefox package (uses manifest.firefox.json → manifest.json) ---
+      - name: Create Firefox XPI package
         run: |
-          cp "d-op-v${{ steps.version.outputs.version }}.zip" "d-op-v${{ steps.version.outputs.version }}.xpi"
+          mkdir -p firefox-build/icons
+          cp manifest.firefox.json firefox-build/manifest.json
+          cp background.js browser-polyfill.js common.js content.js content-store.js injected.js firefox-build/
+          cp popup.html popup.css popup.js options.html options.css options.js firefox-build/
+          cp styles.css styles-store.css firefox-build/
+          cp PRIVACY.md README.md firefox-build/
+          cp -r icons/* firefox-build/icons/
+          cd firefox-build
+          zip -r "../d-op-v${{ steps.version.outputs.version }}-firefox.xpi" .
+          cd ..
+          rm -rf firefox-build
 
       - name: Create CRX package (if key available)
         if: env.CRX_PRIVATE_KEY != ''
@@ -54,7 +66,7 @@ jobs:
           echo "$CRX_PRIVATE_KEY" > key.pem
           npx crx3 pack \
             --keyPath key.pem \
-            --zipPath "d-op-v${{ steps.version.outputs.version }}.zip" \
+            --zipPath "d-op-v${{ steps.version.outputs.version }}-chrome.zip" \
             -o "d-op-v${{ steps.version.outputs.version }}.crx"
           rm key.pem
 
@@ -84,10 +96,11 @@ jobs:
             - [ ] 動作確認済み
 
             ## Notes
-            - 
+            - `d-op-v*-chrome.zip` — Chrome 用
+            - `d-op-v*-firefox.xpi` — Firefox 用（manifest.firefox.json を manifest.json として同梱）
           files: |
-            d-op-v${{ steps.version.outputs.version }}.zip
-            d-op-v${{ steps.version.outputs.version }}.xpi
+            d-op-v${{ steps.version.outputs.version }}-chrome.zip
+            d-op-v${{ steps.version.outputs.version }}-firefox.xpi
             d-op-v${{ steps.version.outputs.version }}.crx
           fail_on_unmatched_files: false
         env:

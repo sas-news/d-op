@@ -30,9 +30,12 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 
 #### Firefox
 
-1. このリポジトリをクローン または [Releases](https://github.com/sas-news/d-op/releases) から最新の ZIP をダウンロード・解凍
-2. Firefox で `about:debugging` を開く
-3. 「この Firefox」→「一時的なアドオンを読み込む」→ 解凍したフォルダの `manifest.json` を選択
+1. このリポジトリをクローン または [Releases](https://github.com/sas-news/d-op/releases) から最新の Firefox 用 XPI をダウンロード
+2. クローンした場合は、`manifest.firefox.json` を `manifest.json` にリネーム（Chrome 用 `manifest.json` はバックアップ）
+3. Firefox で `about:debugging` を開く
+4. 「この Firefox」→「一時的なアドオンを読み込む」→ 解凍したフォルダの `manifest.json` を選択
+
+> **Chrome と Firefox のマニフェスト違い**: Chrome MV3 は `background.service_worker` 必須、Firefox MV3 は非対応で `background.scripts` 必須。このためマニフェストファイルが2つに分かれています。コード本体は共通です。
 
 ## 使い方
 
@@ -49,7 +52,8 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 
 | ファイル                  | 役割                                                    |
 | --------------------- | ----------------------------------------------------- |
-| `manifest.json`       | MV3 マニフェスト                                            |
+| `manifest.json`       | MV3 マニフェスト（Chrome 用）。`background.service_worker` を使用          |
+| `manifest.firefox.json` | MV3 マニフェスト（Firefox 用）。`background.scripts` を使用。コード本体は共通        |
 | `background.js`       | バックグラウンド（Chrome は Service Worker、Firefox はイベントページ）。ウィンドウ管理、初回オンボーディング             |
 | `browser-polyfill.js` | WebExtension API ポリフィル。Chrome/Firefox 両対応の `browser.*` API を提供      |
 | `injected.js`         | メインワールドで実行。dアニメのプレイヤーオブジェクトにアクセスし、SEEK/PLAY/PAUSE を提供 |

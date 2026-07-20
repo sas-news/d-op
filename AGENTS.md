@@ -2,12 +2,19 @@
 
 ## What this repo is
 
-Chrome Manifest V3 extension with **no build step, no package manager, and no tests**. All files are loaded directly by the browser from the repo root. Edit HTML/JS/CSS and reload the extension in `chrome://extensions` to verify.
+Chrome / Firefox Manifest V3 extension with **no build step, no package manager, and no tests**. All files are loaded directly by the browser from the repo root. Edit HTML/JS/CSS and reload the extension in `chrome://extensions` or `about:debugging` to verify.
+
+**Two manifests** exist because Chrome MV3 and Firefox MV3 disagree on the `background` key:
+- Chrome requires `service_worker` and forbids `scripts`.
+- Firefox does not support `service_worker` and requires `scripts`.
+
+`manifest.json` is the Chrome version (checked into git). `manifest.firefox.json` is the Firefox version, swapped in by the release workflow or manually for local testing.
 
 ## Entrypoints and file roles
 
-- `manifest.json` — MV3 manifest. Declares two content scripts, one background service worker, popup, options page, and `injected.js` as a web-accessible resource.
-- `background.js` — Only responsibility: inject `injected.js` into the **MAIN** world when `content.js` sends `INJECT_SCRIPT`.
+- `manifest.json` — MV3 manifest for Chrome. Uses `background.service_worker`.
+- `manifest.firefox.json` — MV3 manifest for Firefox. Uses `background.scripts`. Same content scripts/UI, only the background field differs.
+- `background.js` — Service worker (Chrome) / event page (Firefox). Manages player window state and routes messages from content scripts.
 - `common.js` — Shared storage layer (`chrome.storage.local`) and playlist helpers. Loaded by content scripts, popup, and options page.
 - `injected.js` — Runs in the page's main world, reads `window.vc.ws010105Data.chapters`, and exposes `SEEK`/`PLAY`/`PAUSE` commands via `window.postMessage`.
 - `content.js` — Isolated-world content script for the **player page** (`sc_d_pc`). Orchestrates OP/ED enforcement, playlist playback, seek-bar markers, and the bottom control bar.
@@ -26,10 +33,20 @@ Chrome Manifest V3 extension with **no build step, no package manager, and no te
 
 ## How to verify changes
 
+### Chrome
 1. Open `chrome://extensions` → enable Developer mode → Load unpacked → select this repo root.
 2. Edit source files.
 3. Click the reload icon on the extension card in `chrome://extensions`.
 4. Test on an actual d-Anime Store episode/work page; there is no local test harness.
+
+### Firefox
+1. Copy `manifest.firefox.json` to `manifest.json` (back up the Chrome version first):
+   ```
+   cp manifest.json manifest.chrome.bak && cp manifest.firefox.json manifest.json
+   ```
+2. Open `about:debugging` → This Firefox → Load Temporary Add-on → select `manifest.json`.
+3. Edit source files, then click Reload on the extension card.
+4. Restore Chrome manifest when done: `cp manifest.chrome.bak manifest.json`
 
 ## High-risk areas when editing
 
