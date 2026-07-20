@@ -1,5 +1,7 @@
 # d-OP
 
+<img src="assets/d-OP-icon.png" alt="d-OP" width="96" align="right">
+
 dアニメストアの動画から OP/ED のみを抽出して再生するブラウザ拡張機能です。
 （Chrome / Firefox 対応）  
 作品一覧からワンクリックで OP/ED 区間を選択し、プレイリストを作成して連続再生できます。
@@ -12,6 +14,14 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 - **シークバーマーカー**: プレイヤーのシークバーに OP/ED 区間を可視化
 - **インポート/エクスポート**: プレイリストを JSON で保存・共有
 - **新規ウィンドウ再生**: dアニメ本来のプレイヤー挙動に合わせたポップアップ再生（設定でタブ切替可）
+
+## 紹介画像
+
+<p align="center">
+  <img src="assets/store-image1.png" alt="作品一覧のOP/EDボタン" width="32%">
+  <img src="assets/store-image2.png" alt="プレイヤー画面" width="32%">
+  <img src="assets/store-image3.png" alt="プレイリスト管理" width="32%">
+</p>
 
 ## インストール
 
