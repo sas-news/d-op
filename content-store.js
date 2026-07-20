@@ -9,70 +9,13 @@
   }
 
   function findWorkTitle() {
-    const titleEl = document.querySelector('h1, .workTitle, .title, [class*="Title"]');
+    const titleEl = document.querySelector('h1');
     return titleEl ? titleEl.textContent.trim() : '';
   }
 
   function findEpisodeTitle(element) {
-    const titleEl = element.querySelector('.title, .episodeTitle, h3, .itemTitle');
+    const titleEl = element.querySelector('h3');
     return titleEl ? titleEl.textContent.trim() : '';
-  }
-
-  function escapeHtml(str) {
-    return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
-  }
-
-  function seconds(ms) {
-    return ms / 1000;
-  }
-
-  function formatTime(sec) {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
-
-  function guessRangeName(chapter, index, total, durationMs) {
-    const durationSec = durationMs ? durationMs / 1000 : Infinity;
-    const startSec = seconds(chapter.start);
-    const endSec = seconds(chapter.end);
-    const lenSec = endSec - startSec;
-    const nearStart = startSec < 180;
-    const veryStart = startSec < 15;
-    const nearEnd = durationSec - endSec < 300;
-    const opEdDuration = lenSec >= 75 && lenSec <= 105;
-    const introDuration = lenSec < 15;
-
-    const used = new Set();
-    const makeName = (candidate) => {
-      if (!used.has(candidate)) {
-        used.add(candidate);
-        return candidate;
-      }
-      return `パート${index + 1}`;
-    };
-
-    if (total === 1) {
-      if (opEdDuration && nearStart) return makeName('OP');
-      if (introDuration && veryStart) return makeName('イントロ');
-      return `パート1`;
-    }
-
-    if (total === 2) {
-      if (index === 0) {
-        if (opEdDuration && nearStart) return makeName('OP');
-        if (introDuration && veryStart) return makeName('イントロ');
-        return `パート1`;
-      }
-      if (opEdDuration && nearEnd) return makeName('ED');
-      if (introDuration && veryStart) return makeName('イントロ');
-      return `パート2`;
-    }
-
-    if (index === 0 && introDuration && veryStart) return makeName('イントロ');
-    if (index === total - 1 && opEdDuration && nearEnd) return makeName('ED');
-    if (index > 0 && index < total - 1 && opEdDuration && nearStart) return makeName('OP');
-    return `パート${index + 1}`;
   }
 
   async function fetchChapters(partId) {
@@ -105,7 +48,7 @@
       params.set('dopTitle', workTitle);
       params.set('dopEpisodeTitle', episodeTitle);
       const url = `https://animestore.docomo.ne.jp/animestore/sc_d_pc?${params.toString()}`;
-      chrome.runtime.sendMessage({
+      browser.runtime.sendMessage({
         type: 'REQUEST_PLAYER',
         url: url
       });
@@ -135,7 +78,7 @@
       menu.appendChild(row);
     } else {
       none.forEach((c, i) => {
-        const name = guessRangeName(c, i, none.length, duration);
+        const name = guessRangeName(c, i, none.length, duration ? duration / 1000 : Infinity);
         const row = document.createElement('div');
         row.className = 'd-op-store-range-item';
         row.textContent = `${name} (${formatTime(seconds(c.start))}-${formatTime(seconds(c.end))})`;
@@ -153,13 +96,12 @@
     menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
     menu.style.left = `${rect.left + window.scrollX}px`;
 
-    const close = (e) => {
-      if (!menu.contains(e.target)) {
-        menu.remove();
-        document.removeEventListener('click', close);
-      }
+    menu.addEventListener('click', function (e) { e.stopPropagation(); });
+    const close = function (e) {
+      menu.remove();
+      document.removeEventListener('click', close);
     };
-    setTimeout(() => document.addEventListener('click', close), 0);
+    document.addEventListener('click', close);
   }
 
   function showError(message) {
@@ -206,7 +148,7 @@
   }
 
   function decorateItems() {
-    const items = document.querySelectorAll('.itemModule, .itemList > li, .seriesEpisodeList > li, [class*="Episode"]');
+    const items = document.querySelectorAll('.itemModule');
     items.forEach((item) => {
       if (item.dataset.dopDecorated) return;
       const partId = findPartId(item);
@@ -252,16 +194,8 @@
     window.__dOpStoreInitialized = true;
 
     decorateItems();
-    const observer = new MutationObserver(debounce(decorateItems, 300));
+    const observer = new MutationObserver(debounce(decorateItems, DOP_STORE_DEBOUNCE_MS));
     observer.observe(document.body, { childList: true, subtree: true });
-  }
-
-  function debounce(fn, wait) {
-    let timer = null;
-    return () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(fn, wait);
-    };
   }
 
   init();

@@ -18,12 +18,6 @@
     return '範囲';
   }
 
-  function decodeHtmlEntities(str) {
-    const txt = document.createElement('textarea');
-    txt.innerHTML = str || '';
-    return txt.value;
-  }
-
   async function renderPlaylists() {
     const playlists = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
     const collapsedState = await dopGetCollapsedPlaylists();
@@ -51,11 +45,13 @@
 
       const toggleBtn = document.createElement('span');
       toggleBtn.className = 'playlist-toggle';
-      toggleBtn.textContent = collapsedState[playlist.id] !== false ? '\u25B6' : '\u25BC';
+      toggleBtn.textContent = '\u25B6';
+      if (collapsedState[playlist.id] === false) toggleBtn.classList.add('expanded');
 
       const count = document.createElement('span');
       count.className = 'playlist-count';
-      count.textContent = `${playlist.items.length}件`;
+      const totalMs = playlist.items.reduce((s, it) => it.range ? s + (it.range.end - it.range.start) : s, 0);
+      count.textContent = `${playlist.items.length}件 / ${formatSec(totalMs)}`;
 
       toggleGroup.appendChild(toggleBtn);
       toggleGroup.appendChild(count);
@@ -78,6 +74,8 @@
       deleteBtn.textContent = '削除';
       deleteBtn.className = 'btn-danger-text';
       deleteBtn.addEventListener('click', async () => {
+        const ok = await showConfirm(`プレイリスト「${playlist.name}」を削除しますか？`);
+        if (!ok) return;
         await dopDeletePlaylist(playlist.id);
         renderPlaylists();
       });
@@ -92,7 +90,7 @@
       header.addEventListener('click', (e) => {
         if (e.target.closest('input, button')) return;
         const collapsed = card.classList.toggle('collapsed');
-        toggleBtn.textContent = collapsed ? '\u25B6' : '\u25BC';
+        toggleBtn.classList.toggle('expanded', !collapsed);
         dopSetCollapsedPlaylist(playlist.id, collapsed);
       });
 
@@ -105,22 +103,17 @@
         const info = document.createElement('div');
         info.className = 'item-info';
 
-        const episodeNum = item.episodeNumber || extractEpisodeNumber(item.episodeTitle);
+        const epNum = item.episodeNumber ? decodeHtmlEntities(item.episodeNumber) : '';
+        const epTitle = item.episodeTitle ? decodeHtmlEntities(item.episodeTitle) : '';
+        const workTitle = decodeHtmlEntities(item.title) || '';
 
         const title = document.createElement('div');
-        title.className = 'item-title';
-        if (episodeNum) {
-          title.textContent = decodeHtmlEntities(episodeNum) + ' - ' + (decodeHtmlEntities(item.title) || '(タイトル不明)');
-        } else {
-          title.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
-        }
+        title.className = 'item-episode';
+        title.textContent = [epNum, epTitle].filter(Boolean).join(' ') || workTitle || '(タイトル不明)';
 
-        let episodeSub = null;
-        if (!episodeNum && item.episodeTitle) {
-          episodeSub = document.createElement('div');
-          episodeSub.className = 'item-episode';
-          episodeSub.textContent = decodeHtmlEntities(item.episodeTitle);
-        }
+        const episodeSub = document.createElement('div');
+        episodeSub.className = 'item-work';
+        episodeSub.textContent = workTitle;
 
         const meta = document.createElement('div');
         meta.className = 'item-meta';
@@ -139,7 +132,6 @@
 
         const editRow = document.createElement('div');
         editRow.className = 'item-edit-row';
-        editRow.style.display = 'none';
 
         const titleInput = document.createElement('input');
         titleInput.type = 'text';
@@ -203,7 +195,7 @@
         editRow.appendChild(cancelBtn);
 
         info.appendChild(title);
-        if (episodeSub) info.appendChild(episodeSub);
+        info.appendChild(episodeSub);
         info.appendChild(meta);
         info.appendChild(editRow);
 
@@ -214,7 +206,13 @@
         playBtn.textContent = '▶';
         playBtn.title = '再生';
         playBtn.className = 'btn-icon';
-        playBtn.addEventListener('click', () => startPlaylistPlayback(playlist.id, idx));
+        playBtn.addEventListener('click', async () => {
+          const pls = await dopGetPlaylists();
+          const pl = pls.find((p) => p.id === playlist.id);
+          if (!pl) return;
+          const itemIdx = pl.items.findIndex((i) => i.id === item.id);
+          if (itemIdx >= 0) startPlaylistPlayback(playlist.id, itemIdx);
+        });
 
         const editBtn = document.createElement('button');
         editBtn.textContent = '編集';
@@ -236,30 +234,12 @@
           renderPlaylists();
         });
 
-        const upBtn = document.createElement('button');
-        upBtn.className = 'btn-icon';
-        upBtn.textContent = '↑';
-        upBtn.title = '上へ';
-        upBtn.disabled = idx === 0;
-        upBtn.addEventListener('click', async () => {
-          await dopMoveItem(playlist.id, item.id, -1);
-          renderPlaylists();
-        });
-
-        const downBtn = document.createElement('button');
-        downBtn.className = 'btn-icon';
-        downBtn.textContent = '↓';
-        downBtn.title = '下へ';
-        downBtn.disabled = idx === playlist.items.length - 1;
-        downBtn.addEventListener('click', async () => {
-          await dopMoveItem(playlist.id, item.id, 1);
-          renderPlaylists();
-        });
-
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '削除';
         removeBtn.className = 'btn-danger-text';
         removeBtn.addEventListener('click', async () => {
+          const ok = await showConfirm('このアイテムを削除しますか？');
+          if (!ok) return;
           await dopRemoveItem(playlist.id, item.id);
           renderPlaylists();
         });
@@ -275,13 +255,140 @@
         controls.appendChild(editBtn);
         controls.appendChild(copyBtn);
         addDivider();
-        controls.appendChild(upBtn);
-        controls.appendChild(downBtn);
-        addDivider();
         controls.appendChild(removeBtn);
+
+        const grip = document.createElement('div');
+        grip.className = 'drag-grip';
+        for (let i = 0; i < 3; i++) {
+          const line = document.createElement('div');
+          line.className = 'drag-grip-line';
+          grip.appendChild(line);
+        }
+
+        li.appendChild(grip);
         li.appendChild(info);
         li.appendChild(controls);
+        li.dataset.itemId = item.id;
         itemsList.appendChild(li);
+      });
+
+      let dragState = null;
+
+      function flipAnimate(listEl, skipRow) {
+        const rows = [...listEl.querySelectorAll('.item-row')];
+        const firsts = {};
+        rows.forEach((r) => { firsts[r.dataset.itemId] = r.getBoundingClientRect().top; });
+        return () => {
+          const newRows = [...listEl.querySelectorAll('.item-row')];
+          newRows.forEach((r) => {
+            if (r === skipRow) return;
+            const prev = firsts[r.dataset.itemId];
+            if (prev === undefined) return;
+            const curr = r.getBoundingClientRect().top;
+            const diff = prev - curr;
+            if (Math.abs(diff) > 0.5) {
+              r.style.transform = `translateY(${diff}px)`;
+              r.style.transition = 'none';
+              void r.offsetHeight;
+              r.style.transition = 'transform 120ms ease-out';
+              r.style.transform = '';
+            }
+          });
+        };
+      }
+
+      itemsList.addEventListener('mousedown', (e) => {
+        const grip = e.target.closest('.drag-grip');
+        if (!grip) return;
+        e.preventDefault();
+        const row = grip.closest('.item-row');
+        if (!row) return;
+
+        const rowRect = row.getBoundingClientRect();
+        const clone = row.cloneNode(true);
+        clone.classList.add('drag-clone');
+        clone.style.width = rowRect.width + 'px';
+        clone.style.left = rowRect.left + 'px';
+        clone.style.top = rowRect.top + 'px';
+        document.body.appendChild(clone);
+
+        row.classList.add('dragging');
+
+        dragState = {
+          row,
+          clone,
+          playlistId: playlist.id,
+          offsetY: e.clientY - rowRect.top,
+          lastTarget: null
+        };
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!dragState) return;
+
+        const listRect = itemsList.getBoundingClientRect();
+        const rowH = dragState.row.getBoundingClientRect().height;
+        const minY = listRect.top;
+        const maxY = listRect.bottom - rowH;
+        const clampedY = Math.max(minY, Math.min(maxY, e.clientY - dragState.offsetY));
+        dragState.clone.style.left = dragState.row.getBoundingClientRect().left + 'px';
+        dragState.clone.style.top = clampedY + 'px';
+
+        const rows = [...itemsList.querySelectorAll('.item-row')];
+        let target = null;
+        let minDist = Infinity;
+        rows.forEach((r) => {
+          if (r === dragState.row) return;
+          const mid = r.getBoundingClientRect().top + r.getBoundingClientRect().height / 2;
+          const d = Math.abs(e.clientY - mid);
+          if (d < minDist) { minDist = d; target = r; }
+        });
+
+        if (!target) return;
+
+        const rect = target.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+
+        const play = flipAnimate(itemsList, dragState.row);
+        if (e.clientY < mid) {
+          itemsList.insertBefore(dragState.row, target);
+        } else {
+          itemsList.insertBefore(dragState.row, target.nextSibling);
+        }
+        play();
+      });
+
+      document.addEventListener('mouseup', async (e) => {
+        if (!dragState) return;
+        const state = dragState;
+        dragState = null;
+
+        const finalRect = state.row.getBoundingClientRect();
+        state.clone.style.transition = 'left 150ms ease-out, top 150ms ease-out, opacity 150ms ease-out';
+        state.clone.style.left = finalRect.left + 'px';
+        state.clone.style.top = finalRect.top + 'px';
+        state.clone.style.opacity = '0';
+        state.clone.addEventListener('transitionend', () => {
+          if (state.clone.parentNode) state.clone.remove();
+        }, { once: true });
+
+        state.row.classList.remove('dragging');
+        itemsList.querySelectorAll('.item-row').forEach((r) => {
+          r.style.transition = '';
+          r.style.transform = '';
+        });
+
+        const rows = itemsList.querySelectorAll('.item-row');
+        const newOrder = Array.from(rows).map((r) => r.dataset.itemId);
+        const playlists = await dopGetPlaylists();
+        const pl = playlists.find((p) => p.id === state.playlistId);
+        if (pl) {
+          const ordered = newOrder.map((id) => pl.items.find((i) => i.id === id)).filter(Boolean);
+          if (ordered.length === pl.items.length) {
+            pl.items = ordered;
+            await dopSavePlaylists(playlists);
+          }
+        }
       });
 
       const itemsWrapper = document.createElement('div');
@@ -297,11 +404,123 @@
     });
   }
 
-  function formatSec(ms) {
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${String(sec).padStart(2, '0')}`;
+  function showConfirm(message) {
+    return new Promise((resolve) => {
+      let modal = document.getElementById('d-op-confirm-modal');
+      if (modal) modal.remove();
+
+      function dismiss(result) {
+        modal.classList.add('modal-out');
+        const panel = modal.querySelector('.d-op-modal-panel');
+        if (panel) panel.style.animation = 'panel-out 100ms ease-in forwards';
+        modal.addEventListener('animationend', () => {
+          modal.remove();
+          resolve(result);
+        }, { once: true });
+      }
+
+      modal = document.createElement('div');
+      modal.id = 'd-op-confirm-modal';
+      modal.className = 'd-op-modal';
+
+      const panel = document.createElement('div');
+      panel.className = 'd-op-modal-panel';
+      panel.style.minWidth = '260px';
+
+      const msg = document.createElement('p');
+      msg.textContent = message;
+      panel.appendChild(msg);
+
+      const footer = document.createElement('div');
+      footer.className = 'd-op-modal-footer';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'キャンセル';
+      cancelBtn.className = 'btn-text';
+      cancelBtn.addEventListener('click', () => dismiss(false));
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.textContent = '削除';
+      confirmBtn.style.background = 'var(--dop-danger)';
+      confirmBtn.style.color = '#fff';
+      confirmBtn.style.border = 'none';
+      confirmBtn.style.padding = 'var(--dop-space-4) var(--dop-space-6)';
+      confirmBtn.style.borderRadius = 'var(--dop-radius-sm)';
+      confirmBtn.style.cursor = 'pointer';
+      confirmBtn.addEventListener('click', () => dismiss(true));
+
+      footer.appendChild(cancelBtn);
+      footer.appendChild(confirmBtn);
+      panel.appendChild(footer);
+      modal.appendChild(panel);
+
+      modal.addEventListener('click', (e) => { if (e.target === modal) dismiss(false); });
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape') { dismiss(false); document.removeEventListener('keydown', onKey); }
+      });
+      document.body.appendChild(modal);
+    });
+  }
+
+  function showImportChoice() {
+    return new Promise((resolve) => {
+      let modal = document.getElementById('d-op-import-modal');
+      if (modal) modal.remove();
+
+      modal = document.createElement('div');
+      modal.className = 'd-op-modal';
+
+      const panel = document.createElement('div');
+      panel.className = 'd-op-modal-panel';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = 'インポート方法';
+      panel.appendChild(h3);
+
+      const msg = document.createElement('p');
+      msg.textContent = 'すでにプレイリストが存在します。インポートしたデータをマージしますか？それとも既存データをすべて上書きしますか？';
+      panel.appendChild(msg);
+
+      const footer = document.createElement('div');
+      footer.className = 'd-op-modal-footer';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'キャンセル';
+      cancelBtn.className = 'btn-text';
+      cancelBtn.addEventListener('click', () => { modal.remove(); resolve(null); });
+
+      const replaceBtn = document.createElement('button');
+      replaceBtn.textContent = '上書き';
+      replaceBtn.style.background = 'var(--dop-danger)';
+      replaceBtn.style.color = '#fff';
+      replaceBtn.style.border = 'none';
+      replaceBtn.style.padding = 'var(--dop-space-4) var(--dop-space-6)';
+      replaceBtn.style.borderRadius = 'var(--dop-radius-sm)';
+      replaceBtn.style.cursor = 'pointer';
+      replaceBtn.addEventListener('click', () => { modal.remove(); resolve('replace'); });
+
+      const mergeBtn = document.createElement('button');
+      mergeBtn.textContent = 'マージ';
+      mergeBtn.style.background = 'var(--dop-accent)';
+      mergeBtn.style.color = '#fff';
+      mergeBtn.style.border = 'none';
+      mergeBtn.style.padding = 'var(--dop-space-4) var(--dop-space-6)';
+      mergeBtn.style.borderRadius = 'var(--dop-radius-sm)';
+      mergeBtn.style.cursor = 'pointer';
+      mergeBtn.style.fontWeight = '600';
+      mergeBtn.addEventListener('click', () => { modal.remove(); resolve('merge'); });
+
+      footer.appendChild(cancelBtn);
+      footer.appendChild(replaceBtn);
+      footer.appendChild(mergeBtn);
+      panel.appendChild(footer);
+      modal.appendChild(panel);
+
+      modal.addEventListener('click', (e) => { if (e.target === modal) { modal.remove(); resolve(null); } });
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape') { modal.remove(); resolve(null); document.removeEventListener('keydown', onKey); }
+      });
+      document.body.appendChild(modal);
+    });
   }
 
   function showCopyDialog(playlists, currentPlaylistId) {
@@ -320,7 +539,7 @@
       h3.textContent = 'コピー先のプレイリスト';
       panel.appendChild(h3);
 
-      const targets = playlists.filter((p) => !isSystemPlaylist(p) && p.id !== currentPlaylistId);
+      const targets = playlists.filter((p) => !isSystemPlaylist(p));
       if (targets.length === 0) {
         const empty = document.createElement('p');
         empty.textContent = 'コピー先がありません。';
@@ -381,7 +600,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlistId);
     url.searchParams.set('dopIndex', String(index));
-    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+    browser.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
   }
 
   function parseTimeInput(str) {
@@ -441,13 +660,36 @@
           id: i.id || dopGenerateId(),
           partId: i.partId || '',
           workId: i.workId || '',
-          title: i.title || i.episodeTitle || '',
+          title: i.title || '',
           episodeTitle: i.episodeTitle || '',
           url: i.url || '',
           range: i.range ? { ...i.range } : null
         })) : []
       }));
-      await dopSavePlaylists(cleaned);
+
+      const existing = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
+      if (existing.length > 0) {
+        const choice = await showImportChoice();
+        if (choice === 'merge') {
+          const merged = [...existing];
+          cleaned.forEach((p) => {
+            const dup = merged.find((m) => m.name === p.name);
+            if (dup) {
+              dup.items.push(...p.items);
+            } else {
+              merged.push(p);
+            }
+          });
+          await dopSavePlaylists(merged);
+        } else if (choice === 'replace') {
+          await dopSavePlaylists(cleaned);
+        } else {
+          e.target.value = '';
+          return;
+        }
+      } else {
+        await dopSavePlaylists(cleaned);
+      }
       renderPlaylists();
       showStatus('インポートしました。');
     } catch (err) {
@@ -469,6 +711,8 @@
       });
     });
   }
+
+  document.getElementById('optionsVersion').textContent = 'd-OP v' + browser.runtime.getManifest().version;
 
   renderPlaylists();
   initWindowModeSetting();

@@ -42,7 +42,7 @@
         <label><input type="radio" name="windowMode" value="window"> 新規ウィンドウ</label>
         <label><input type="radio" name="windowMode" value="tab"> 新規タブ</label>
       </div>
-      <p class="setting-desc">dアニメストアのプレイヤーに合わせて、デフォルトでは新規ウィンドウで開きます。</p>
+      <p class="setting-desc">d-OP でプレイリストやOP/EDを再生する際の開き方です。dアニメストア標準の視聴ボタンの挙動は変わりません。</p>
     </section>
 
     <section class="guide-section">
@@ -56,8 +56,22 @@
       </ol>
       <p class="guide-note">※ dアニメストアのアカウントが必要です。本拡張機能はデータを外部に送信しません。</p>
     </section>
+
+    <footer class="page-footer">
+      <div class="footer-links">
+        <a href="https://github.com/sas-news/d-op" target="_blank" rel="noopener">GitHub</a>
+        <span class="footer-sep">·</span>
+        <a href="https://github.com/sas-news/d-op/blob/main/PRIVACY.md" target="_blank" rel="noopener">プライバシー</a>
+        <span class="footer-sep">·</span>
+        <a href="https://github.com/sas-news/d-op/issues" target="_blank" rel="noopener">お問い合わせ</a>
+        <span class="footer-sep">·</span>
+        <a href="https://x.com/sas_shinbun" target="_blank" rel="noopener">@sas_shinbun</a>
+      </div>
+      <p class="footer-version" id="optionsVersion"></p>
+    </footer>
   </div>
 
+  <script src="browser-polyfill.js"></script>
   <script src="common.js"></script>
   <script src="options.js"></script>
 </body>

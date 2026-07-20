@@ -114,17 +114,25 @@
 }
 
 .d-op-popup {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
   position: absolute;
   bottom: calc(100% + 6px);
   left: 50%;
-  transform: translateX(calc(-50% - 12px));
+  transform: translateX(calc(-50% - 12px)) translateY(6px);
   min-width: 150px;
   padding: 2px 0;
-  background: #000000;
-  border-radius: var(--dop-radius-sm);
+  background: rgba(0, 0, 0, 0.80);
+  border-radius: var(--dop-radius-md);
   filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.2));
   z-index: 10000;
+  transition: opacity var(--dop-transition-fast), transform var(--dop-transition-base);
+}
+
+.d-op-popup.d-op-popup-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(calc(-50% - 12px)) translateY(0);
 }
 
 .d-op-popup::before {
@@ -134,7 +142,7 @@
   left: 50%;
   transform: translateX(calc(-50% + 12px));
   border: 5px solid transparent;
-  border-top-color: #000000;
+  border-top-color: rgba(0, 0, 0, 0.80);
 }
 
 .d-op-popup::after {
@@ -339,6 +347,12 @@ body.d-op-playlist-active .buttonArea .next {
   pointer-events: auto;
 }
 
+@supports not (backdrop-filter: blur(12px)) {
+  .d-op-top-panel {
+    background: rgba(0, 0, 0, 0.55);
+  }
+}
+
 .d-op-top-panel::before {
   content: '';
   width: 3px;
@@ -402,6 +416,7 @@ body.d-op-playlist-active .buttonArea .next {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--dop-space-4);
   padding: var(--dop-space-4) var(--dop-space-5);
@@ -423,6 +438,8 @@ body.d-op-playlist-active .buttonArea .next {
   font-family: var(--dop-font);
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: background var(--dop-transition-fast), border-color var(--dop-transition-fast);
 }
 
@@ -466,6 +483,27 @@ body.d-op-playlist-active .buttonArea .next {
   outline: none;
 }
 
+.d-op-custom-bar input.d-op-custom-bar-time-input,
+.d-op-custom-bar input.d-op-custom-bar-time-input:focus {
+  width: 42px;
+  min-width: 0;
+  padding: 0;
+  border: none !important;
+  background: transparent;
+  color: var(--dop-text-secondary);
+  font-family: var(--dop-font-mono);
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+  box-shadow: none;
+}
+
+.d-op-custom-bar-time-sep {
+  color: var(--dop-text-tertiary);
+  font-family: var(--dop-font-mono);
+  font-size: 12px;
+}
+
 .d-op-seek-markers {
   position: absolute;
   top: 0;
@@ -473,6 +511,10 @@ body.d-op-playlist-active .buttonArea .next {
   right: 0;
   bottom: 0;
   pointer-events: none;
+  z-index: 1;
+}
+
+#seekThumb {
   z-index: 2;
 }
 
@@ -516,6 +558,18 @@ body.d-op-playlist-active .buttonArea .next {
   border-color: rgba(255, 204, 0, 1);
 }
 
+.d-op-seek-marker.point {
+  width: 2px !important;
+  background: transparent;
+  opacity: 0.7;
+  border-left: 2px solid rgba(255, 255, 255, 0.9);
+  border-right: none;
+}
+
+.d-op-seek-marker.point.custom {
+  border-left-color: rgba(255, 204, 0, 0.9);
+}
+
 .d-op-seek-popup-label {
   margin-top: 0;
   color: var(--dop-text-primary);
@@ -527,8 +581,6 @@ body.d-op-playlist-active .buttonArea .next {
   white-space: nowrap;
 }
 
-body.d-op-skip-hidden .skipUi,
-body.d-op-skip-hidden .skip-ui,
-body.d-op-skip-hidden [class*="skipUi"] {
-  display: none !important;
+body.d-op-skip-hidden .skipUi{
+  display: none;
 }

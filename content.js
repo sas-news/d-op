@@ -3,8 +3,6 @@
 
   const APP_TAG = 'd-op-injected';
   const DEBUG = false;
-  const RESUME_MAX_AGE_MS = 5 * 60 * 1000;
-  const OPED_MODE_MAX_AGE_MS = 5 * 60 * 1000;
 
   let chaptersInfo = null;
   let lastPartId = null;
@@ -13,7 +11,6 @@
   let originalOpSkip = null;
   let lastActionTime = 0;
   let attachedVideo = null;
-  let enforcerTimer = null;
   let currentPlayback = null;
   let customStart = null;
   let customEnd = null;
@@ -23,12 +20,27 @@
   let startupLockUntil = 0;
   let lastPrevClickTime = 0;
   let panelHideTimer = null;
-  const PANEL_HIDE_DELAY = 3000;
   let currentSeekRanges = [];
   let seekMarkerDebounceTimer = null;
-  let seekMarkerRunning = false;
   let currentSessionId = null;
   let isInputFocused = false;
+  let sameVideoItems = [];
+  let playlistRangeNames = {};
+  let addButtonCreating = false;
+
+  function getPlayerPageInfo() {
+    const backInfo = document.getElementById('backInfo');
+    if (!backInfo) return {};
+    const txt = function (sel) {
+      const el = backInfo.querySelector(sel);
+      return el ? el.textContent.trim() : '';
+    };
+    return {
+      workTitle: txt('.backInfoTxt1'),
+      episodeNumber: txt('.backInfoTxt2'),
+      episodeTitle: txt('.backInfoTxt3')
+    };
+  }
 
   function getVideo() {
     return document.getElementById('video');
@@ -41,16 +53,6 @@
 
   function setCookieValue(name, value) {
     document.cookie = `${name}=${encodeURIComponent(value)}; path=/; SameSite=Lax`;
-  }
-
-  function seconds(ms) {
-    return ms / 1000;
-  }
-
-  function formatTime(sec) {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
   }
 
   function isEditableElement(el) {
@@ -69,48 +71,6 @@
       .sort((a, b) => a.start - b.start);
   }
 
-  function guessRangeName(chapter, index, total, durationSec) {
-    const startSec = seconds(chapter.start);
-    const endSec = seconds(chapter.end);
-    const lenSec = endSec - startSec;
-    const nearStart = startSec < 180;
-    const veryStart = startSec < 15;
-    const nearEnd = durationSec - endSec < 300;
-    const opEdDuration = lenSec >= 75 && lenSec <= 105;
-    const introDuration = lenSec < 15;
-
-    const used = new Set();
-    const makeName = (candidate) => {
-      if (!used.has(candidate)) {
-        used.add(candidate);
-        return candidate;
-      }
-      return `パート${index + 1}`;
-    };
-
-    if (total === 1) {
-      if (opEdDuration && nearStart) return makeName('OP');
-      if (introDuration && veryStart) return makeName('イントロ');
-      return `パート1`;
-    }
-
-    if (total === 2) {
-      if (index === 0) {
-        if (opEdDuration && nearStart) return makeName('OP');
-        if (introDuration && veryStart) return makeName('イントロ');
-        return `パート1`;
-      }
-      if (opEdDuration && nearEnd) return makeName('ED');
-      if (introDuration && veryStart) return makeName('イントロ');
-      return `パート2`;
-    }
-
-    if (index === 0 && introDuration && veryStart) return makeName('イントロ');
-    if (index === total - 1 && opEdDuration && nearEnd) return makeName('ED');
-    if (index > 0 && index < total - 1 && opEdDuration && nearStart) return makeName('OP');
-    return `パート${index + 1}`;
-  }
-
   function getNoneRanges(durationSec) {
     const none = getNoneChapters();
     return none.map((c, i) => ({
@@ -126,14 +86,23 @@
     const none = getNoneChapters();
     if (currentMode === 'op-ed') return none.slice();
     if (currentMode === 'custom-test') return targetRanges.slice();
-    if (customSelecting && customStart && customEnd) {
-      return [{ start: Math.min(customStart, customEnd), end: Math.max(customStart, customEnd) }];
+    if (customSelecting && customStart && customEnd && customStart < customEnd) {
+      return [{ start: customStart, end: customEnd }];
     }
     return [];
   }
 
   function sendCommand(type, payload) {
     window.postMessage({ source: APP_TAG, direction: 'to-page', type, payload }, window.location.origin);
+  }
+
+  function injectPageScript() {
+    if (document.getElementById('d-op-injected-script')) return;
+    const script = document.createElement('script');
+    script.id = 'd-op-injected-script';
+    script.src = browser.runtime.getURL('injected.js');
+    script.setAttribute('data-dop-injected', 'true');
+    (document.head || document.documentElement).appendChild(script);
   }
 
   function seek(timeSec) {
@@ -148,12 +117,12 @@
     sendCommand('PAUSE', {});
   }
 
-  function setNativeSkip(enabled) {
+  function setNativeSkip(enabled, blockAutoAdvance = true) {
     if (originalOpSkip === null) {
       originalOpSkip = getCookieValue('op_skip') || '1';
     }
     setCookieValue('op_skip', enabled ? originalOpSkip : '0');
-    if (!enabled) {
+    if (!enabled && blockAutoAdvance) {
       sendCommand('BLOCK_AUTO_ADVANCE', {});
     }
   }
@@ -166,24 +135,12 @@
     sendCommand('UNBLOCK_AUTO_ADVANCE', {});
   }
 
-  function startEnforcer() {
-    if (enforcerTimer) return;
-    enforcerTimer = setInterval(() => enforceRanges(false), 100);
-  }
-
-  function stopEnforcer() {
-    if (enforcerTimer) {
-      clearInterval(enforcerTimer);
-      enforcerTimer = null;
-    }
-  }
-
   async function clearPlaylistState() {
-    stopEnforcer();
     resetNativeSkip();
     currentPlayback = null;
     currentMode = 'none';
     targetRanges = [];
+    sameVideoItems = [];
     seekCooldownUntil = 0;
     lastActionTime = 0;
     startupLockUntil = 0;
@@ -192,6 +149,7 @@
       : dopClearPlayback();
     await cleanup;
     await dopSetOpEdMode(false);
+    sessionStorage.removeItem('dop_oped_active');
     history.replaceState(null, '', removeDopParamsFromUrl(location.href));
     updatePlaylistUI();
     updateSeekMarkers();
@@ -203,46 +161,64 @@
     log('activateMode', { mode, ranges: targetRanges.map((r) => [seconds(r.start), seconds(r.end)]) });
 
     if (mode === 'none' || targetRanges.length === 0) {
-      stopEnforcer();
       resetNativeSkip();
       currentMode = 'none';
       return;
     }
 
     setNativeSkip(false);
-    startEnforcer();
     const start = seconds(targetRanges[0].start);
     seek(start);
     play();
   }
 
   function seekToStartWhenReady(startSec, onReady) {
-    const deadline = Date.now() + 3000;
-    const trySeek = () => {
-      const video = getVideo();
-      if (video && video.readyState >= 1 && video.duration) {
-        seek(startSec);
-        if (onReady) setTimeout(onReady, 100);
-        return;
-      }
-      if (Date.now() < deadline) {
-        setTimeout(trySeek, 100);
-      } else if (onReady) {
-        onReady();
-      }
+    const video = getVideo();
+    if (!video) {
+      if (onReady) onReady();
+      return;
+    }
+    // Video already loaded — seek immediately
+    if (video.readyState >= 1 && video.duration) {
+      seek(startSec);
+      if (onReady) setTimeout(onReady, DOP_SEEK_READY_POLL_MS);
+      return;
+    }
+    // Wait for loadedmetadata (fires ~300ms after navigation, duration guaranteed)
+    const onMeta = function () {
+      video.removeEventListener('loadedmetadata', onMeta);
+      clearTimeout(fallback);
+      seek(startSec);
+      if (onReady) setTimeout(onReady, DOP_SEEK_READY_POLL_MS);
     };
-    trySeek();
+    const fallback = setTimeout(function () {
+      video.removeEventListener('loadedmetadata', onMeta);
+      if (onReady) onReady();
+    }, DOP_SEEK_READY_DEADLINE_MS);
+    video.addEventListener('loadedmetadata', onMeta);
   }
 
-  function playItemInCurrentVideo(playlist, index) {
-    const item = playlist.items[index];
+  function startPlayback(playlist, realIndex, shuffledIndices, opts) {
+    const item = playlist.items[realIndex];
     if (!item || !item.range) return;
-    currentPlayback = { playlistId: playlist.id, index, item };
-    dopSetPlayback({ playlistId: playlist.id, index, updatedAt: Date.now() });
+    const isSameEpisode = !!(opts && opts.isSameEpisode);
+    const si = isSameEpisode
+      ? ((currentPlayback && currentPlayback.shuffledIndices) || shuffledIndices || null)
+      : (shuffledIndices || null);
+    const shufflePos = si ? si.indexOf(realIndex) : realIndex;
+    currentPlayback = { playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, item, shuffledIndices: si };
+    dopSetPlayback({ playlistId: playlist.id, index: shufflePos >= 0 ? shufflePos : realIndex, shuffledIndices: si, updatedAt: Date.now() });
     targetRanges = buildRanges();
-    seekCooldownUntil = 0;
+
+    // Cache same-video items for enforceRanges cross-range jump
+    const currentPartId = new URLSearchParams(location.search).get('partId');
+    sameVideoItems = playlist.items
+      .map((it, i) => ({ item: it, index: i }))
+      .filter(({ item: it }) => it.partId === currentPartId && it.range);
+
+    seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_PLAYBACK_MS;
     lastActionTime = 0;
-    log('playItemInCurrentVideo', { playlist: playlist.name, index, type: item.range.type });
+    log('startPlayback', { playlist: playlist.name, index: realIndex, type: item.range.type });
 
     if (targetRanges.length === 0) {
       currentPlayback = null;
@@ -252,51 +228,27 @@
     }
 
     setNativeSkip(false);
-    startupLockUntil = Date.now() + 800;
-    startEnforcer();
+    startupLockUntil = Date.now() + (isSameEpisode ? DOP_STARTUP_LOCK_ITEM_MS : DOP_STARTUP_LOCK_PLAYBACK_MS);
     updatePlaylistUI();
     updateSeekMarkers();
 
     const start = seconds(targetRanges[0].start);
+    if (!isSameEpisode) pause();
     seekToStartWhenReady(start, () => play());
   }
 
-  function startPlayback(playlist, index) {
-    const item = playlist.items[index];
-    if (!item || !item.range) return;
-    currentPlayback = { playlistId: playlist.id, index, item };
-    dopSetPlayback({ playlistId: playlist.id, index, updatedAt: Date.now() });
-    targetRanges = buildRanges();
-    seekCooldownUntil = Date.now() + 5000;
-    lastActionTime = 0;
-    log('startPlayback', { playlist: playlist.name, index, type: item.range.type });
-
-    if (targetRanges.length === 0) {
-      currentPlayback = null;
-      dopClearPlayback();
-      updatePlaylistUI();
-      return;
-    }
-
-    setNativeSkip(false);
-    startupLockUntil = Date.now() + 1500;
-    startEnforcer();
-    updatePlaylistUI();
-    updateSeekMarkers();
-
-    const start = seconds(targetRanges[0].start);
-    pause();
-    seekToStartWhenReady(start, () => play());
+  function playItemInCurrentVideo(playlist, realIndex, storedShuffledIndices) {
+    startPlayback(playlist, realIndex, storedShuffledIndices, { isSameEpisode: true });
   }
 
-  async function playPlaylistIndex(playlist, index) {
+  async function playPlaylistIndex(playlist, index, storedShuffledIndices) {
     const item = playlist.items[index];
     if (!item || !item.range) return;
     const currentPartId = new URLSearchParams(location.search).get('partId');
     if (currentPartId === item.partId) {
-      playItemInCurrentVideo(playlist, index);
+      playItemInCurrentVideo(playlist, index, storedShuffledIndices);
     } else {
-      await goToPlaylistItem(playlist.id, index, item);
+      await goToPlaylistItem(playlist.id, index, item, storedShuffledIndices);
     }
   }
 
@@ -308,9 +260,11 @@
       await clearPlaylistState();
       return false;
     }
-    const newIndex = currentPlayback.index + direction;
-    if (newIndex < 0 || newIndex >= playlist.items.length) {
-      if (newIndex >= playlist.items.length) {
+    const shuffled = currentPlayback.shuffledIndices;
+    const maxCount = shuffled ? shuffled.length : playlist.items.length;
+    const newShufflePos = currentPlayback.index + direction;
+    if (newShufflePos < 0 || newShufflePos >= maxCount) {
+      if (newShufflePos >= maxCount) {
         if (!currentPlayback._endPopupShown) {
           currentPlayback._endPopupShown = true;
           showEndOfPlaylistPopup(playlist);
@@ -320,16 +274,19 @@
       }
       return false;
     }
-    await playPlaylistIndex(playlist, newIndex);
+    const realIndex = shuffled ? shuffled[newShufflePos] : newShufflePos;
+    await playPlaylistIndex(playlist, realIndex);
     return true;
   }
 
-  async function goToPlaylistItem(playlistId, index, item) {
-    await dopSetPlayback({ playlistId, index, updatedAt: Date.now() });
+  async function goToPlaylistItem(playlistId, realIndex, item, storedShuffledIndices) {
+    const shuffled = (currentPlayback && currentPlayback.shuffledIndices) || storedShuffledIndices || null;
+    const shufflePos = shuffled ? shuffled.indexOf(realIndex) : realIndex;
+    await dopSetPlayback({ playlistId, index: shufflePos >= 0 ? shufflePos : realIndex, shuffledIndices: shuffled, updatedAt: Date.now() });
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlistId);
-    url.searchParams.set('dopIndex', String(index));
-    chrome.runtime.sendMessage({
+    url.searchParams.set('dopIndex', String(realIndex));
+    browser.runtime.sendMessage({
       type: 'REQUEST_PLAYER',
       url: url.toString()
     });
@@ -343,12 +300,12 @@
 
     showModal('再生終了', content, [
       { label: '最初から再生', value: 'restart' },
-      { label: 'dOPを続ける', value: 'continue', primary: true },
-      { label: 'dOPを終了する', value: 'close' }
+      { label: 'このまま継続', value: 'continue', primary: true },
+      { label: 'モードを解除', value: 'close' }
     ]).then(async (value) => {
       if (value === 'restart') {
         await clearPlaylistState();
-        startPlayback(playlist, 0);
+        await playPlaylistIndex(playlist, 0);
       } else if (value === 'continue') {
         // 一時停止のまま、フラグはリセットしない（insideRange 到達時にリセット）
       } else {
@@ -363,7 +320,7 @@
     const start = seconds(currentPlayback.item.range.start);
     const now = Date.now();
     const nearStart = video && Math.abs(video.currentTime - start) < 1.0;
-    const doubleClick = nearStart && (now - lastPrevClickTime < 1500);
+    const doubleClick = nearStart && (now - lastPrevClickTime < DOP_DOUBLE_CLICK_WINDOW_MS);
 
     if (doubleClick) {
       advancePlayback(-1);
@@ -399,7 +356,10 @@
       const playlist = playlists.find((p) => p.id === params.playlistId);
       if (playlist && params.index >= 0 && params.index < playlist.items.length) {
         history.replaceState(null, '', removeDopParamsFromUrl(location.href));
-        startPlayback(playlist, params.index);
+        const stored = await dopGetPlayback();
+        const shuffledIndices = (stored && stored.playlistId === params.playlistId)
+          ? stored.shuffledIndices || null : null;
+        startPlayback(playlist, params.index, shuffledIndices);
         return;
       }
     }
@@ -420,13 +380,14 @@
     currentPlayback = null;
     currentMode = 'op-ed';
     targetRanges = none.map((c) => ({ start: c.start, end: c.end, name: c.name }));
-    setNativeSkip(false);
-    startEnforcer();
+    setNativeSkip(true, false);
+    sessionStorage.setItem('dop_oped_active', '1');
     updatePlaylistUI();
     await updateSeekMarkers();
 
     const start = seconds(none[index].start);
     pause();
+    startupLockUntil = Date.now() + DOP_STARTUP_LOCK_PLAYBACK_MS;
     seekToStartWhenReady(start, () => play());
     return true;
   }
@@ -456,14 +417,14 @@
 
   function insideRange(t) {
     for (const r of targetRanges) {
-      if (t >= seconds(r.start) - 0.05 && t <= seconds(r.end) + 0.05) {
+      if (t >= seconds(r.start) - DOP_RANGE_TOLERANCE_SEC && t <= seconds(r.end) + 1 + DOP_RANGE_TOLERANCE_SEC) {
         return true;
       }
     }
     return false;
   }
 
-  function enforceRanges(fromEvent) {
+  function enforceRanges() {
     if ((currentMode === 'none' && !currentPlayback) || targetRanges.length === 0) return;
     if (Date.now() < seekCooldownUntil) return;
 
@@ -472,7 +433,7 @@
 
     const t = video.currentTime;
     const firstStart = seconds(targetRanges[0].start);
-    const lastEnd = seconds(targetRanges[targetRanges.length - 1].end);
+    const lastEnd = seconds(targetRanges[targetRanges.length - 1].end) + 1;
     const duration = video.duration || Infinity;
 
     if (insideRange(t)) {
@@ -483,21 +444,29 @@
     }
 
     const now = Date.now();
-    if (now - lastActionTime < 200) return;
+    if (now - lastActionTime < DOP_ENFORCE_MIN_GAP_MS) return;
     lastActionTime = now;
 
     log('out of range', { t, firstStart, lastEnd });
 
     if (t < firstStart) {
+      // Check if user manually seeked into a different range of the same playlist
+      if (currentPlayback && trySwitchToOtherRange(t)) return;
       seek(firstStart);
       return;
     }
 
     if (t > lastEnd || video.ended) {
       if (currentPlayback) {
+        if (trySwitchToOtherRange(t)) return;
         pause();
         advancePlayback(1);
-      } else if (currentMode !== 'op-ed') {
+      } else if (currentMode === 'op-ed') {
+        const duration = video.duration || Infinity;
+        if (duration !== Infinity && t > lastEnd && t < duration - 1) {
+          seek(duration - 0.5);
+        }
+      } else {
         pause();
       }
       return;
@@ -505,17 +474,40 @@
 
     for (const r of targetRanges) {
       if (t < seconds(r.start)) {
+        if (currentPlayback && trySwitchToOtherRange(t)) return;
         seek(seconds(r.start));
         return;
       }
     }
   }
 
+  function trySwitchToOtherRange(t) {
+    const matched = sameVideoItems.find(({ item: it }) => {
+      const rs = seconds(it.range.start);
+      const re = seconds(it.range.end) + 1;
+      return t >= rs && t <= re;
+    });
+    if (matched && matched.item !== currentPlayback.item) {
+      currentPlayback.item = matched.item;
+      targetRanges = buildRanges();
+      const si = currentPlayback.shuffledIndices;
+      const newPos = si ? si.indexOf(matched.index) : matched.index;
+      if (newPos >= 0) {
+        currentPlayback.index = newPos;
+        seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_PLAYBACK_MS;
+      }
+      updatePlaylistUI();
+      updateSeekMarkers();
+      return true;
+    }
+    return false;
+  }
+
   function onTimeUpdate() {
-    enforceRanges(true);
+    enforceRanges();
 
     const video = getVideo();
-    if (currentPlayback && video && Date.now() < startupLockUntil) {
+    if (video && Date.now() < startupLockUntil && targetRanges.length > 0) {
       const start = seconds(targetRanges[0].start);
       if (Math.abs(video.currentTime - start) > 1.0) {
         seek(start);
@@ -524,11 +516,11 @@
   }
 
   function onSeeking() {
-    seekCooldownUntil = Date.now() + 1000;
+    seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_SEEKING_MS;
   }
 
   function onSeeked() {
-    seekCooldownUntil = Date.now() + 800;
+    seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_SEEKED_MS;
   }
 
   function onVideoEnded() {
@@ -556,7 +548,24 @@
     video.addEventListener('loadedmetadata', updateSeekMarkers);
   }
 
-  function createAddButton() {
+  async function loadPlaylistRangeNames(partId) {
+    const playlists = await dopGetPlaylists();
+    const map = {};
+    playlists.forEach((p) => {
+      p.items.forEach((it) => {
+        if (it.partId === partId && it.range && it.range.name) {
+          const key = `${it.range.start}|${it.range.end}`;
+          map[key] = it.range.name;
+        }
+      });
+    });
+    playlistRangeNames = map;
+  }
+
+  async function createAddButton() {
+    if (addButtonCreating) return;
+    addButtonCreating = true;
+    try {
     let wrapper = document.getElementById('d-op-add-wrapper');
     if (!wrapper) {
       wrapper = document.createElement('div');
@@ -583,13 +592,13 @@
           clearTimeout(popupHideTimer);
           popupHideTimer = null;
         }
-        popup.style.display = 'block';
+        popup.classList.add('d-op-popup-visible');
       };
 
       const scheduleHidePopup = () => {
         popupHideTimer = setTimeout(() => {
-          popup.style.display = '';
-        }, 200);
+          popup.classList.remove('d-op-popup-visible');
+        }, DOP_POPUP_HIDE_DELAY_MS);
       };
 
       wrapper.addEventListener('mouseenter', showPopup);
@@ -606,13 +615,16 @@
       popup.innerHTML = '';
       const video = getVideo();
       const durationSec = video && video.duration ? video.duration : Infinity;
+      await loadPlaylistRangeNames(currentPartId);
       const ranges = getNoneRanges(durationSec);
       if (ranges.length === 0) {
         popup.appendChild(createPopupRow('スキップ区間なし', () => {}));
       } else {
         ranges.forEach((r) => {
-          const label = `${r.name} (${formatTime(seconds(r.start))}-${formatTime(seconds(r.end))})`;
-          popup.appendChild(createPopupRow(`${label} を追加`, () => openPlaylistModal(r.name, r)));
+          const key = `${r.start}|${r.end}`;
+          const displayName = playlistRangeNames[key] || r.name;
+          const label = `${displayName} (${formatTime(seconds(r.start))}-${formatTime(seconds(r.end))})`;
+          popup.appendChild(createPopupRow(`${label} を追加`, () => openPlaylistModal(displayName, r)));
         });
       }
       popup.appendChild(createPopupRow('カスタム範囲', () => showCustomRangeBar()));
@@ -631,6 +643,9 @@
     }
 
     return wrapper;
+    } finally {
+      addButtonCreating = false;
+    }
   }
 
   function createPopupRow(label, onClick) {
@@ -717,7 +732,10 @@
       dopGetPlaylists().then((playlists) => {
         const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
         if (playlist) {
-          nextBtn.disabled = currentPlayback.index >= playlist.items.length - 1;
+          const maxCount = currentPlayback.shuffledIndices
+            ? currentPlayback.shuffledIndices.length
+            : playlist.items.length;
+          nextBtn.disabled = currentPlayback.index >= maxCount - 1;
         }
       });
     } else {
@@ -738,7 +756,7 @@
     panelHideTimer = setTimeout(() => {
       const panel = document.getElementById('d-op-top-panel');
       if (panel) panel.style.opacity = '0';
-    }, PANEL_HIDE_DELAY);
+    }, DOP_PANEL_HIDE_DELAY_MS);
   }
 
   function showTopRightPanel() {
@@ -751,7 +769,7 @@
     }
 
     let label = 'OP/ED';
-    let sub = 'プレイリスト再生中';
+    let sub = currentPlayback && currentPlayback.shuffledIndices ? 'SHUFFLE - プレイリスト再生中' : 'プレイリスト再生中';
     let meta = '';
     if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
       const range = currentPlayback.item.range;
@@ -776,8 +794,8 @@
     metaText.className = 'd-op-top-meta';
 
     const stopBtn = document.createElement('button');
-    stopBtn.textContent = '終了';
-    stopBtn.title = 'プレイリスト再生を終了';
+    stopBtn.textContent = '解除';
+    stopBtn.title = 'プレイリスト再生を解除';
     stopBtn.addEventListener('click', () => {
       clearPlaylistState();
     });
@@ -796,7 +814,10 @@
         const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
         if (playlist) {
           subText.textContent = playlist.name;
-          metaText.textContent = `${currentPlayback.index + 1} / ${playlist.items.length}`;
+          const maxCount = currentPlayback.shuffledIndices
+            ? currentPlayback.shuffledIndices.length
+            : playlist.items.length;
+          metaText.textContent = `${currentPlayback.index + 1} / ${maxCount}`;
         }
       });
     }
@@ -852,11 +873,24 @@
       }
     }
 
-    if ((currentMode === 'custom-test' || customSelecting) && targetRanges.length > 0) {
-      const r = targetRanges[0];
-      const label = customName || 'CUSTOM';
-      const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
-      if (!dup) ranges.push({ ...r, label });
+    if (currentMode === 'custom-test' || customSelecting) {
+      if (targetRanges.length > 0) {
+        const r = targetRanges[0];
+        const label = customName || 'CUSTOM';
+        const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+        if (!dup) ranges.push({ ...r, label });
+      } else if (customSelecting) {
+        const label = customName || 'CUSTOM';
+        if (customStart !== null && customEnd !== null && customStart < customEnd) {
+          const r = { start: customStart, end: customEnd };
+          const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+          if (!dup) ranges.push({ ...r, label });
+        } else if (customStart !== null || customEnd !== null) {
+          const point = customStart !== null ? customStart : customEnd;
+          const dup = ranges.some((c) => c.start === point && c.end === point);
+          if (!dup) ranges.push({ start: point, end: point, label });
+        }
+      }
     }
 
     if (chaptersInfo && chaptersInfo.partId) {
@@ -864,11 +898,19 @@
       playlists.forEach((playlist) => {
         playlist.items.forEach((item) => {
           if (item.partId === chaptersInfo.partId && item.range) {
-            const dup = ranges.some((c) => c.start === item.range.start && c.end === item.range.end);
-            if (!dup) {
-              const r = item.range;
-              const label = r.name || '範囲';
-              ranges.push({ ...r, label });
+            const r = item.range;
+            const customName = r.name;
+            if (customName) {
+              // Override heuristic label with custom name from playlist
+              const match = ranges.find((c) => c.start === r.start && c.end === r.end);
+              if (match) {
+                match.label = customName;
+              } else {
+                ranges.push({ ...r, label: customName });
+              }
+            } else {
+              const dup = ranges.some((c) => c.start === r.start && c.end === r.end);
+              if (!dup) ranges.push({ ...r, label: '範囲' });
             }
           }
         });
@@ -881,8 +923,8 @@
   function getRangeAt(timeSec) {
     for (const r of currentSeekRanges) {
       const start = seconds(r.start);
-      const end = seconds(r.end);
-      if (timeSec >= start - 0.05 && timeSec <= end + 0.05) return r;
+      const end = seconds(r.end) + 1;
+      if (timeSec >= start - DOP_RANGE_TOLERANCE_SEC && timeSec <= end + DOP_RANGE_TOLERANCE_SEC) return r;
     }
     return null;
   }
@@ -925,69 +967,71 @@
 
   function scheduleUpdateSeekMarkers() {
     if (seekMarkerDebounceTimer) clearTimeout(seekMarkerDebounceTimer);
-    seekMarkerDebounceTimer = setTimeout(() => runUpdateSeekMarkers(), 100);
+    seekMarkerDebounceTimer = setTimeout(() => runUpdateSeekMarkers(), DOP_SEEK_MARKER_DEBOUNCE_MS);
   }
 
   async function runUpdateSeekMarkers() {
-    if (seekMarkerRunning) return;
-    seekMarkerRunning = true;
-    try {
-      const video = getVideo();
-      const seekArea = document.querySelector('.seekArea');
-      if (!video || !seekArea || !video.duration) return;
+    const video = getVideo();
+    const seekArea = document.querySelector('.seekArea');
+    if (!video || !seekArea || !video.duration) return;
 
-      let container = document.getElementById('d-op-seek-markers');
-      if (!container) {
-        container = document.createElement('div');
-        container.id = 'd-op-seek-markers';
-        container.className = 'd-op-seek-markers';
-        seekArea.appendChild(container);
-      }
+    let container = document.getElementById('d-op-seek-markers');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'd-op-seek-markers';
+      container.className = 'd-op-seek-markers';
+    }
+    const seekThumb = seekArea.querySelector('#seekThumb');
+    if (seekThumb && seekThumb.previousSibling !== container) {
+      seekArea.insertBefore(container, seekThumb);
+    } else if (!seekThumb && container.parentNode !== seekArea) {
+      seekArea.appendChild(container);
+    }
 
-      container.innerHTML = '';
-      const duration = video.duration;
-      const ranges = await getSeekRanges(duration);
-      currentSeekRanges = ranges;
-      const canSeekColor = currentMode === 'op-ed' || currentMode === 'custom-test' || customSelecting || !!currentPlayback;
+    container.innerHTML = '';
+    const duration = video.duration;
+    const ranges = await getSeekRanges(duration);
+    currentSeekRanges = ranges;
+    const canSeekColor = currentMode === 'op-ed' || currentMode === 'custom-test' || customSelecting || !!currentPlayback;
 
-      ranges.forEach((r) => {
-        const start = seconds(r.start);
-        const end = seconds(r.end);
-        if (start >= duration || end <= 0) return;
-        const left = Math.max(0, start / duration * 100);
-        const width = Math.min(100 - left, (end - start) / duration * 100);
-        if (width <= 0) return;
+    ranges.forEach((r) => {
+      const start = seconds(r.start);
+      const end = seconds(r.end);
+      if (start >= duration || end <= 0) return;
+      const left = Math.max(0, start / duration * 100);
+      const width = Math.max(0, Math.min(100 - left, (end - start) / duration * 100));
 
-        const marker = document.createElement('div');
-        marker.className = 'd-op-seek-marker';
-        marker.style.left = left + '%';
+      const marker = document.createElement('div');
+      marker.className = 'd-op-seek-marker';
+      marker.style.left = left + '%';
+      if (width > 0) {
         marker.style.width = width + '%';
-        marker.title = `${r.label}: ${formatTime(start)}-${formatTime(end)}`;
-        if (canSeekColor) {
-          if (r.label === 'OP') marker.classList.add('op');
-          if (r.label === 'ED') marker.classList.add('ed');
-          if (r.label === 'イントロ' || r.label === 'CUSTOM') marker.classList.add('custom');
-          if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
-            const cr = currentPlayback.item.range;
-            if (r.start === cr.start && r.end === cr.end) {
-              marker.classList.add('active');
-            }
+      } else {
+        marker.classList.add('point');
+      }
+      marker.title = `${r.label}: ${formatTime(start)}-${formatTime(end)}`;
+      if (canSeekColor) {
+        if (r.label === 'OP') marker.classList.add('op');
+        if (r.label === 'ED') marker.classList.add('ed');
+        if (r.label === 'イントロ' || r.label === 'CUSTOM') marker.classList.add('custom');
+        if (currentPlayback && currentPlayback.item && currentPlayback.item.range) {
+          const cr = currentPlayback.item.range;
+          if (r.start === cr.start && r.end === cr.end) {
+            marker.classList.add('active');
           }
         }
-        container.appendChild(marker);
-      });
+      }
+      container.appendChild(marker);
+    });
 
-      attachSeekPopupListener();
-    } finally {
-      seekMarkerRunning = false;
-    }
+    attachSeekPopupListener();
   }
 
   function updateSeekMarkers() {
     scheduleUpdateSeekMarkers();
   }
 
-  function showModal(title, content, buttons) {
+  function showModal(title, content, buttons, onReady) {
     return new Promise((resolve) => {
       let modal = document.getElementById('d-op-modal');
       if (modal) modal.remove();
@@ -1021,6 +1065,7 @@
         const button = document.createElement('button');
         button.textContent = btn.label;
         button.className = btn.primary ? 'primary' : '';
+        if (btn.disabled) button.disabled = true;
         button.addEventListener('click', () => {
           modal.remove();
           resolve(btn.value);
@@ -1045,6 +1090,8 @@
       };
       document.addEventListener('keydown', onKey);
       document.body.appendChild(modal);
+
+      if (onReady) onReady();
     });
   }
 
@@ -1053,7 +1100,7 @@
 
     const list = document.createElement('div');
     list.className = 'd-op-modal-playlist-list';
-    let selectedId = null;
+    const selectedIds = new Set();
 
     if (playlists.length === 0) {
       const empty = document.createElement('div');
@@ -1067,9 +1114,14 @@
       row.className = 'd-op-modal-playlist-item';
       row.textContent = `${playlist.name} (${playlist.items.length}曲)`;
       row.addEventListener('click', () => {
-        selectedId = playlist.id;
-        list.querySelectorAll('.d-op-modal-playlist-item').forEach((b) => b.classList.remove('selected'));
-        row.classList.add('selected');
+        if (selectedIds.has(playlist.id)) {
+          selectedIds.delete(playlist.id);
+          row.classList.remove('selected');
+        } else {
+          selectedIds.add(playlist.id);
+          row.classList.add('selected');
+        }
+        updateAddButton();
       });
       list.appendChild(row);
     });
@@ -1079,6 +1131,7 @@
     const newInput = document.createElement('input');
     newInput.type = 'text';
     newInput.placeholder = '新規プレイリスト名';
+    newInput.addEventListener('input', updateAddButton);
     newRow.appendChild(newInput);
 
     const nameRow = document.createElement('div');
@@ -1095,26 +1148,42 @@
     content.appendChild(newRow);
     content.appendChild(nameRow);
 
+    function updateAddButton() {
+      const hasSelection = selectedIds.size > 0;
+      const hasNewName = newInput.value.trim().length > 0;
+      // Find the add button in the modal footer (added after modal is created)
+      const footer = document.querySelector('#d-op-modal .d-op-modal-footer');
+      if (footer) {
+        const addBtn = footer.querySelector('button.primary');
+        if (addBtn) addBtn.disabled = !hasSelection && !hasNewName;
+      }
+    }
+
     const result = await showModal('プレイリストに追加', content, [
       { label: 'キャンセル', value: null },
-      { label: '追加', value: 'add', primary: true }
-    ]);
+      { label: '追加', value: 'add', primary: true, disabled: true }
+    ], updateAddButton);
 
     if (result !== 'add') return;
+
+    const playlistName = newInput.value.trim();
+
+    if (selectedIds.size === 0 && !playlistName) return;
 
     const itemName = nameInput.value.trim() || defaultName || '範囲';
     const rangeToAdd = { start: range.start, end: range.end, name: itemName };
 
-    if (selectedId) {
-      await addCurrentRangeToPlaylist(selectedId, rangeToAdd);
-      return;
-    }
+    const tasks = [];
+    selectedIds.forEach((id) => {
+      tasks.push(addCurrentRangeToPlaylist(id, rangeToAdd));
+    });
 
-    const playlistName = newInput.value.trim();
     if (playlistName) {
       const playlist = await dopCreatePlaylist(playlistName);
-      await addCurrentRangeToPlaylist(playlist.id, rangeToAdd);
+      tasks.push(addCurrentRangeToPlaylist(playlist.id, rangeToAdd));
     }
+
+    await Promise.all(tasks);
   }
 
   function isSystemPlaylist(playlist) {
@@ -1124,11 +1193,11 @@
   async function showCustomRangeBar() {
     if (currentMode !== 'none' || currentPlayback) {
       const value = await showModal(
-        '再生モードを終了',
-        'カスタム範囲を選択するには、現在の再生モードを終了してください。',
+        '再生モードを解除',
+        'カスタム範囲を選択するには、現在の再生モードを解除してください。',
         [
           { label: 'キャンセル', value: 'cancel' },
-          { label: '終了して続行', value: 'ok', primary: true }
+          { label: '解除して続行', value: 'ok', primary: true }
         ]
       );
       if (value !== 'ok') return;
@@ -1143,17 +1212,34 @@
     bar.id = 'd-op-custom-bar';
     bar.className = 'd-op-custom-bar';
 
-    const rangeText = document.createElement('span');
-    rangeText.className = 'd-op-custom-bar-text';
-    updateText();
+    const startTimeInput = document.createElement('input');
+    startTimeInput.type = 'text';
+    startTimeInput.className = 'd-op-custom-bar-time-input';
+    startTimeInput.placeholder = '--:--';
+    startTimeInput.addEventListener('change', () => {
+      const ms = parseTimeInput(startTimeInput.value);
+      if (ms !== null) {
+        customStart = ms;
+        updateSeekMarkers();
+      }
+      updateText();
+    });
 
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.placeholder = '名前（空欄でCUSTOM）';
-    nameInput.value = customName;
-    nameInput.addEventListener('input', () => {
-      customName = nameInput.value.trim();
-      updateSeekMarkers();
+    const sep = document.createElement('span');
+    sep.className = 'd-op-custom-bar-time-sep';
+    sep.textContent = ' - ';
+
+    const endTimeInput = document.createElement('input');
+    endTimeInput.type = 'text';
+    endTimeInput.className = 'd-op-custom-bar-time-input';
+    endTimeInput.placeholder = '--:--';
+    endTimeInput.addEventListener('change', () => {
+      const ms = parseTimeInput(endTimeInput.value);
+      if (ms !== null) {
+        customEnd = ms;
+        updateSeekMarkers();
+      }
+      updateText();
     });
 
     const startBtn = document.createElement('button');
@@ -1181,13 +1267,16 @@
     const testBtn = document.createElement('button');
     testBtn.textContent = 'テスト';
     testBtn.addEventListener('click', () => {
-      if (!customStart || !customEnd) return;
+      if (customStart === null || customEnd === null) return;
+      if (customStart >= customEnd) {
+        showModal('エラー', '開始地点は終了地点より前に設定してください。', [{ label: 'OK', value: null, primary: true }]);
+        return;
+      }
       currentMode = 'custom-test';
-      targetRanges = [{ start: Math.min(customStart, customEnd), end: Math.max(customStart, customEnd) }];
-      setNativeSkip(false);
-      startEnforcer();
+      targetRanges = [{ start: customStart, end: customEnd }];
+      setNativeSkip(true, false);
       updateSeekMarkers();
-      seek(seconds(targetRanges[0].start));
+      seek(seconds(customStart));
       play();
     });
 
@@ -1195,11 +1284,15 @@
     addBtn.textContent = '追加';
     addBtn.className = 'primary';
     addBtn.addEventListener('click', async () => {
-      if (!customStart || !customEnd) return;
+      if (customStart === null || customEnd === null) return;
+      if (customStart >= customEnd) {
+        showModal('エラー', '開始地点は終了地点より前に設定してください。', [{ label: 'OK', value: null, primary: true }]);
+        return;
+      }
       const range = {
-        start: Math.min(customStart, customEnd),
-        end: Math.max(customStart, customEnd),
-        name: customName || 'CUSTOM'
+        start: customStart,
+        end: customEnd,
+        name: 'CUSTOM'
       };
       await openPlaylistModal(range.name, range);
     });
@@ -1207,7 +1300,6 @@
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'キャンセル';
     cancelBtn.addEventListener('click', () => {
-      stopEnforcer();
       resetNativeSkip();
       currentMode = 'none';
       targetRanges = [];
@@ -1220,13 +1312,15 @@
     });
 
     function updateText() {
-      const s = customStart ? formatTime(seconds(customStart)) : '--:--';
-      const e = customEnd ? formatTime(seconds(customEnd)) : '--:--';
-      rangeText.textContent = `${s} - ${e}`;
+      startTimeInput.value = customStart ? formatTime(seconds(customStart)) : '';
+      endTimeInput.value = customEnd ? formatTime(seconds(customEnd)) : '';
     }
 
-    bar.appendChild(rangeText);
-    bar.appendChild(nameInput);
+    updateText();
+
+    bar.appendChild(startTimeInput);
+    bar.appendChild(sep);
+    bar.appendChild(endTimeInput);
     bar.appendChild(startBtn);
     bar.appendChild(endBtn);
     bar.appendChild(testBtn);
@@ -1239,12 +1333,14 @@
     const data = chaptersInfo;
     if (!data || !range) return;
 
+    const page = getPlayerPageInfo();
+
     const item = {
       partId: data.partId,
       workId: data.workId || '',
-      title: data.workTitle || data.title || data.partTitle || '',
-      episodeTitle: data.partTitle || '',
-      episodeNumber: data.partDispNumber || '',
+      title: data.workTitle || page.workTitle || '',
+      episodeTitle: data.partTitle || page.episodeTitle || '',
+      episodeNumber: data.partDispNumber || page.episodeNumber || '',
       url: location.href,
       range
     };
@@ -1258,7 +1354,6 @@
     if (currentMode === 'custom-test') {
       currentMode = 'none';
       targetRanges = [];
-      stopEnforcer();
       resetNativeSkip();
     }
     const bar = document.getElementById('d-op-custom-bar');
@@ -1275,24 +1370,29 @@
 
     const playback = await dopGetPlayback();
     if (!playback) return;
-    if (playback.updatedAt && Date.now() - playback.updatedAt > RESUME_MAX_AGE_MS) {
+    if (playback.updatedAt && Date.now() - playback.updatedAt > DOP_RESUME_MAX_AGE_MS) {
       await dopClearPlayback();
       return;
     }
 
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === playback.playlistId);
-    if (!playlist || playback.index >= playlist.items.length) {
+    if (!playlist) {
       await dopClearPlayback();
       return;
     }
-    const item = playlist.items[playback.index];
-    const currentPartId = new URLSearchParams(location.search).get('partId');
-    if (currentPartId !== item.partId) {
-      await goToPlaylistItem(playlist.id, playback.index, item);
+    const realIndex = dopResolvePlaybackIndex(playback);
+    if (realIndex === null || realIndex >= playlist.items.length) {
+      await dopClearPlayback();
       return;
     }
-    startPlayback(playlist, playback.index);
+    const item = playlist.items[realIndex];
+    const currentPartId = new URLSearchParams(location.search).get('partId');
+    if (currentPartId !== item.partId) {
+      await goToPlaylistItem(playlist.id, realIndex, item);
+      return;
+    }
+    startPlayback(playlist, realIndex, playback.shuffledIndices);
   }
 
   async function jumpToPlaylistIndex(index) {
@@ -1300,8 +1400,12 @@
     if (!playback) return;
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === playback.playlistId);
-    if (!playlist || index < 0 || index >= playlist.items.length) return;
-    await playPlaylistIndex(playlist, index);
+    if (!playlist) return;
+    const realIndex = playback.shuffledIndices
+      ? playback.shuffledIndices[index]
+      : index;
+    if (realIndex < 0 || realIndex >= playlist.items.length) return;
+    await playPlaylistIndex(playlist, realIndex, playback.shuffledIndices);
   }
 
   function handleRuntimeMessage(message) {
@@ -1317,8 +1421,8 @@
         clearPlaylistState();
         break;
       case 'PLAYLIST_JUMP':
-        if (message.index !== undefined) {
-          jumpToPlaylistIndex(message.index);
+        if (message.payload && message.payload.index !== undefined) {
+          jumpToPlaylistIndex(message.payload.index);
         }
         break;
     }
@@ -1333,7 +1437,6 @@
       if (!currentPlayback && currentMode !== 'op-ed') {
         currentMode = 'none';
         targetRanges = [];
-        stopEnforcer();
         resetNativeSkip();
       } else if (!currentPlayback && currentMode === 'op-ed') {
         await enterOpEdMode(0);
@@ -1352,10 +1455,11 @@
     if (currentMode === 'none' && !currentPlayback) {
       const opEdMode = await dopGetOpEdMode();
       if (opEdMode && opEdMode.active) {
-        if (Date.now() - opEdMode.updatedAt < OPED_MODE_MAX_AGE_MS) {
+        if (sessionStorage.getItem('dop_oped_active') === '1' && Date.now() - opEdMode.updatedAt < DOP_OPED_MODE_MAX_AGE_MS) {
           await enterOpEdMode(0);
         } else {
           await dopSetOpEdMode(false);
+          sessionStorage.removeItem('dop_oped_active');
         }
       }
     }
@@ -1365,9 +1469,7 @@
     if (window.__dOpInitialized) return;
     window.__dOpInitialized = true;
 
-    chrome.runtime.sendMessage({ type: 'INJECT_SCRIPT' }, () => {
-      chrome.runtime.lastError;
-    });
+    injectPageScript();
 
     window.addEventListener('message', (event) => {
       if (event.origin !== window.location.origin) return;
@@ -1378,18 +1480,17 @@
       }
     });
 
-    chrome.runtime.onMessage.addListener((message) => {
+    browser.runtime.onMessage.addListener((message) => {
       handleRuntimeMessage(message);
     });
 
     window.addEventListener('beforeunload', () => {
-      dopClearPlayback();
       dopClearPending();
     });
 
     document.addEventListener('mousemove', onMouseMove);
 
-    // Block Home/End/Arrow keys when input/textarea/contenteditable is focused
+    // Block ALL keydown events when input/textarea/contenteditable is focused
     // (prevent d-Anime player from capturing them)
     document.addEventListener('focusin', (e) => {
       isInputFocused = isEditableElement(e.target);
@@ -1403,17 +1504,12 @@
 
     document.addEventListener('keydown', (e) => {
       if (!isInputFocused) return;
-      const blockedKeys = ['Home', 'End', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'];
-      if (blockedKeys.includes(e.key)) {
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      }
+      e.stopPropagation();
+      e.stopImmediatePropagation();
     }, true);
 
-    let observerPaused = false;
     const observer = new MutationObserver(() => {
-      if (observerPaused) return;
-      observerPaused = true;
+      observer.disconnect();
       try {
         const video = getVideo();
         if (video && attachedVideo !== video) {
@@ -1423,7 +1519,7 @@
         createAddButton();
         createPlaylistControls();
       } finally {
-        observerPaused = false;
+        observer.observe(document.body, { childList: true, subtree: true });
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });

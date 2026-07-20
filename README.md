@@ -1,6 +1,7 @@
 # d-OP
 
-dアニメストアの動画から OP/ED のみを抽出して再生する Chrome 拡張機能です。  
+dアニメストアの動画から OP/ED のみを抽出して再生するブラウザ拡張機能です。
+（Chrome / Firefox 対応）  
 作品一覧からワンクリックで OP/ED 区間を選択し、プレイリストを作成して連続再生できます。
 
 ## 機能
@@ -20,10 +21,18 @@ dアニメストアの動画から OP/ED のみを抽出して再生する Chrom
 
 ### 手動インストール（開発版）
 
+#### Chrome
+
 1. このリポジトリをクローン または [Releases](https://github.com/sas-news/d-op/releases) から最新の ZIP をダウンロード・解凍
 2. Chrome で `chrome://extensions` を開く
 3. 右上の「デベロッパーモード」を ON
 4. 「パッケージ化されていない拡張機能を読み込む」→ 解凍したフォルダを選択
+
+#### Firefox
+
+1. このリポジトリをクローン または [Releases](https://github.com/sas-news/d-op/releases) から最新の ZIP をダウンロード・解凍
+2. Firefox で `about:debugging` を開く
+3. 「この Firefox」→「一時的なアドオンを読み込む」→ 解凍したフォルダの `manifest.json` を選択
 
 ## 使い方
 
@@ -37,26 +46,24 @@ dアニメストアの動画から OP/ED のみを抽出して再生する Chrom
 
 ## ファイル構成
 
-| ファイル | 役割 |
-|---|---|
-| `manifest.json` | MV3 マニフェスト |
-| `background.js` | Service Worker。スクリプト注入、ウィンドウ管理、初回オンボーディング |
-| `injected.js` | メインワールドで実行。dアニメのプレイヤーオブジェクトにアクセスし、SEEK/PLAY/PAUSE を提供 |
-| `content.js` | プレイヤーページ用コンテンツスクリプト。OP/ED 強制、プレイリスト再生、UI 制御 |
-| `content-store.js` | 作品一覧ページ用コンテンツスクリプト。OP/ED ボタンの追加 |
-| `common.js` | 共通ストレージ層。プレイリスト CRUD、設定管理 |
-| `popup.*` | ツールバーポップアップ |
-| `options.*` | 設定・プレイリスト管理ページ |
-| `styles.css` | プレイヤーページ用スタイル |
-| `styles-store.css` | 作品一覧ページ用スタイル |
+
+| ファイル                  | 役割                                                    |
+| --------------------- | ----------------------------------------------------- |
+| `manifest.json`       | MV3 マニフェスト                                            |
+| `background.js`       | バックグラウンド（Chrome は Service Worker、Firefox はイベントページ）。ウィンドウ管理、初回オンボーディング             |
+| `browser-polyfill.js` | WebExtension API ポリフィル。Chrome/Firefox 両対応の `browser.*` API を提供      |
+| `injected.js`         | メインワールドで実行。dアニメのプレイヤーオブジェクトにアクセスし、SEEK/PLAY/PAUSE を提供 |
+| `content.js`          | プレイヤーページ用コンテンツスクリプト。OP/ED 強制、プレイリスト再生、UI 制御           |
+| `content-store.js`    | 作品一覧ページ用コンテンツスクリプト。OP/ED ボタンの追加                       |
+| `common.js`           | 共通ストレージ層。プレイリスト CRUD、設定管理                             |
+| `popup.*`             | ツールバーポップアップ                                           |
+| `options.*`           | 設定・プレイリスト管理ページ                                        |
+| `styles.css`          | プレイヤーページ用スタイル                                         |
+| `styles-store.css`    | 作品一覧ページ用スタイル                                          |
+
 
 ## ロードマップ
 
-### v1.1 予定
-- [ ] **シャッフル再生**: プレイリストをランダム順で再生
-- [ ] **ドラッグ＆ドロップ並び替え**: プレイリスト内アイテムの直感的な並び替え
-
-### v1.2 以降
 - [ ] **クラウド同期**: Google アカウント経由でプレイリストをデバイス間同期
 - [ ] **プレイリスト共有**: URL 発行によるプレイリストの他ユーザーとの共有
 - [ ] **コミュニティ投稿**: ユーザーが作成した OP/ED 区間情報の共有システム
@@ -65,7 +72,7 @@ dアニメストアの動画から OP/ED のみを抽出して再生する Chrom
 
 ## プライバシー
 
-- すべてのデータはブラウザのローカルストレージ (`chrome.storage.local`) に保存されます
+- すべてのデータはブラウザのローカルストレージ (`browser.storage.local` / `chrome.storage.local`) に保存されます
 - 外部サーバーへのデータ送信は一切行いません
 - dアニメストアのアカウント情報にアクセスすることはありません
 - 詳細: [プライバシーポリシー](PRIVACY.md)
@@ -73,6 +80,7 @@ dアニメストアの動画から OP/ED のみを抽出して再生する Chrom
 ## 必要環境
 
 - Google Chrome 88 以降（Manifest V3 対応）
+- Mozilla Firefox 121 以降（Manifest V3 対応）
 - dアニメストアのアカウント
 
 ## ライセンス

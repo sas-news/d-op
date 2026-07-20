@@ -1,14 +1,40 @@
+// Load the cross-browser API polyfill in service workers (both Chrome and Firefox).
+if (typeof browser === 'undefined' && typeof importScripts === 'function') {
+  importScripts('browser-polyfill.js');
+}
+
 // ---------------------------------------------------------------------------
 // Player state — single source of truth for the player window/tab
 // ---------------------------------------------------------------------------
 let playerState = null;
 
+function isDAnimeUrl(url) {
+  return /^https?:\/\/(animestore\.docomo\.ne\.jp|anime\.dmkt-sp\.jp)\/animestore\/sc_d_pc\?/.test(url);
+}
+
+async function validatePlayerState() {
+  if (!playerState) return false;
+  try {
+    const tab = await browser.tabs.get(playerState.tabId);
+    if (!tab || !tab.url) return false;
+    if (!isDAnimeUrl(tab.url)) {
+      playerState = null;
+      return false;
+    }
+    await browser.windows.get(playerState.windowId);
+    return true;
+  } catch (_) {
+    playerState = null;
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // onInstalled — first-run onboarding
 // ---------------------------------------------------------------------------
-chrome.runtime.onInstalled.addListener(async (details) => {
+browser.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
-    chrome.runtime.openOptionsPage();
+    browser.runtime.openOptionsPage();
   }
 });
 
@@ -16,21 +42,22 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // Recover player state on service worker restart
 // ---------------------------------------------------------------------------
 (async function recoverPlayerState() {
-  const result = await chrome.storage.local.get('dop_playback');
+  const result = await browser.storage.local.get('dop_playback');
   const playback = result.dop_playback;
-  if (playback?.windowId) {
-    const wId = parseInt(playback.windowId.substring(1), 10);
-    if (!isNaN(wId)) {
-      try {
-        await chrome.windows.get(wId);
-        const tabs = await chrome.tabs.query({ windowId: wId });
-        if (tabs[0]) {
-          playerState = { windowId: wId, tabId: tabs[0].id };
-        }
-      } catch (_) {
-        await chrome.storage.local.remove('dop_playback');
-        await chrome.storage.local.remove('dop_pending');
+  if (playback?.windowId && playback.windowId > 0) {
+    try {
+      await browser.windows.get(playback.windowId);
+      const tabs = await browser.tabs.query({ windowId: playback.windowId });
+      const tab = tabs.find((t) => isDAnimeUrl(t.url));
+      if (tab) {
+        playerState = { windowId: playback.windowId, tabId: tab.id };
+      } else if (tabs[0]) {
+        playerState = { windowId: playback.windowId, tabId: tabs[0].id };
       }
+    } catch (_) {
+      playerState = null;
+      await browser.storage.local.remove('dop_playback');
+      await browser.storage.local.remove('dop_pending');
     }
   }
 })();
@@ -38,38 +65,46 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // ---------------------------------------------------------------------------
 // Clean up playback when a tab/window is closed by the user
 // ---------------------------------------------------------------------------
-chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+  if (playerState && playerState.tabId === tabId) {
+    playerState = null;
+    await browser.storage.local.remove('dop_playback');
+    await browser.storage.local.remove('dop_pending');
+    return;
+  }
   if (removeInfo.isWindowClosing) return;
-  await onPlayerRemoved(removeInfo.windowId, tabId);
+  const result = await browser.storage.local.get('dop_playback');
+  const ps = result.dop_playback;
+  if (ps?.windowId) {
+    try {
+      const tabs = await browser.tabs.query({ windowId: ps.windowId });
+      if (tabs.length === 0 || !tabs.some((t) => t.id === tabId)) {
+        const w = await browser.windows.get(ps.windowId);
+        if (!w) throw new Error('gone');
+      }
+    } catch (_) {
+      await browser.storage.local.remove('dop_playback');
+      await browser.storage.local.remove('dop_pending');
+    }
+  }
 });
 
-chrome.windows.onRemoved.addListener(async (windowId) => {
-  await onPlayerRemoved(windowId, null);
-});
-
-async function onPlayerRemoved(windowId, tabId) {
-  if (playerState && (playerState.windowId === windowId || playerState.tabId === tabId)) {
+browser.windows.onRemoved.addListener(async (windowId) => {
+  if (playerState && playerState.windowId === windowId) {
     playerState = null;
   }
-  const wId = 'w' + windowId;
-  const result = await chrome.storage.local.get('dop_playback');
-  if (result.dop_playback?.windowId === wId) {
-    await chrome.storage.local.remove('dop_playback');
-    await chrome.storage.local.remove('dop_pending');
+  const result = await browser.storage.local.get('dop_playback');
+  const ps = result.dop_playback;
+  if (ps?.windowId === windowId) {
+    await browser.storage.local.remove('dop_playback');
+    await browser.storage.local.remove('dop_pending');
   }
-}
+});
 
 // ---------------------------------------------------------------------------
 // Message router
 // ---------------------------------------------------------------------------
-chrome.runtime.onMessage.addListener((message, sender) => {
-  if (message.type === 'INJECT_SCRIPT' && sender.tab?.id) {
-    chrome.scripting
-      .executeScript({ target: { tabId: sender.tab.id }, files: ['injected.js'], world: 'MAIN' })
-      .catch((err) => console.error('[d-op bg] injection failed:', err));
-    return;
-  }
-
+browser.runtime.onMessage.addListener((message) => {
   if (message.type === 'REQUEST_PLAYER') {
     handleRequestPlayer(message.url);
     return;
@@ -95,28 +130,40 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 // REQUEST_PLAYER — reuse existing player window, or create one
 // ---------------------------------------------------------------------------
 async function handleRequestPlayer(url) {
-  if (playerState) {
+  if (!playerState) {
+    const result = await browser.storage.local.get('dop_playback');
+    const pb = result.dop_playback;
+    if (pb?.windowId && pb.windowId > 0) {
+      try {
+        await browser.windows.get(pb.windowId);
+        const tabs = await browser.tabs.query({ windowId: pb.windowId });
+        const tab = tabs.find((t) => isDAnimeUrl(t.url));
+        if (tab) {
+          playerState = { windowId: pb.windowId, tabId: tab.id };
+        }
+      } catch (_) {}
+    }
+  }
+
+  if (playerState && await validatePlayerState()) {
     try {
-      await chrome.windows.get(playerState.windowId);
-      await chrome.tabs.update(playerState.tabId, { url, active: true });
+      await browser.tabs.update(playerState.tabId, { url, active: true });
       return;
     } catch (_) {
       playerState = null;
-      await chrome.storage.local.remove('dop_playback');
-      await chrome.storage.local.remove('dop_pending');
+      await browser.storage.local.remove('dop_playback');
+      await browser.storage.local.remove('dop_pending');
     }
   }
 
   const mode = await getWindowMode();
   if (mode === 'tab') {
-    const tab = await chrome.tabs.create({ url, active: true });
+    const tab = await browser.tabs.create({ url, active: true });
     playerState = { windowId: tab.windowId, tabId: tab.id };
   } else {
-    const win = await chrome.windows.create({ url, type: 'popup', width: 1280, height: 800 });
-    const tabs = await chrome.tabs.query({ windowId: win.id });
-    if (tabs[0]) {
-      playerState = { windowId: win.id, tabId: tabs[0].id };
-    }
+    const win = await browser.windows.create({ url, type: 'popup', width: 1280, height: 800 });
+    const tabs = await browser.tabs.query({ windowId: win.id });
+    playerState = { windowId: win.id, tabId: tabs[0].id };
   }
 }
 
@@ -126,16 +173,21 @@ async function handleRequestPlayer(url) {
 async function handleReleasePlayer() {
   if (playerState) {
     try {
-      const tabs = await chrome.tabs.query({ windowId: playerState.windowId });
-      if (tabs[0]?.id) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'PLAYLIST_STOP' }).catch(() => {});
+      const tab = await browser.tabs.get(playerState.tabId).catch(() => null);
+      if (tab && tab.url && isDAnimeUrl(tab.url)) {
+        browser.tabs.sendMessage(playerState.tabId, { type: 'PLAYLIST_STOP' }).catch(() => {});
+        const win = await browser.windows.get(playerState.windowId);
+        if (win && win.type === 'popup') {
+          browser.windows.remove(playerState.windowId).catch(() => {});
+        } else {
+          browser.tabs.remove(playerState.tabId).catch(() => {});
+        }
       }
-      chrome.windows.remove(playerState.windowId).catch(() => {});
     } catch (_) {}
     playerState = null;
   }
-  await chrome.storage.local.remove('dop_playback');
-  await chrome.storage.local.remove('dop_pending');
+  await browser.storage.local.remove('dop_playback');
+  await browser.storage.local.remove('dop_pending');
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +195,7 @@ async function handleReleasePlayer() {
 // ---------------------------------------------------------------------------
 async function handleForwardToPlayer(command, payload) {
   if (playerState?.tabId) {
-    chrome.tabs.sendMessage(playerState.tabId, { type: command, payload }).catch(() => {});
+    browser.tabs.sendMessage(playerState.tabId, { type: command, payload }).catch(() => {});
   }
 }
 
@@ -152,7 +204,7 @@ async function handleForwardToPlayer(command, payload) {
 // ---------------------------------------------------------------------------
 async function getWindowMode() {
   try {
-    const result = await chrome.storage.local.get('dop_window_mode');
+    const result = await browser.storage.local.get('dop_window_mode');
     return result.dop_window_mode || 'window';
   } catch (_) {
     return 'window';

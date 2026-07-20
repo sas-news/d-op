@@ -10,46 +10,63 @@
   const prevBtn = document.getElementById('prevBtn');
   const nextBtn = document.getElementById('nextBtn');
   const stopBtn = document.getElementById('stopBtn');
+  const shuffleBadge = document.getElementById('shuffleBadge');
   const openOptions = document.getElementById('openOptions');
   const playlistList = document.getElementById('playlistList');
   const playlistItems = document.getElementById('playlistItems');
 
   let expandedPlaylistId = null;
 
-  function decodeHtmlEntities(str) {
-    const txt = document.createElement('textarea');
-    txt.innerHTML = str || '';
-    return txt.value;
-  }
-
   function formatRangeName(range) {
     return range.name || '範囲';
-  }
-
-  function formatSec(ms) {
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${String(sec).padStart(2, '0')}`;
   }
 
   function isSystemPlaylist(playlist) {
     return typeof playlist.name === 'string' && playlist.name.startsWith('__dop_');
   }
 
+  function createShuffleIconSvg() {
+    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>';
+  }
+
+  async function startShufflePlayback(playlist) {
+    if (playlist.items.length === 0) return;
+    const indices = dopCreateShuffledIndices(playlist.items.length);
+    const realIndex = indices[0];
+    const item = playlist.items[realIndex];
+    if (!item || !item.range) return;
+    await dopSetPlayback({ playlistId: playlist.id, index: 0, shuffledIndices: indices, updatedAt: Date.now() });
+    await dopClearPending();
+    const url = new URL(item.url);
+    url.searchParams.set('dopPlaylistId', playlist.id);
+    url.searchParams.set('dopIndex', String(realIndex));
+    browser.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+  }
+
+  async function startShuffleFromHere(playlist, currentRealIndex, currentShuffledIndices, currentShufflePos) {
+    let indices;
+    if (currentShuffledIndices) {
+      indices = dopReshuffleFromPosition(currentShuffledIndices, currentShufflePos);
+    } else {
+      indices = dopCreateShuffledFromIndex(playlist.items.length, currentRealIndex).indices;
+    }
+    const item = playlist.items[currentRealIndex];
+    if (!item || !item.range) return;
+    await dopSetPlayback({ playlistId: playlist.id, index: currentShufflePos, shuffledIndices: indices, updatedAt: Date.now() });
+    await dopClearPending();
+    const url = new URL(item.url);
+    url.searchParams.set('dopPlaylistId', playlist.id);
+    url.searchParams.set('dopIndex', String(currentRealIndex));
+    browser.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+  }
+
   let renderQueued = false;
   let renderRunning = false;
 
   async function render() {
-    if (renderRunning) {
-      renderQueued = true;
-      return;
-    }
+    if (renderRunning) { renderQueued = true; return; }
     renderRunning = true;
-    do {
-      renderQueued = false;
-      await doRender();
-    } while (renderQueued);
+    do { renderQueued = false; await doRender(); } while (renderQueued);
     renderRunning = false;
   }
 
@@ -65,7 +82,10 @@
     }
 
     const playlist = playlists.find((p) => p.id === playbackState.playlistId);
-    if (!playlist || playbackState.index >= playlist.items.length) {
+    const maxCount = playbackState.shuffledIndices
+      ? playbackState.shuffledIndices.length
+      : playlist ? playlist.items.length : 0;
+    if (!playlist || playbackState.index >= maxCount) {
       playbackSection.classList.add('hidden');
       playlistListSection.classList.remove('hidden');
       renderPlaylistList(playlists);
@@ -73,19 +93,30 @@
     }
 
     const item = playlist.items[playbackState.index];
+    const shuffledIndices = playbackState.shuffledIndices || null;
+    const realIndex = shuffledIndices ? shuffledIndices[playbackState.index] : playbackState.index;
+    const realItem = playlist.items[realIndex];
+    if (!realItem) {
+      playbackSection.classList.add('hidden');
+      playlistListSection.classList.remove('hidden');
+      renderPlaylistList(playlists);
+      return;
+    }
 
     playbackSection.classList.remove('hidden');
     playlistListSection.classList.add('hidden');
 
     playlistNameEl.textContent = playlist.name;
-    trackInfoEl.textContent = decodeHtmlEntities(item.title || item.episodeTitle) || '(タイトル不明)';
-    trackDetailEl.textContent = decodeHtmlEntities(item.episodeTitle) || '';
-    trackProgressEl.textContent = `${playbackState.index + 1} / ${playlist.items.length}`;
+    shuffleBadge.classList.toggle('hidden', !shuffledIndices);
+    trackInfoEl.textContent = decodeHtmlEntities(realItem.title || realItem.episodeTitle) || '(タイトル不明)';
+    trackDetailEl.textContent = decodeHtmlEntities(realItem.episodeTitle) || '';
+    const orderLength = shuffledIndices ? shuffledIndices.length : playlist.items.length;
+    trackProgressEl.textContent = `${playbackState.index + 1} / ${orderLength}`;
 
     prevBtn.disabled = playbackState.index <= 0;
-    nextBtn.disabled = playbackState.index >= playlist.items.length - 1;
+    nextBtn.disabled = playbackState.index >= orderLength - 1;
 
-    renderPlaylistItems(playlist, playbackState.index);
+    renderPlaylistItems(playlist, playbackState.index, shuffledIndices);
   }
 
   async function startPlaylistItem(playlist, index) {
@@ -96,7 +127,7 @@
     const url = new URL(item.url);
     url.searchParams.set('dopPlaylistId', playlist.id);
     url.searchParams.set('dopIndex', String(index));
-    chrome.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+    browser.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
   }
 
   function renderPlaylistList(playlists) {
@@ -111,7 +142,7 @@
       `;
       const emptyCreateBtn = document.getElementById('emptyCreateBtn');
       if (emptyCreateBtn) {
-        emptyCreateBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
+        emptyCreateBtn.addEventListener('click', () => browser.runtime.openOptionsPage());
       }
       return;
     }
@@ -145,9 +176,19 @@
         await startPlaylistItem(playlist, 0);
       });
 
+      const shuffleBtn = document.createElement('button');
+      shuffleBtn.className = 'playlist-card-shuffle';
+      shuffleBtn.innerHTML = createShuffleIconSvg();
+      shuffleBtn.title = 'シャッフル再生';
+      shuffleBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await startShufflePlayback(playlist);
+      });
+
       header.appendChild(title);
       header.appendChild(count);
       header.appendChild(playBtn);
+      header.appendChild(shuffleBtn);
       card.appendChild(header);
 
       if (expandedPlaylistId === playlist.id) {
@@ -157,22 +198,17 @@
           const row = document.createElement('div');
           row.className = 'playlist-card-item';
 
-          const episodeNum = item.episodeNumber || extractEpisodeNumber(item.episodeTitle);
+          const epNum = item.episodeNumber ? decodeHtmlEntities(item.episodeNumber) : '';
+          const epTitle = item.episodeTitle ? decodeHtmlEntities(item.episodeTitle) : '';
+          const workTitle = decodeHtmlEntities(item.title) || '';
 
           const titleEl = document.createElement('div');
-          titleEl.className = 'item-title';
-          if (episodeNum) {
-            titleEl.textContent = decodeHtmlEntities(episodeNum) + ' - ' + (decodeHtmlEntities(item.title) || '(タイトル不明)');
-          } else {
-            titleEl.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
-          }
+          titleEl.className = 'item-episode';
+          titleEl.textContent = [epNum, epTitle].filter(Boolean).join(' ') || workTitle || '(タイトル不明)';
 
-          let episodeSub = null;
-          if (!episodeNum && item.episodeTitle) {
-            episodeSub = document.createElement('div');
-            episodeSub.className = 'item-episode';
-            episodeSub.textContent = decodeHtmlEntities(item.episodeTitle);
-          }
+          const episodeSub = document.createElement('div');
+          episodeSub.className = 'item-work';
+          episodeSub.textContent = workTitle;
 
           const metaEl = document.createElement('div');
           metaEl.className = 'item-meta';
@@ -190,7 +226,7 @@
           }
 
           row.appendChild(titleEl);
-          if (episodeSub) row.appendChild(episodeSub);
+          row.appendChild(episodeSub);
           row.appendChild(metaEl);
           row.addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -207,35 +243,34 @@
     });
   }
 
-  function renderPlaylistItems(playlist, currentIndex) {
+  function renderPlaylistItems(playlist, currentShufflePos, shuffledIndices) {
     playlistItems.innerHTML = '';
-    playlist.items.forEach((item, idx) => {
+    const isShuffleActive = Boolean(shuffledIndices);
+
+    const order = shuffledIndices || Array.from({ length: playlist.items.length }, (_, i) => i);
+    order.forEach((realIdx, displayPos) => {
+      const item = playlist.items[realIdx];
       const row = document.createElement('div');
-      row.className = 'playlist-item' + (idx === currentIndex ? ' current' : '');
+      row.className = 'playlist-item' + (displayPos === currentShufflePos ? ' current' : '');
 
       const thumb = document.createElement('div');
       thumb.className = 'item-thumb';
-      thumb.textContent = idx + 1;
+      thumb.textContent = displayPos + 1;
 
       const info = document.createElement('div');
       info.className = 'item-info';
 
-      const episodeNum = item.episodeNumber || extractEpisodeNumber(item.episodeTitle);
+      const epNum = item.episodeNumber ? decodeHtmlEntities(item.episodeNumber) : '';
+      const epTitle = item.episodeTitle ? decodeHtmlEntities(item.episodeTitle) : '';
+      const workTitle = decodeHtmlEntities(item.title) || '';
 
       const title = document.createElement('div');
       title.className = 'item-title';
-      if (episodeNum) {
-        title.textContent = decodeHtmlEntities(episodeNum) + ' - ' + (decodeHtmlEntities(item.title) || '(タイトル不明)');
-      } else {
-        title.textContent = decodeHtmlEntities(item.title) || '(タイトル不明)';
-      }
+      title.textContent = [epNum, epTitle].filter(Boolean).join(' ') || workTitle || '(タイトル不明)';
 
-      let episodeSub = null;
-      if (!episodeNum && item.episodeTitle) {
-        episodeSub = document.createElement('div');
-        episodeSub.className = 'item-episode';
-        episodeSub.textContent = decodeHtmlEntities(item.episodeTitle);
-      }
+      const episodeSub = document.createElement('div');
+      episodeSub.className = 'item-episode';
+      episodeSub.textContent = workTitle;
 
       const meta = document.createElement('div');
       meta.className = 'item-meta';
@@ -253,41 +288,64 @@
       }
 
       info.appendChild(title);
-      if (episodeSub) info.appendChild(episodeSub);
+      info.appendChild(episodeSub);
       info.appendChild(meta);
       row.appendChild(thumb);
       row.appendChild(info);
 
       row.addEventListener('click', () => {
-        chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_JUMP', payload: { index: idx } });
+        browser.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_JUMP', payload: { index: displayPos } });
         render();
       });
 
       playlistItems.appendChild(row);
     });
-  }
 
-  function escapeHtml(str) {
-    return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    const shuffleActions = document.getElementById('shuffleActions');
+    if (shuffleActions) {
+      shuffleActions.classList.remove('hidden');
+
+      const realCurrentIndex = shuffledIndices
+        ? shuffledIndices[currentShufflePos]
+        : currentShufflePos;
+
+      const fullBtn = document.getElementById('shuffleFullBtn');
+      if (fullBtn) {
+        fullBtn.onclick = async () => {
+          await startShufflePlayback(playlist);
+          render();
+        };
+      }
+
+      const hereBtn = document.getElementById('shuffleHereBtn');
+      if (hereBtn) {
+        hereBtn.onclick = async () => {
+          await startShuffleFromHere(playlist, realCurrentIndex, shuffledIndices, currentShufflePos);
+          render();
+        };
+      }
+    }
   }
 
   prevBtn.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_PREV' });
+    browser.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_PREV' });
   });
   nextBtn.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_NEXT' });
+    browser.runtime.sendMessage({ type: 'FORWARD_TO_PLAYER', command: 'PLAYLIST_NEXT' });
   });
   stopBtn.addEventListener('click', async () => {
-    chrome.runtime.sendMessage({ type: 'RELEASE_PLAYER' });
+    browser.runtime.sendMessage({ type: 'RELEASE_PLAYER' });
     await render();
   });
-  openOptions.addEventListener('click', () => chrome.runtime.openOptionsPage());
+  openOptions.addEventListener('click', () => browser.runtime.openOptionsPage());
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
+  browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local' && changes.dop_playback) {
       render();
     }
   });
+
+  document.getElementById('popupVersion').textContent = 'd-OP v' + browser.runtime.getManifest().version;
 
   render();
 })();
