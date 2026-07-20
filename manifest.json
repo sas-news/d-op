@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "d-OP",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "dアニメストアの動画からOP/EDを抽出して連続再生。劇中歌や好きなシーンのプレイリスト化にも対応しています！",
   "homepage_url": "https://github.com/sas-news/d-op",
   "icons": {
