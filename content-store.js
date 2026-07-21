@@ -145,6 +145,7 @@
       if (e.target === modal) modal.remove();
     });
     document.body.appendChild(modal);
+    okBtn.focus();
   }
 
   function decorateItems() {

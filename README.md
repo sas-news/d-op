@@ -18,16 +18,18 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 ## 紹介画像
 
 <p align="center">
-  <img src="assets/store-image1.png" alt="作品一覧のOP/EDボタン" width="32%">
-  <img src="assets/store-image2.png" alt="プレイヤー画面" width="32%">
+  <img src="assets/store-image1.png" alt="作品のOP/ED連続再生" width="32%">
+  <img src="assets/store-image2.png" alt="プレイリストに保存" width="32%">
   <img src="assets/store-image3.png" alt="プレイリスト管理" width="32%">
 </p>
 
 ## インストール
 
-### Chrome Web Store（推奨）
+### ストアインストール（推奨）
 
-[Chrome Web Store からインストール](https://chromewebstore.google.com/detail/d-op) *(公開準備中)*
+[Chrome Web Store からインストール](https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc)
+
+[Firefox Add-ons からインストール](https://addons.mozilla.org/ja/firefox/addon/d-op/) *(公開準備中)*
 
 ### 手動インストール（開発版）
 

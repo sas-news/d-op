@@ -495,6 +495,13 @@
       if (newPos >= 0) {
         currentPlayback.index = newPos;
         seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_PLAYBACK_MS;
+        // Persist updated position so popup sees the change
+        dopSetPlayback({
+          playlistId: currentPlayback.playlistId,
+          index: currentPlayback.index,
+          shuffledIndices: si,
+          updatedAt: Date.now()
+        });
       }
       updatePlaylistUI();
       updateSeekMarkers();
@@ -1090,6 +1097,10 @@
       };
       document.addEventListener('keydown', onKey);
       document.body.appendChild(modal);
+
+      // Focus the primary button so Enter key works for single-action confirmations
+      const primaryBtn = footer.querySelector('button.primary');
+      if (primaryBtn) primaryBtn.focus();
 
       if (onReady) onReady();
     });

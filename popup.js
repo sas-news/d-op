@@ -176,22 +176,27 @@
       count.className = 'count';
       count.textContent = `${playlist.items.length}曲`;
 
+      const isEmpty = playlist.items.length === 0;
+
       const playBtn = document.createElement('button');
       playBtn.className = 'playlist-card-play';
       playBtn.textContent = '▶';
-      playBtn.title = '先頭から再生';
+      playBtn.title = isEmpty ? 'プレイリストが空です' : '先頭から再生';
+      playBtn.disabled = isEmpty;
       playBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (playlist.items.length === 0) return;
+        if (isEmpty) return;
         await startPlaylistItem(playlist, 0);
       });
 
       const shuffleBtn = document.createElement('button');
       shuffleBtn.className = 'playlist-card-shuffle';
       shuffleBtn.replaceChildren(createShuffleIconSvg());
-      shuffleBtn.title = 'シャッフル再生';
+      shuffleBtn.title = isEmpty ? 'プレイリストが空です' : 'シャッフル再生';
+      shuffleBtn.disabled = isEmpty;
       shuffleBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
+        if (isEmpty) return;
         await startShufflePlayback(playlist);
       });
 
@@ -204,7 +209,13 @@
       if (expandedPlaylistId === playlist.id) {
         const items = document.createElement('div');
         items.className = 'playlist-card-items';
-        playlist.items.forEach((item, idx) => {
+        if (playlist.items.length === 0) {
+          const emptyMsg = document.createElement('div');
+          emptyMsg.className = 'playlist-card-empty';
+          emptyMsg.textContent = 'プレイリストが空です。';
+          items.appendChild(emptyMsg);
+        } else {
+          playlist.items.forEach((item, idx) => {
           const row = document.createElement('div');
           row.className = 'playlist-card-item';
 
@@ -246,6 +257,7 @@
           });
           items.appendChild(row);
         });
+        }
         card.appendChild(items);
       }
 

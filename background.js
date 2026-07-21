@@ -7,9 +7,36 @@ if (typeof browser === 'undefined' && typeof importScripts === 'function') {
 // Player state — single source of truth for the player window/tab
 // ---------------------------------------------------------------------------
 let playerState = null;
+const DOP_PLAYER_WINDOW_KEY = 'dop_player_window';
 
 function isDAnimeUrl(url) {
   return /^https?:\/\/(animestore\.docomo\.ne\.jp|anime\.dmkt-sp\.jp)\/animestore\/sc_d_pc\?/.test(url);
+}
+
+async function savePlayerWindowBounds(windowId) {
+  try {
+    const win = await browser.windows.get(windowId);
+    if (win) {
+      await browser.storage.local.set({
+        [DOP_PLAYER_WINDOW_KEY]: {
+          windowId,
+          left: win.left,
+          top: win.top,
+          width: win.width,
+          height: win.height
+        }
+      });
+    }
+  } catch (_) {}
+}
+
+async function getStoredWindowBounds() {
+  try {
+    const result = await browser.storage.local.get(DOP_PLAYER_WINDOW_KEY);
+    return result[DOP_PLAYER_WINDOW_KEY] || null;
+  } catch (_) {
+    return null;
+  }
 }
 
 async function validatePlayerState() {
@@ -51,6 +78,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
       const tab = tabs.find((t) => isDAnimeUrl(t.url));
       if (tab) {
         playerState = { windowId: playback.windowId, tabId: tab.id };
+        await savePlayerWindowBounds(playback.windowId);
       } else if (tabs[0]) {
         playerState = { windowId: playback.windowId, tabId: tabs[0].id };
       }
@@ -85,6 +113,7 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
     } catch (_) {
       await browser.storage.local.remove('dop_playback');
       await browser.storage.local.remove('dop_pending');
+      await browser.storage.local.remove(DOP_PLAYER_WINDOW_KEY);
     }
   }
 });
@@ -98,6 +127,7 @@ browser.windows.onRemoved.addListener(async (windowId) => {
   if (ps?.windowId === windowId) {
     await browser.storage.local.remove('dop_playback');
     await browser.storage.local.remove('dop_pending');
+    await browser.storage.local.remove(DOP_PLAYER_WINDOW_KEY);
   }
 });
 
@@ -140,6 +170,8 @@ async function handleRequestPlayer(url) {
         const tab = tabs.find((t) => isDAnimeUrl(t.url));
         if (tab) {
           playerState = { windowId: pb.windowId, tabId: tab.id };
+        } else if (tabs.length > 0) {
+          playerState = { windowId: pb.windowId, tabId: tabs[0].id };
         }
       } catch (_) {}
     }
@@ -148,6 +180,7 @@ async function handleRequestPlayer(url) {
   if (playerState && await validatePlayerState()) {
     try {
       await browser.tabs.update(playerState.tabId, { url, active: true });
+      await savePlayerWindowBounds(playerState.windowId);
       return;
     } catch (_) {
       playerState = null;
@@ -160,13 +193,22 @@ async function handleRequestPlayer(url) {
   if (mode === 'tab') {
     const tab = await browser.tabs.create({ url, active: true });
     playerState = { windowId: tab.windowId, tabId: tab.id };
+    await savePlayerWindowBounds(tab.windowId);
   } else {
     try {
-      const win = await browser.windows.create({ url, type: 'popup', width: 1280, height: 800 });
+      const bounds = await getStoredWindowBounds();
+      const createParams = { url, type: 'popup', width: 1280, height: 800 };
+      if (bounds && bounds.left !== undefined && bounds.top !== undefined) {
+        createParams.left = bounds.left;
+        createParams.top = bounds.top;
+        if (bounds.width) createParams.width = bounds.width;
+        if (bounds.height) createParams.height = bounds.height;
+      }
+      const win = await browser.windows.create(createParams);
       const tabs = await browser.tabs.query({ windowId: win.id });
       playerState = { windowId: win.id, tabId: tabs[0].id };
+      await savePlayerWindowBounds(win.id);
     } catch (_) {
-      // Fallback: no windows permission (Chrome without optional, or permission denied)
       const tab = await browser.tabs.create({ url, active: true });
       playerState = { windowId: tab.windowId, tabId: tab.id };
     }
@@ -189,6 +231,7 @@ async function handleReleasePlayer() {
   }
   await browser.storage.local.remove('dop_playback');
   await browser.storage.local.remove('dop_pending');
+  await browser.storage.local.remove(DOP_PLAYER_WINDOW_KEY);
 }
 
 // ---------------------------------------------------------------------------
