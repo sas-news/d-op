@@ -28,6 +28,7 @@
   let sameVideoItems = [];
   let playlistRangeNames = {};
   let addButtonCreating = false;
+  let advancingPlayback = false;
 
   function getPlayerPageInfo() {
     const backInfo = document.getElementById('backInfo');
@@ -282,29 +283,35 @@
 
   async function advancePlayback(direction) {
     if (!currentPlayback) return false;
-    const playlists = await dopGetPlaylists();
-    const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
-    if (!playlist) {
-      await clearPlaylistState();
-      return false;
-    }
-    const shuffled = currentPlayback.shuffledIndices;
-    const maxCount = shuffled ? shuffled.length : playlist.items.length;
-    const newShufflePos = currentPlayback.index + direction;
-    if (newShufflePos < 0 || newShufflePos >= maxCount) {
-      if (newShufflePos >= maxCount) {
-        if (!currentPlayback._endPopupShown) {
-          currentPlayback._endPopupShown = true;
-          showEndOfPlaylistPopup(playlist);
-        }
-      } else {
-        pause();
+    if (advancingPlayback) return false;
+    advancingPlayback = true;
+    try {
+      const playlists = await dopGetPlaylists();
+      const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
+      if (!playlist) {
+        await clearPlaylistState();
+        return false;
       }
-      return false;
+      const shuffled = currentPlayback.shuffledIndices;
+      const maxCount = shuffled ? shuffled.length : playlist.items.length;
+      const newShufflePos = currentPlayback.index + direction;
+      if (newShufflePos < 0 || newShufflePos >= maxCount) {
+        if (newShufflePos >= maxCount) {
+          if (!currentPlayback._endPopupShown) {
+            currentPlayback._endPopupShown = true;
+            showEndOfPlaylistPopup(playlist);
+          }
+        } else {
+          pause();
+        }
+        return false;
+      }
+      const realIndex = shuffled ? shuffled[newShufflePos] : newShufflePos;
+      await playPlaylistIndex(playlist, realIndex);
+      return true;
+    } finally {
+      advancingPlayback = false;
     }
-    const realIndex = shuffled ? shuffled[newShufflePos] : newShufflePos;
-    await playPlaylistIndex(playlist, realIndex);
-    return true;
   }
 
   async function goToPlaylistItem(playlistId, realIndex, item, storedShuffledIndices) {

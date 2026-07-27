@@ -292,7 +292,13 @@ async function dopSetPlayback(playback) {
     await browser.storage.local.remove(DOP_PLAYBACK_KEY);
     return;
   }
-  playback.windowId = await dopGetWindowId();
+  // Preserve existing windowId to prevent popup/options from overwriting player's windowId
+  const existing = await dopGetPlayback();
+  if (existing && existing.windowId) {
+    playback.windowId = existing.windowId;
+  } else {
+    playback.windowId = await dopGetWindowId();
+  }
   await browser.storage.local.set({ [DOP_PLAYBACK_KEY]: playback });
 }
 
