@@ -18,6 +18,7 @@
   let customSelecting = false;
   let seekCooldownUntil = 0;
   let startupLockUntil = 0;
+  let seekingStart = false;
   let lastPrevClickTime = 0;
   let panelHideTimer = null;
   let currentSeekRanges = [];
@@ -142,6 +143,7 @@
     targetRanges = [];
     sameVideoItems = [];
     seekCooldownUntil = 0;
+    seekingStart = false;
     lastActionTime = 0;
     startupLockUntil = 0;
     const cleanup = currentSessionId
@@ -178,18 +180,43 @@
       if (onReady) onReady();
       return;
     }
-    // Video already loaded — seek immediately
-    if (video.readyState >= 1 && video.duration) {
+
+    let retries = 0;
+
+    const doSeek = function () {
       seek(startSec);
-      if (onReady) setTimeout(onReady, DOP_SEEK_READY_POLL_MS);
+      retries++;
+
+      const onSeeked = function () {
+        if (Math.abs(video.currentTime - startSec) < 0.5) {
+          video.removeEventListener('seeked', onSeeked);
+          clearTimeout(fallback);
+          if (onReady) onReady();
+        } else if (retries < 3) {
+          video.removeEventListener('seeked', onSeeked);
+          clearTimeout(fallback);
+          doSeek();
+        } else {
+          video.removeEventListener('seeked', onSeeked);
+          clearTimeout(fallback);
+          if (onReady) onReady();
+        }
+      };
+      video.addEventListener('seeked', onSeeked);
+      const fallback = setTimeout(function () {
+        video.removeEventListener('seeked', onSeeked);
+        if (onReady) onReady();
+      }, DOP_SEEK_READY_DEADLINE_MS);
+    };
+
+    if (video.readyState >= 1 && video.duration) {
+      doSeek();
       return;
     }
-    // Wait for loadedmetadata (fires ~300ms after navigation, duration guaranteed)
     const onMeta = function () {
       video.removeEventListener('loadedmetadata', onMeta);
       clearTimeout(fallback);
-      seek(startSec);
-      if (onReady) setTimeout(onReady, DOP_SEEK_READY_POLL_MS);
+      doSeek();
     };
     const fallback = setTimeout(function () {
       video.removeEventListener('loadedmetadata', onMeta);
@@ -217,6 +244,7 @@
       .filter(({ item: it }) => it.partId === currentPartId && it.range);
 
     seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_PLAYBACK_MS;
+    seekingStart = true;
     lastActionTime = 0;
     log('startPlayback', { playlist: playlist.name, index: realIndex, type: item.range.type });
 
@@ -437,6 +465,7 @@
     const duration = video.duration || Infinity;
 
     if (insideRange(t)) {
+      seekingStart = false;
       if (currentPlayback && currentPlayback._endPopupShown) {
         currentPlayback._endPopupShown = false;
       }
@@ -459,6 +488,7 @@
     if (t > lastEnd || video.ended) {
       if (currentPlayback) {
         if (trySwitchToOtherRange(t)) return;
+        if (seekingStart) { seek(firstStart); return; }
         pause();
         advancePlayback(1);
       } else if (currentMode === 'op-ed') {
@@ -511,14 +541,6 @@
 
   function onTimeUpdate() {
     enforceRanges();
-
-    const video = getVideo();
-    if (video && Date.now() < startupLockUntil && targetRanges.length > 0) {
-      const start = seconds(targetRanges[0].start);
-      if (Math.abs(video.currentTime - start) > 1.0) {
-        seek(start);
-      }
-    }
   }
 
   function onSeeking() {
@@ -1098,6 +1120,9 @@
       };
       document.addEventListener('keydown', onKey);
       document.body.appendChild(modal);
+
+      const primaryBtn = footer.querySelector('button.primary');
+      if (primaryBtn) primaryBtn.focus();
 
       if (onReady) onReady();
     });
