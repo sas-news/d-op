@@ -93,6 +93,14 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 - dアニメストアのアカウント情報にアクセスすることはありません
 - 詳細: [プライバシーポリシー](PRIVACY.md)
 
+## お問い合わせ・関連リンク
+
+- 公式サイト: [d-op.sasnews.dev](https://d-op.sasnews.dev/)
+- 開発者: [sasnews.dev](https://sasnews.dev/)
+- X (Twitter): [@sas_shinbun](https://x.com/sas_shinbun)
+- お問い合わせ: [GitHub Issues](https://github.com/sas-news/d-op/issues) / [contact@sasnews.dev](mailto:contact@sasnews.dev)
+
+
 ## 必要環境
 
 - Google Chrome 88 以降（Manifest V3 対応）

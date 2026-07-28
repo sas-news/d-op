@@ -38,8 +38,11 @@
 
 ## お問い合わせ
 
-本プライバシーポリシーに関するお問い合わせは、[GitHub Issues](https://github.com/sas-news/d-op/issues) までお願いします。
+本プライバシーポリシーや拡張機能に関するお問い合わせは、以下のいずれかの窓口までお願いします。
+
+- GitHub Issues: <https://github.com/sas-news/d-op/issues>
+- メール: <contact@sasnews.dev>
 
 ---
 
-最終更新日: 2026-06-30
+最終更新日: 2026-07-28
