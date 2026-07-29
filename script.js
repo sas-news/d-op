@@ -14,8 +14,8 @@
 (function () {
   "use strict";
 
-  const SHARE_TEXT = "d-OP | dアニメストアのOP/ED連続再生ブラウザ拡張機能";
-  const SHARE_HASHTAGS = ["dアニメストア", "dアニメ", "ブラウザ拡張"];
+  const SHARE_TEXT = "d-OP | dアニメストアをOPのみにする拡張機能";
+  const SHARE_HASHTAGS = ["d-OP"];
   const SHARE_URL = "https://d-op.sasnews.dev/";
 
   /**
@@ -33,18 +33,15 @@
   }
 
   /**
-   * クリックハンドラ: ポップアップブロックを回避するため
-   * ユーザー操作の中で同期的に window.open する。
+   * クリックハンドラ: 新しいタブで X の投稿画面を開く。
+   * ポップアップがブロックされた場合は現在のタブには遷移しない
+   * (元のページに留まる)。
    * @param {MouseEvent} event
    */
   function onShareClick(event) {
     event.preventDefault();
     const url = buildShareUrl();
-    const win = window.open(url, "_blank", "noopener,noreferrer,width=600,height=560");
-    if (!win) {
-      // ポップアップブロックされた場合は現在のタブで遷移
-      window.location.href = url;
-    }
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   function bindShare() {
