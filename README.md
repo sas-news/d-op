@@ -1,4 +1,4 @@
-# d-OP
+﻿# [d-OP | dアニメストアでOPだけ再生する拡張機能](https://d-op.sasnews.dev/)
 
 <img src="assets/d-OP-icon.png" alt="d-OP" width="96" align="right">
 
@@ -29,7 +29,7 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 
 [Chrome Web Store からインストール](https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc)
 
-[Firefox Add-ons からインストール](https://addons.mozilla.org/ja/firefox/addon/d-op/) *(公開準備中)*
+[Firefox Add-ons からインストール](https://addons.mozilla.org/ja/firefox/addon/d-op/)
 
 ### 手動インストール（開発版）
 
@@ -80,6 +80,8 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 
 ## ロードマップ
 
+要望があれば作る。それぐらいです。
+
 - [ ] **クラウド同期**: Google アカウント経由でプレイリストをデバイス間同期
 - [ ] **プレイリスト共有**: URL 発行によるプレイリストの他ユーザーとの共有
 - [ ] **コミュニティ投稿**: ユーザーが作成した OP/ED 区間情報の共有システム
@@ -98,7 +100,7 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 - 公式サイト: [d-op.sasnews.dev](https://d-op.sasnews.dev/)
 - 開発者: [sasnews.dev](https://sasnews.dev/)
 - X (Twitter): [@sas_shinbun](https://x.com/sas_shinbun)
-- お問い合わせ: [GitHub Issues](https://github.com/sas-news/d-op/issues) / [contact@sasnews.dev](mailto:contact@sasnews.dev)
+- お問い合わせ: [マシュマロ](https://marshmallow-qa.com/blp4p7r8sz8lt2a) / [GitHub Issues](https://github.com/sas-news/d-op/issues) / [contact@sasnews.dev](mailto:contact@sasnews.dev)
 
 
 ## 必要環境
