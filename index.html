@@ -50,7 +50,7 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<a class="skip-link" href="#main">本文へスキップ</a>
+
 
 <header class="site-header">
   <div class="container header-inner">
@@ -90,6 +90,58 @@
     </div>
   </section>
 
+  <!-- セクション: 機能紹介ギャラリー -->
+  <section class="section section-gallery" id="gallery" aria-labelledby="gallery-title">
+    <div class="container">
+      <header class="section-head">
+        <p class="section-eyebrow">Gallery</p>
+        <h2 class="section-title" id="gallery-title">実際の使い心地を、画像で。</h2>
+        <p class="section-desc">作品一覧への OP/ED ボタン追加、シークバーへの区間マーカー、プレイリスト連続再生まで。</p>
+      </header>
+
+      <div class="gallery" data-gallery>
+        <div class="gallery-stage" aria-roledescription="carousel" aria-label="拡張機能の紹介画像">
+          <ul class="gallery-track" data-gallery-track>
+            <li class="gallery-slide is-active" data-slide data-index="0">
+              <button class="gallery-image-btn" type="button" data-lightbox-trigger data-index="0" aria-label="紹介画像1を拡大">
+                <img class="gallery-image" src="assets/store-image1.png" alt="dアニメストアの作品一覧に「OP/ED」ボタンが追加。シークバー上にOP/EDを自動表示。プレイリスト化。" loading="lazy" decoding="async">
+              </button>
+            </li>
+            <li class="gallery-slide" data-slide data-index="1">
+              <button class="gallery-image-btn" type="button" data-lightbox-trigger data-index="1" aria-label="紹介画像2を拡大">
+                <img class="gallery-image" src="assets/store-image2.png" alt="好きなOP/EDやシーンをプレイリストに保存。連続再生、シャッフル再生が可能。" loading="lazy" decoding="async">
+              </button>
+            </li>
+            <li class="gallery-slide" data-slide data-index="2">
+              <button class="gallery-image-btn" type="button" data-lightbox-trigger data-index="2" aria-label="紹介画像3を拡大">
+                <img class="gallery-image" src="assets/store-image3.png" alt="プレイリストの管理画面で、新規作成や順番の入れ替えが可能。" loading="lazy" decoding="async">
+              </button>
+            </li>
+          </ul>
+
+          <button class="gallery-nav gallery-nav-prev" type="button" data-gallery-prev aria-label="前の画像">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M15 4 L7 12 L15 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="gallery-nav gallery-nav-next" type="button" data-gallery-next aria-label="次の画像">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M9 4 L17 12 L9 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+
+        <ul class="gallery-thumbs" role="tablist" aria-label="紹介画像選択">
+          <li role="presentation"><button class="gallery-thumb is-active" type="button" role="tab" data-gallery-thumb data-index="0" aria-selected="true" aria-label="紹介画像1を表示">
+            <img src="assets/store-image1.png" alt="" loading="lazy" decoding="async">
+          </button></li>
+          <li role="presentation"><button class="gallery-thumb" type="button" role="tab" data-gallery-thumb data-index="1" aria-selected="false" aria-label="紹介画像2を表示">
+            <img src="assets/store-image2.png" alt="" loading="lazy" decoding="async">
+          </button></li>
+          <li role="presentation"><button class="gallery-thumb" type="button" role="tab" data-gallery-thumb data-index="2" aria-selected="false" aria-label="紹介画像3を表示">
+            <img src="assets/store-image3.png" alt="" loading="lazy" decoding="async">
+          </button></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <!-- セクション1: ストアリンク -->
   <section class="section" id="download" aria-labelledby="download-title">
     <div class="container">
@@ -102,33 +154,137 @@
       <div class="card-grid">
         <a class="store-card" href="https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc" rel="noopener" target="_blank">
           <div class="store-card-badge" aria-hidden="true">
-            <svg viewBox="0 0 48 48" width="40" height="40" focusable="false">
-              <circle cx="24" cy="24" r="22" fill="#fff"/>
-              <circle cx="24" cy="24" r="9" fill="#e60012"/>
-              <path d="M24 4 a20 20 0 0 1 17.32 10 H24 a10 10 0 0 0 -8.66 5 L8.46 9.83 A20 20 0 0 1 24 4 z" fill="#e60012"/>
-              <path d="M24 44 a20 20 0 0 1 -17.32 -10 H24 a10 10 0 0 0 8.66 -5 l6.88 10.17 A20 20 0 0 1 24 44 z" fill="#30d158"/>
-              <path d="M6.68 14 H24 a10 10 0 0 1 8.66 5 L15.78 28.83 A20 20 0 0 1 6.68 14 z" fill="#ffcc00"/>
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 256 256">
+              <path d="M0 0h256v256H0z" fill="none" />
+              <path fill="#fff" d="M128.003 199.216c39.335 0 71.221-31.888 71.221-71.223S167.338 56.77 128.003 56.77S56.78 88.658 56.78 127.993s31.887 71.223 71.222 71.223" />
+              <path fill="#229342" d="M35.89 92.997Q27.92 79.192 17.154 64.02a127.98 127.98 0 0 0 110.857 191.981q17.671-24.785 23.996-35.74q12.148-21.042 31.423-60.251v-.015a63.993 63.993 0 0 1-110.857.017Q46.395 111.19 35.89 92.998" />
+              <path fill="#fbc116" d="M128.008 255.996A127.97 127.97 0 0 0 256 127.997A128 128 0 0 0 238.837 64q-36.372-3.585-53.686-3.585q-19.632 0-57.152 3.585l-.014.01a63.99 63.99 0 0 1 55.444 31.987a63.99 63.99 0 0 1-.001 64.01z" />
+              <path fill="#1a73e8" d="M128.003 178.677c27.984 0 50.669-22.685 50.669-50.67s-22.685-50.67-50.67-50.67c-27.983 0-50.669 22.686-50.669 50.67s22.686 50.67 50.67 50.67" />
+              <path fill="#e33b2e" d="M128.003 64.004H238.84a127.973 127.973 0 0 0-221.685.015l55.419 95.99l.015.008a63.993 63.993 0 0 1 55.415-96.014z" />
             </svg>
           </div>
           <div class="store-card-body">
             <p class="store-card-eyebrow">Chrome Web Store</p>
             <p class="store-card-title">Chrome に追加</p>
-            <p class="store-card-desc">Google Chrome / Edge / Brave などの Chromium 系ブラウザに対応。</p>
+            <p class="store-card-desc">Google Chrome / Vivaldi / Brave などの Chromium 系ブラウザに対応。</p>
           </div>
           <span class="store-card-arrow" aria-hidden="true">→</span>
         </a>
 
-        <a class="store-card" href="https://github.com/sas-news/d-op/releases" rel="noopener" target="_blank">
+        <a class="store-card" href="https://addons.mozilla.org/ja/firefox/addon/d-op/" rel="noopener" target="_blank">
           <div class="store-card-badge" aria-hidden="true">
-            <svg viewBox="0 0 48 48" width="40" height="40" focusable="false">
-              <circle cx="24" cy="24" r="22" fill="#ff7139"/>
-              <path d="M24 6 C13.5 6 5 14.5 5 25 c0 8.3 5.4 15.3 12.8 17.8 c0.9 0.2 1.3 -0.4 1.3 -0.9 v-3.1 c-5.2 1.1 -6.3 -2.5 -6.3 -2.5 c-0.9 -2.2 -2.1 -2.8 -2.1 -2.8 c-1.7 -1.2 0.1 -1.1 0.1 -1.1 c1.9 0.1 2.9 1.9 2.9 1.9 c1.7 2.9 4.4 2 5.5 1.6 c0.2 -1.2 0.7 -2 1.2 -2.5 c-4.2 -0.5 -8.6 -2.1 -8.6 -9.3 c0 -2.1 0.7 -3.7 1.9 -5.1 c-0.2 -0.5 -0.8 -2.4 0.2 -5 c0 0 1.5 -0.5 5 1.9 c1.5 -0.4 3.1 -0.6 4.6 -0.6 c1.6 0 3.1 0.2 4.6 0.6 c3.5 -2.4 5 -1.9 5 -1.9 c1 2.6 0.4 4.5 0.2 5 c1.2 1.4 1.9 3 1.9 5.1 c0 7.2 -4.4 8.8 -8.6 9.3 c0.7 0.6 1.3 1.7 1.3 3.5 v5.2 c0 0.5 0.4 1.1 1.3 0.9 C37.6 40.3 43 33.3 43 25 C43 14.5 34.5 6 24 6 z" fill="#fff"/>
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 256 265">
+              <path d="M0 0h256v265H0z" fill="none" />
+              <defs>
+                <radialGradient id="SVGyidrs6Xz" cx="-7907.187" cy="-8515.121" r="80.797" gradientTransform="translate(26367.938 28186.305)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".129" stop-color="#ffbd4f" />
+                  <stop offset=".186" stop-color="#ffac31" />
+                  <stop offset=".247" stop-color="#ff9d17" />
+                  <stop offset=".283" stop-color="#ff980e" />
+                  <stop offset=".403" stop-color="#ff563b" />
+                  <stop offset=".467" stop-color="#ff3750" />
+                  <stop offset=".71" stop-color="#f5156c" />
+                  <stop offset=".782" stop-color="#eb0878" />
+                  <stop offset=".86" stop-color="#e50080" />
+                </radialGradient>
+                <radialGradient id="SVG0IVpgbgM" cx="-7936.711" cy="-8482.089" r="80.797" gradientTransform="translate(26367.938 28186.305)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".3" stop-color="#960e18" />
+                  <stop offset=".351" stop-color="#b11927" stop-opacity=".74" />
+                  <stop offset=".435" stop-color="#db293d" stop-opacity=".343" />
+                  <stop offset=".497" stop-color="#f5334b" stop-opacity=".094" />
+                  <stop offset=".53" stop-color="#ff3750" stop-opacity="0" />
+                </radialGradient>
+                <radialGradient id="SVG5bHMjbfc" cx="-7926.97" cy="-8533.457" r="58.534" gradientTransform="translate(26367.938 28186.305)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".132" stop-color="#fff44f" />
+                  <stop offset=".252" stop-color="#ffdc3e" />
+                  <stop offset=".506" stop-color="#ff9d12" />
+                  <stop offset=".526" stop-color="#ff980e" />
+                </radialGradient>
+                <radialGradient id="SVGEHoaNdMW" cx="-7945.648" cy="-8460.984" r="38.471" gradientTransform="translate(26367.938 28186.305)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".353" stop-color="#3a8ee6" />
+                  <stop offset=".472" stop-color="#5c79f0" />
+                  <stop offset=".669" stop-color="#9059ff" />
+                  <stop offset="1" stop-color="#c139e6" />
+                </radialGradient>
+                <radialGradient id="SVG6OUB2b6N" cx="-7935.62" cy="-8491.546" r="20.397" gradientTransform="matrix(3.21411 -.77707 .90934 3.76302 33365.914 25904.014)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".206" stop-color="#9059ff" stop-opacity="0" />
+                  <stop offset=".278" stop-color="#8c4ff3" stop-opacity=".064" />
+                  <stop offset=".747" stop-color="#7716a8" stop-opacity=".45" />
+                  <stop offset=".975" stop-color="#6e008b" stop-opacity=".6" />
+                </radialGradient>
+                <radialGradient id="SVGfyXvUXoB" cx="-7937.731" cy="-8518.427" r="27.676" gradientTransform="translate(26367.938 28186.305)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stop-color="#ffe226" />
+                  <stop offset=".121" stop-color="#ffdb27" />
+                  <stop offset=".295" stop-color="#ffc82a" />
+                  <stop offset=".502" stop-color="#ffa930" />
+                  <stop offset=".732" stop-color="#ff7e37" />
+                  <stop offset=".792" stop-color="#ff7139" />
+                </radialGradient>
+                <radialGradient id="SVGT2ddtPSF" cx="-7915.977" cy="-8535.981" r="118.081" gradientTransform="translate(26367.938 28186.305)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".113" stop-color="#fff44f" />
+                  <stop offset=".456" stop-color="#ff980e" />
+                  <stop offset=".622" stop-color="#ff5634" />
+                  <stop offset=".716" stop-color="#ff3647" />
+                  <stop offset=".904" stop-color="#e31587" />
+                </radialGradient>
+                <radialGradient id="SVGH7WrGcHb" cx="-7927.165" cy="-8522.859" r="86.499" gradientTransform="matrix(.3472 3.29017 -2.15928 .22816 -15491.597 28008.376)" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stop-color="#fff44f" />
+                  <stop offset=".06" stop-color="#ffe847" />
+                  <stop offset=".168" stop-color="#ffc830" />
+                  <stop offset=".304" stop-color="#ff980e" />
+                  <stop offset=".356" stop-color="#ff8b16" />
+                  <stop offset=".455" stop-color="#ff672a" />
+                  <stop offset=".57" stop-color="#ff3647" />
+                  <stop offset=".737" stop-color="#e31587" />
+                </radialGradient>
+                <radialGradient id="SVGLGsqnb9u" cx="-7938.383" cy="-8508.176" r="73.72" gradientTransform="translate(26367.938 28186.305)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".137" stop-color="#fff44f" />
+                  <stop offset=".48" stop-color="#ff980e" />
+                  <stop offset=".592" stop-color="#ff5634" />
+                  <stop offset=".655" stop-color="#ff3647" />
+                  <stop offset=".904" stop-color="#e31587" />
+                </radialGradient>
+                <radialGradient id="SVGYSHzlc1q" cx="-7918.923" cy="-8503.861" r="80.686" gradientTransform="translate(26367.938 28186.305)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".094" stop-color="#fff44f" />
+                  <stop offset=".231" stop-color="#ffe141" />
+                  <stop offset=".509" stop-color="#ffaf1e" />
+                  <stop offset=".626" stop-color="#ff980e" />
+                </radialGradient>
+                <linearGradient id="SVGyUi6ncnI" x1="70.786" x2="6.447" y1="12.393" y2="74.468" gradientTransform="translate(-2.999 -.01)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".048" stop-color="#fff44f" />
+                  <stop offset=".111" stop-color="#ffe847" />
+                  <stop offset=".225" stop-color="#ffc830" />
+                  <stop offset=".368" stop-color="#ff980e" />
+                  <stop offset=".401" stop-color="#ff8b16" />
+                  <stop offset=".462" stop-color="#ff672a" />
+                  <stop offset=".534" stop-color="#ff3647" />
+                  <stop offset=".705" stop-color="#e31587" />
+                </linearGradient>
+                <linearGradient id="SVG1UrWScUt" x1="70.013" x2="15.267" y1="12.061" y2="66.806" gradientTransform="translate(-2.999 -.01)scale(3.3067)" gradientUnits="userSpaceOnUse">
+                  <stop offset=".167" stop-color="#fff44f" stop-opacity=".8" />
+                  <stop offset=".266" stop-color="#fff44f" stop-opacity=".634" />
+                  <stop offset=".489" stop-color="#fff44f" stop-opacity=".217" />
+                  <stop offset=".6" stop-color="#fff44f" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path fill="url(#SVGyUi6ncnI)" d="M248.033 88.713c-5.569-13.399-16.864-27.866-25.71-32.439a133.2 133.2 0 0 1 12.979 38.9l.023.215c-14.49-36.126-39.062-50.692-59.13-82.41a155 155 0 0 1-3.019-4.907a41 41 0 0 1-1.412-2.645a23.3 23.3 0 0 1-1.912-5.076a.33.33 0 0 0-.291-.331a.5.5 0 0 0-.241 0c-.016 0-.043.03-.063.037s-.063.036-.092.049l.049-.086c-32.19 18.849-43.113 53.741-44.118 71.194a64.1 64.1 0 0 0-35.269 13.593a38 38 0 0 0-3.307-2.506a59.4 59.4 0 0 1-.36-31.324a94.9 94.9 0 0 0-30.848 23.841h-.06c-5.079-6.438-4.722-27.667-4.431-32.102a23 23 0 0 0-4.279 2.272a93.4 93.4 0 0 0-12.526 10.73a112 112 0 0 0-11.98 14.375v.019v-.023A108.3 108.3 0 0 0 4.841 108.92l-.171.846a204 204 0 0 0-1.26 8.003c0 .096-.02.185-.03.281a122 122 0 0 0-2.08 17.667v.662c.086 98.661 106.944 160.23 192.344 110.825a128.17 128.17 0 0 0 62.12-89.153c.215-1.653.39-3.29.582-4.96a131.8 131.8 0 0 0-8.313-64.378M100.322 189.031c.599.288 1.161.599 1.776.873l.089.057a69 69 0 0 1-1.865-.93m135.013-93.612v-.123l.023.136z" />
+              <path fill="url(#SVGyidrs6Xz)" d="M248.033 88.713c-5.569-13.399-16.864-27.866-25.71-32.439a133.2 133.2 0 0 1 12.979 38.9v.122l.023.136a116.07 116.07 0 0 1-3.988 86.497c-14.688 31.516-50.242 63.819-105.894 62.248c-60.132-1.703-113.089-46.323-122.989-104.766c-1.802-9.216 0-13.888.906-21.378a95.4 95.4 0 0 0-2.06 17.684v.662c.086 98.661 106.944 160.23 192.344 110.825a128.17 128.17 0 0 0 62.12-89.153c.215-1.653.39-3.29.582-4.96a131.8 131.8 0 0 0-8.313-64.378" />
+              <path fill="url(#SVG0IVpgbgM)" d="M248.033 88.713c-5.569-13.399-16.864-27.866-25.71-32.439a133.2 133.2 0 0 1 12.979 38.9v.122l.023.136a116.07 116.07 0 0 1-3.988 86.497c-14.688 31.516-50.242 63.819-105.894 62.248c-60.132-1.703-113.089-46.323-122.989-104.766c-1.802-9.216 0-13.888.906-21.378a95.4 95.4 0 0 0-2.06 17.684v.662c.086 98.661 106.944 160.23 192.344 110.825a128.17 128.17 0 0 0 62.12-89.153c.215-1.653.39-3.29.582-4.96a131.8 131.8 0 0 0-8.313-64.378" />
+              <path fill="url(#SVG5bHMjbfc)" d="M185.754 103.778c.278.195.536.39.797.585a69.8 69.8 0 0 0-11.904-15.525C134.815 48.999 164.208 2.457 169.165.093l.049-.073c-32.19 18.849-43.113 53.741-44.118 71.194c1.495-.103 2.976-.229 4.504-.229a64.68 64.68 0 0 1 56.154 32.793" />
+              <path fill="url(#SVGEHoaNdMW)" d="M129.683 111.734c-.212 3.188-11.475 14.182-15.413 14.182c-36.443 0-42.359 22.046-42.359 22.046c1.614 18.564 14.55 33.854 30.187 41.942c.714.371 1.439.705 2.163 1.032a71 71 0 0 0 3.763 1.541a57 57 0 0 0 16.675 3.217c63.876 2.996 76.25-76.384 30.154-99.419a44.24 44.24 0 0 1 30.901 7.503A64.68 64.68 0 0 0 129.6 70.985c-1.521 0-3.009.126-4.504.229a64.1 64.1 0 0 0-35.269 13.593c1.954 1.654 4.16 3.863 8.806 8.442c8.696 8.568 31 17.443 31.05 18.485" />
+              <path fill="url(#SVG6OUB2b6N)" d="M129.683 111.734c-.212 3.188-11.475 14.182-15.413 14.182c-36.443 0-42.359 22.046-42.359 22.046c1.614 18.564 14.55 33.854 30.187 41.942c.714.371 1.439.705 2.163 1.032a71 71 0 0 0 3.763 1.541a57 57 0 0 0 16.675 3.217c63.876 2.996 76.25-76.384 30.154-99.419a44.24 44.24 0 0 1 30.901 7.503A64.68 64.68 0 0 0 129.6 70.985c-1.521 0-3.009.126-4.504.229a64.1 64.1 0 0 0-35.269 13.593c1.954 1.654 4.16 3.863 8.806 8.442c8.696 8.568 31 17.443 31.05 18.485" />
+              <path fill="url(#SVGfyXvUXoB)" d="M83.852 80.545a82 82 0 0 1 2.645 1.756a59.4 59.4 0 0 1-.36-31.324a94.9 94.9 0 0 0-30.849 23.841c.625-.017 19.216-.351 28.564 5.727" />
+              <path fill="url(#SVGT2ddtPSF)" d="M2.471 139.411c9.89 58.443 62.857 103.063 122.989 104.766c55.652 1.574 91.205-30.732 105.894-62.248a116.07 116.07 0 0 0 3.988-86.497v-.122c0-.096-.02-.153 0-.123l.023.215c4.547 29.684-10.552 58.443-34.155 77.889l-.073.166c-45.989 37.455-90.002 22.598-98.91 16.533a65 65 0 0 1-1.865-.929c-26.814-12.817-37.891-37.247-35.517-58.198a32.91 32.91 0 0 1-30.359-19.096a48.34 48.34 0 0 1 47.117-1.891a63.82 63.82 0 0 0 48.119 1.891c-.049-1.042-22.353-9.92-31.05-18.484c-4.646-4.58-6.851-6.786-8.805-8.442a38 38 0 0 0-3.307-2.507c-.761-.519-1.617-1.081-2.645-1.756c-9.348-6.078-27.939-5.744-28.554-5.727h-.059c-5.079-6.438-4.722-27.667-4.431-32.101a23 23 0 0 0-4.279 2.271a93.4 93.4 0 0 0-12.526 10.73a112 112 0 0 0-12.03 14.342v.019v-.023A108.3 108.3 0 0 0 4.841 108.92c-.062.261-4.616 20.167-2.37 30.491" />
+              <path fill="url(#SVGH7WrGcHb)" d="M174.654 88.838a69.8 69.8 0 0 1 11.904 15.542a27 27 0 0 1 1.921 1.574c29.056 26.784 13.832 64.646 12.698 67.341c23.603-19.447 38.688-48.205 34.155-77.89c-14.497-36.142-39.069-50.708-59.137-82.426a155 155 0 0 1-3.019-4.907a41 41 0 0 1-1.412-2.645a23.3 23.3 0 0 1-1.912-5.076a.33.33 0 0 0-.291-.331a.5.5 0 0 0-.241 0c-.016 0-.043.03-.063.037s-.063.036-.092.049c-4.957 2.351-34.35 48.893 5.489 88.732" />
+              <path fill="url(#SVGLGsqnb9u)" d="M188.459 105.937a27 27 0 0 0-1.921-1.574c-.261-.195-.519-.39-.797-.585a44.24 44.24 0 0 0-30.901-7.503c46.095 23.048 33.728 102.415-30.154 99.419a57 57 0 0 1-16.675-3.217a67 67 0 0 1-3.763-1.541c-.725-.331-1.449-.661-2.163-1.032l.089.057c8.908 6.081 52.907 20.938 98.91-16.534l.073-.165c1.147-2.679 16.371-40.55-12.698-67.325" />
+              <path fill="url(#SVGYSHzlc1q)" d="M71.911 147.962s5.916-22.046 42.359-22.046c3.938 0 15.211-10.994 15.413-14.182a63.82 63.82 0 0 1-48.119-1.892a48.34 48.34 0 0 0-47.118 1.892a32.91 32.91 0 0 0 30.359 19.096c-2.374 20.955 8.703 45.385 35.517 58.198c.599.288 1.161.599 1.776.873c-15.65-8.085-28.573-23.375-30.187-41.939" />
+              <path fill="url(#SVG1UrWScUt)" d="M248.033 88.713c-5.569-13.399-16.864-27.866-25.71-32.439a133.2 133.2 0 0 1 12.979 38.9l.023.215c-14.49-36.126-39.062-50.692-59.13-82.41a155 155 0 0 1-3.019-4.907a41 41 0 0 1-1.412-2.645a23.3 23.3 0 0 1-1.912-5.076a.33.33 0 0 0-.291-.331a.5.5 0 0 0-.241 0c-.016 0-.043.03-.063.037s-.063.036-.092.049l.049-.086c-32.19 18.849-43.113 53.741-44.118 71.194c1.495-.103 2.976-.229 4.504-.229a64.68 64.68 0 0 1 56.154 32.793a44.24 44.24 0 0 0-30.901-7.503c46.096 23.048 33.729 102.415-30.154 99.419a57 57 0 0 1-16.675-3.217a67 67 0 0 1-3.763-1.541c-.724-.331-1.449-.661-2.163-1.032l.089.057a69 69 0 0 1-1.865-.93c.599.288 1.161.599 1.776.873c-15.65-8.088-28.573-23.378-30.187-41.942c0 0 5.916-22.046 42.359-22.046c3.938 0 15.211-10.994 15.413-14.182c-.05-1.042-22.354-9.92-31.05-18.485c-4.646-4.579-6.852-6.785-8.806-8.442a38 38 0 0 0-3.307-2.506a59.4 59.4 0 0 1-.36-31.324a94.9 94.9 0 0 0-30.848 23.841h-.06c-5.079-6.438-4.722-27.667-4.431-32.102a23 23 0 0 0-4.279 2.272a93.4 93.4 0 0 0-12.526 10.73a112 112 0 0 0-11.98 14.375v.019v-.023A108.3 108.3 0 0 0 4.841 108.92l-.171.846c-.242 1.128-1.323 6.855-1.479 8.085c0 .093 0-.096 0 0A149 149 0 0 0 1.3 135.717v.662c.086 98.661 106.944 160.23 192.344 110.825a128.17 128.17 0 0 0 62.12-89.153c.215-1.653.39-3.29.582-4.96a131.8 131.8 0 0 0-8.313-64.378m-12.715 6.583l.024.136z" />
             </svg>
           </div>
           <div class="store-card-body">
-            <p class="store-card-eyebrow">Firefox Add-ons (公開準備中)</p>
+            <p class="store-card-eyebrow">Firefox Add-ons</p>
             <p class="store-card-title">Firefox 版を入手</p>
-            <p class="store-card-desc">Mozilla Add-ons への登録準備中です。暫定的に Releases ページから XPI を配布します。</p>
+            <p class="store-card-desc">Firefox / Zen Browser / Floorp などの Gecko 系ブラウザに対応。</p>
           </div>
           <span class="store-card-arrow" aria-hidden="true">→</span>
         </a>
@@ -146,7 +302,7 @@
       </header>
 
       <div class="card-grid card-grid-3">
-        <a class="support-card" href="https://marshmallow-qa.com/sasnews" rel="noopener" target="_blank">
+        <a class="support-card" href="https://marshmallow-qa.com/blp4p7r8sz8lt2a" rel="noopener" target="_blank">
           <div class="support-card-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="24" height="24" focusable="false">
               <path d="M12 2 C6.5 2 2 6 2 11 c0 2.5 1.1 4.7 2.9 6.3 L4 22 l5.2 -2.5 c0.9 0.2 1.8 0.4 2.8 0.4 c5.5 0 10 -4 10 -9 s-4.5 -8.9 -10 -8.9 z" fill="#ff8ba7"/>
@@ -155,7 +311,7 @@
             </svg>
           </div>
           <p class="support-card-title">マシュマロ</p>
-          <p class="support-card-desc">完全匿名で質問・要望を送れます。ログイン不要。開発の参考にさせていただきます。</p>
+          <p class="support-card-desc">完全匿名で質問・要望を送れます。ログイン不要。感想なども気軽に送ってください。</p>
           <span class="support-card-tag">匿名OK</span>
         </a>
 
@@ -194,11 +350,11 @@
       </header>
 
       <div class="card-grid">
-        <a class="dev-card" href="https://x.com/sas_shinbun" rel="noopener" target="_blank">
+        <a class="dev-card" href="https://x.com/i/user/1666355162167021568" rel="noopener" target="_blank">
           <img class="dev-card-avatar" src="https://unavatar.io/x/sas_shinbun" alt="" loading="lazy" width="56" height="56" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'dev-card-avatar dev-card-avatar-fallback',textContent:'X'}))">
           <div class="dev-card-body">
             <p class="dev-card-eyebrow">X (旧 Twitter)</p>
-            <p class="dev-card-name">@sas_shinbun</p>
+            <p class="dev-card-name">SAS新聞・サス</p>
             <p class="dev-card-desc">開発の近況やリリース情報を投稿しています。フォローやご質問もお気軽にどうぞ。</p>
           </div>
           <span class="dev-card-arrow" aria-hidden="true">→</span>
@@ -208,7 +364,7 @@
           <div class="dev-card-avatar dev-card-avatar-fallback" aria-hidden="true">DEV</div>
           <div class="dev-card-body">
             <p class="dev-card-eyebrow">Developer Site</p>
-            <p class="dev-card-name">sasnews.dev</p>
+            <p class="dev-card-name">SAS新聞 | Official Site</p>
             <p class="dev-card-desc">開発者のポートフォリオサイト。他の作品やプロフィールはこちらから。</p>
           </div>
           <span class="dev-card-arrow" aria-hidden="true">→</span>
@@ -221,13 +377,13 @@
   <section class="section section-share" aria-labelledby="share-title">
     <div class="container share-inner">
       <p class="section-eyebrow">Share</p>
-      <h2 class="section-title" id="share-title">𝕏 で d-op ポータルをシェアする</h2>
+      <h2 class="section-title" id="share-title">X で d-OPをシェアする</h2>
       <p class="section-desc">気に入ったらぜひ共有してください。開発の励みになります。</p>
       <button id="shareBtn" class="btn btn-primary btn-share" type="button">
         <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true">
           <path d="M18.244 2 H21.5 l-7.5 8.57 L23 22 h-6.828 l-5.347 -7.006 L4.7 22 H1.443 l8.04 -9.19 L1 2 h6.99 l4.83 6.39 L18.244 2 zm-1.197 18.2 h1.847 L7.045 3.69 H5.05 l11.997 16.51 z" fill="currentColor"/>
         </svg>
-        <span>𝕏 でシェアする</span>
+        <span>X でシェアする</span>
       </button>
     </div>
   </section>
