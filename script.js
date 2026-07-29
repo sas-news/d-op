@@ -14,7 +14,7 @@
 (function () {
   "use strict";
 
-  const SHARE_TEXT = "d-OP | dアニメストアをOPのみにする拡張機能";
+  const SHARE_TEXT = "d-OP | dアニメストアでOPだけ再生する拡張機能";
   const SHARE_HASHTAGS = ["d-OP"];
   const SHARE_URL = "https://d-op.sasnews.dev/";
 
@@ -29,7 +29,7 @@
     if (SHARE_HASHTAGS.length > 0) {
       params.set("hashtags", SHARE_HASHTAGS.join(","));
     }
-    return "https://twitter.com/intent/tweet?" + params.toString();
+    return "https://x.com/intent/post?" + params.toString();
   }
 
   /**
