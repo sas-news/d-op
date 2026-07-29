@@ -15,7 +15,7 @@
   "use strict";
 
   const SHARE_TEXT = "d-OP | dアニメストアでOPだけ再生する拡張機能";
-  const SHARE_HASHTAGS = ["d-OP"];
+  const SHARE_HASHTAGS = [];
   const SHARE_URL = "https://d-op.sasnews.dev/";
 
   /**
