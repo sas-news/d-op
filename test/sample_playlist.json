@@ -1,0 +1,41 @@
+[
+  {
+    "id": "sample_pl_001",
+    "name": "お気に入りOP集",
+    "items": [
+      {
+        "id": "sample_item_001",
+        "partId": "sample",
+        "workId": "sample",
+        "title": "作品A",
+        "episodeTitle": "第1話",
+        "url": "https://animestore.docomo.ne.jp/animestore/sc_d_pc?partId=sample",
+        "range": { "start": 90000, "end": 180000, "name": "OP" }
+      },
+      {
+        "id": "sample_item_002",
+        "partId": "sample",
+        "workId": "sample",
+        "title": "作品B",
+        "episodeTitle": "第3話",
+        "url": "https://animestore.docomo.ne.jp/animestore/sc_d_pc?partId=sample",
+        "range": { "start": 60000, "end": 150000, "name": "OP" }
+      }
+    ]
+  },
+  {
+    "id": "sample_pl_002",
+    "name": "EDコレクション",
+    "items": [
+      {
+        "id": "sample_item_003",
+        "partId": "sample",
+        "workId": "sample",
+        "title": "作品A",
+        "episodeTitle": "第1話",
+        "url": "https://animestore.docomo.ne.jp/animestore/sc_d_pc?partId=sample",
+        "range": { "start": 1320000, "end": 1410000, "name": "ED" }
+      }
+    ]
+  }
+]

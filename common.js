@@ -17,7 +17,7 @@ const DOP_SEEK_COOLDOWN_PLAYBACK_MS = 5000;     // seek cooldown after playlist 
 const DOP_SEEK_COOLDOWN_SEEKING_MS = 1000;      // seek cooldown after user seeking
 const DOP_SEEK_COOLDOWN_SEEKED_MS = 800;        // seek cooldown after seek completes
 const DOP_STARTUP_LOCK_ITEM_MS = 800;           // startup lock after playItemInCurrentVideo
-const DOP_STARTUP_LOCK_PLAYBACK_MS = 1500;      // startup lock after fresh playback start
+const DOP_STARTUP_LOCK_PLAYBACK_MS = 8000;      // startup lock after fresh playback start
 const DOP_ENFORCE_MIN_GAP_MS = 200;             // minimum gap between enforce actions
 const DOP_SEEK_READY_POLL_MS = 100;             // seekToStartWhenReady polling interval
 const DOP_SEEK_READY_DEADLINE_MS = 3000;        // seekToStartWhenReady deadline
@@ -292,7 +292,13 @@ async function dopSetPlayback(playback) {
     await browser.storage.local.remove(DOP_PLAYBACK_KEY);
     return;
   }
-  playback.windowId = await dopGetWindowId();
+  // Preserve existing windowId to prevent popup/options from overwriting player's windowId
+  const existing = await dopGetPlayback();
+  if (existing && existing.windowId) {
+    playback.windowId = existing.windowId;
+  } else {
+    playback.windowId = await dopGetWindowId();
+  }
   await browser.storage.local.set({ [DOP_PLAYBACK_KEY]: playback });
 }
 

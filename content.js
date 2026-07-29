@@ -18,6 +18,7 @@
   let customSelecting = false;
   let seekCooldownUntil = 0;
   let startupLockUntil = 0;
+  let seekingStart = false;
   let lastPrevClickTime = 0;
   let panelHideTimer = null;
   let currentSeekRanges = [];
@@ -27,6 +28,7 @@
   let sameVideoItems = [];
   let playlistRangeNames = {};
   let addButtonCreating = false;
+  let advancingPlayback = false;
 
   function getPlayerPageInfo() {
     const backInfo = document.getElementById('backInfo');
@@ -142,6 +144,7 @@
     targetRanges = [];
     sameVideoItems = [];
     seekCooldownUntil = 0;
+    seekingStart = false;
     lastActionTime = 0;
     startupLockUntil = 0;
     const cleanup = currentSessionId
@@ -178,18 +181,43 @@
       if (onReady) onReady();
       return;
     }
-    // Video already loaded — seek immediately
-    if (video.readyState >= 1 && video.duration) {
+
+    let retries = 0;
+
+    const doSeek = function () {
       seek(startSec);
-      if (onReady) setTimeout(onReady, DOP_SEEK_READY_POLL_MS);
+      retries++;
+
+      const onSeeked = function () {
+        if (Math.abs(video.currentTime - startSec) < 0.5) {
+          video.removeEventListener('seeked', onSeeked);
+          clearTimeout(fallback);
+          if (onReady) onReady();
+        } else if (retries < 3) {
+          video.removeEventListener('seeked', onSeeked);
+          clearTimeout(fallback);
+          doSeek();
+        } else {
+          video.removeEventListener('seeked', onSeeked);
+          clearTimeout(fallback);
+          if (onReady) onReady();
+        }
+      };
+      video.addEventListener('seeked', onSeeked);
+      const fallback = setTimeout(function () {
+        video.removeEventListener('seeked', onSeeked);
+        if (onReady) onReady();
+      }, DOP_SEEK_READY_DEADLINE_MS);
+    };
+
+    if (video.readyState >= 1 && video.duration) {
+      doSeek();
       return;
     }
-    // Wait for loadedmetadata (fires ~300ms after navigation, duration guaranteed)
     const onMeta = function () {
       video.removeEventListener('loadedmetadata', onMeta);
       clearTimeout(fallback);
-      seek(startSec);
-      if (onReady) setTimeout(onReady, DOP_SEEK_READY_POLL_MS);
+      doSeek();
     };
     const fallback = setTimeout(function () {
       video.removeEventListener('loadedmetadata', onMeta);
@@ -217,6 +245,7 @@
       .filter(({ item: it }) => it.partId === currentPartId && it.range);
 
     seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_PLAYBACK_MS;
+    seekingStart = true;
     lastActionTime = 0;
     log('startPlayback', { playlist: playlist.name, index: realIndex, type: item.range.type });
 
@@ -254,29 +283,35 @@
 
   async function advancePlayback(direction) {
     if (!currentPlayback) return false;
-    const playlists = await dopGetPlaylists();
-    const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
-    if (!playlist) {
-      await clearPlaylistState();
-      return false;
-    }
-    const shuffled = currentPlayback.shuffledIndices;
-    const maxCount = shuffled ? shuffled.length : playlist.items.length;
-    const newShufflePos = currentPlayback.index + direction;
-    if (newShufflePos < 0 || newShufflePos >= maxCount) {
-      if (newShufflePos >= maxCount) {
-        if (!currentPlayback._endPopupShown) {
-          currentPlayback._endPopupShown = true;
-          showEndOfPlaylistPopup(playlist);
-        }
-      } else {
-        pause();
+    if (advancingPlayback) return false;
+    advancingPlayback = true;
+    try {
+      const playlists = await dopGetPlaylists();
+      const playlist = playlists.find((p) => p.id === currentPlayback.playlistId);
+      if (!playlist) {
+        await clearPlaylistState();
+        return false;
       }
-      return false;
+      const shuffled = currentPlayback.shuffledIndices;
+      const maxCount = shuffled ? shuffled.length : playlist.items.length;
+      const newShufflePos = currentPlayback.index + direction;
+      if (newShufflePos < 0 || newShufflePos >= maxCount) {
+        if (newShufflePos >= maxCount) {
+          if (!currentPlayback._endPopupShown) {
+            currentPlayback._endPopupShown = true;
+            showEndOfPlaylistPopup(playlist);
+          }
+        } else {
+          pause();
+        }
+        return false;
+      }
+      const realIndex = shuffled ? shuffled[newShufflePos] : newShufflePos;
+      await playPlaylistIndex(playlist, realIndex);
+      return true;
+    } finally {
+      advancingPlayback = false;
     }
-    const realIndex = shuffled ? shuffled[newShufflePos] : newShufflePos;
-    await playPlaylistIndex(playlist, realIndex);
-    return true;
   }
 
   async function goToPlaylistItem(playlistId, realIndex, item, storedShuffledIndices) {
@@ -437,6 +472,7 @@
     const duration = video.duration || Infinity;
 
     if (insideRange(t)) {
+      seekingStart = false;
       if (currentPlayback && currentPlayback._endPopupShown) {
         currentPlayback._endPopupShown = false;
       }
@@ -459,6 +495,7 @@
     if (t > lastEnd || video.ended) {
       if (currentPlayback) {
         if (trySwitchToOtherRange(t)) return;
+        if (seekingStart) { seek(firstStart); return; }
         pause();
         advancePlayback(1);
       } else if (currentMode === 'op-ed') {
@@ -495,6 +532,12 @@
       if (newPos >= 0) {
         currentPlayback.index = newPos;
         seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_PLAYBACK_MS;
+        dopSetPlayback({
+          playlistId: currentPlayback.playlistId,
+          index: currentPlayback.index,
+          shuffledIndices: si,
+          updatedAt: Date.now()
+        });
       }
       updatePlaylistUI();
       updateSeekMarkers();
@@ -505,21 +548,15 @@
 
   function onTimeUpdate() {
     enforceRanges();
-
-    const video = getVideo();
-    if (video && Date.now() < startupLockUntil && targetRanges.length > 0) {
-      const start = seconds(targetRanges[0].start);
-      if (Math.abs(video.currentTime - start) > 1.0) {
-        seek(start);
-      }
-    }
   }
 
   function onSeeking() {
+    if (Date.now() < startupLockUntil) return;
     seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_SEEKING_MS;
   }
 
   function onSeeked() {
+    if (Date.now() < startupLockUntil) return;
     seekCooldownUntil = Date.now() + DOP_SEEK_COOLDOWN_SEEKED_MS;
   }
 
@@ -1090,6 +1127,9 @@
       };
       document.addEventListener('keydown', onKey);
       document.body.appendChild(modal);
+
+      const primaryBtn = footer.querySelector('button.primary');
+      if (primaryBtn) primaryBtn.focus();
 
       if (onReady) onReady();
     });

@@ -458,6 +458,7 @@
         if (e.key === 'Escape') { dismiss(false); document.removeEventListener('keydown', onKey); }
       });
       document.body.appendChild(modal);
+      confirmBtn.focus();
     });
   }
 
@@ -520,6 +521,7 @@
         if (e.key === 'Escape') { modal.remove(); resolve(null); document.removeEventListener('keydown', onKey); }
       });
       document.body.appendChild(modal);
+      mergeBtn.focus();
     });
   }
 
@@ -579,7 +581,131 @@
           resolve(null);
         }
       });
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape') {
+          modal.remove();
+          resolve(null);
+          document.removeEventListener('keydown', onKey);
+        }
+      });
       document.body.appendChild(modal);
+      cancelBtn.focus();
+    });
+  }
+
+  function findNameConflicts(existing, imported) {
+    const existingNames = new Set(existing.map((p) => p.name));
+    return imported.filter((p) => existingNames.has(p.name));
+  }
+
+  function mergePlaylists(existing, imported, mergeNames) {
+    const mergeNameSet = new Set(mergeNames);
+    const result = [...existing];
+    let skipped = 0;
+
+    imported.forEach((imp) => {
+      const sameName = result.find((m) => m.name === imp.name);
+      if (sameName && mergeNameSet.has(imp.name)) {
+        const existingKeys = new Set();
+        sameName.items.forEach((item) => {
+          existingKeys.add(item.id);
+          if (item.partId && item.range) {
+            existingKeys.add(`${item.partId}|${item.range.start}|${item.range.end}`);
+          }
+        });
+        imp.items.forEach((item) => {
+          if (existingKeys.has(item.id)) {
+            skipped++;
+            return;
+          }
+          const contentKey = item.partId && item.range
+            ? `${item.partId}|${item.range.start}|${item.range.end}`
+            : null;
+          if (contentKey && existingKeys.has(contentKey)) {
+            skipped++;
+            return;
+          }
+          sameName.items.push(item);
+          if (item.id) existingKeys.add(item.id);
+          if (contentKey) existingKeys.add(contentKey);
+        });
+      } else {
+        result.push({ ...imp });
+      }
+    });
+
+    return { playlists: result, skipped };
+  }
+
+  function dedupeNames(imported, existing) {
+    const existingNames = new Set(existing.map((p) => p.name));
+    return imported.map((p) => {
+      if (!existingNames.has(p.name)) return p;
+      let n = 2;
+      let candidate;
+      do { candidate = `${p.name} (${n++})`; } while (existingNames.has(candidate));
+      existingNames.add(candidate);
+      return { ...p, name: candidate, id: dopGenerateId() };
+    });
+  }
+
+  function showMergeNameChoice(conflicts) {
+    return new Promise((resolve) => {
+      let modal = document.getElementById('d-op-mergename-modal');
+      if (modal) modal.remove();
+
+      modal = document.createElement('div');
+      modal.id = 'd-op-mergename-modal';
+      modal.className = 'd-op-modal';
+
+      const panel = document.createElement('div');
+      panel.className = 'd-op-modal-panel';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = '同名のプレイリスト';
+      panel.appendChild(h3);
+
+      const msg = document.createElement('p');
+      const names = conflicts.map((c) => `「${c.name}」（${c.items.length}件）`).join('、');
+      msg.textContent = `既存の${names}と統合しますか？`;
+      panel.appendChild(msg);
+
+      const footer = document.createElement('div');
+      footer.className = 'd-op-modal-footer';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'キャンセル';
+      cancelBtn.className = 'btn-text';
+      cancelBtn.addEventListener('click', () => { modal.remove(); resolve(null); });
+
+      const separateBtn = document.createElement('button');
+      separateBtn.textContent = '別名で追加';
+      separateBtn.className = 'btn-text';
+      separateBtn.addEventListener('click', () => { modal.remove(); resolve('separate'); });
+
+      const mergeBtn = document.createElement('button');
+      mergeBtn.textContent = 'マージ（重複スキップ）';
+      mergeBtn.style.background = 'var(--dop-accent)';
+      mergeBtn.style.color = '#fff';
+      mergeBtn.style.border = 'none';
+      mergeBtn.style.padding = 'var(--dop-space-4) var(--dop-space-6)';
+      mergeBtn.style.borderRadius = 'var(--dop-radius-sm)';
+      mergeBtn.style.cursor = 'pointer';
+      mergeBtn.style.fontWeight = '600';
+      mergeBtn.addEventListener('click', () => { modal.remove(); resolve('merge'); });
+
+      footer.appendChild(cancelBtn);
+      footer.appendChild(separateBtn);
+      footer.appendChild(mergeBtn);
+      panel.appendChild(footer);
+      modal.appendChild(panel);
+
+      modal.addEventListener('click', (e) => { if (e.target === modal) { modal.remove(); resolve(null); } });
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape') { modal.remove(); resolve(null); document.removeEventListener('keydown', onKey); }
+      });
+      document.body.appendChild(modal);
+      mergeBtn.focus();
     });
   }
 
@@ -587,12 +713,12 @@
     const playlists = await dopGetPlaylists();
     const playlist = playlists.find((p) => p.id === playlistId);
     if (!playlist || playlist.items.length === 0) {
-      showStatus('プレイリストが空です。');
+      showPlaybackError('プレイリストが空です。');
       return;
     }
     const item = playlist.items[index];
     if (!item || !item.range) {
-      showStatus('選択したアイテムに範囲が設定されていません。');
+      showPlaybackError('選択したアイテムに範囲が設定されていません。');
       return;
     }
     await dopSetPlayback({ playlistId, index, updatedAt: Date.now() });
@@ -601,6 +727,53 @@
     url.searchParams.set('dopPlaylistId', playlistId);
     url.searchParams.set('dopIndex', String(index));
     browser.runtime.sendMessage({ type: 'REQUEST_PLAYER', url: url.toString() });
+  }
+
+  function showPlaybackError(message) {
+    let modal = document.getElementById('d-op-playback-error-modal');
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = 'd-op-playback-error-modal';
+    modal.className = 'd-op-modal';
+
+    const panel = document.createElement('div');
+    panel.className = 'd-op-modal-panel';
+    panel.style.minWidth = '280px';
+
+    const msg = document.createElement('p');
+    msg.textContent = message;
+    msg.style.marginBottom = '0';
+    panel.appendChild(msg);
+
+    const footer = document.createElement('div');
+    footer.className = 'd-op-modal-footer';
+    const okBtn = document.createElement('button');
+    okBtn.textContent = 'OK';
+    okBtn.style.background = 'var(--dop-accent)';
+    okBtn.style.color = '#fff';
+    okBtn.style.border = 'none';
+    okBtn.style.padding = 'var(--dop-space-4) var(--dop-space-6)';
+    okBtn.style.borderRadius = 'var(--dop-radius-sm)';
+    okBtn.style.cursor = 'pointer';
+    okBtn.style.fontWeight = '600';
+    okBtn.addEventListener('click', () => modal.remove());
+    footer.appendChild(okBtn);
+    panel.appendChild(footer);
+    modal.appendChild(panel);
+
+    function dismiss() {
+      modal.remove();
+      document.removeEventListener('keydown', onKey);
+    }
+    modal.addEventListener('click', (e) => { if (e.target === modal) dismiss(); });
+    function onKey(e) {
+      if (e.key === 'Escape') dismiss();
+      if (e.key === 'Enter') dismiss();
+    }
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(modal);
+    okBtn.focus();
   }
 
   function parseTimeInput(str) {
@@ -633,9 +806,16 @@
     renderPlaylists();
   });
 
+  newNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      createBtn.click();
+    }
+  });
+
   exportBtn.className = 'btn-secondary';
   exportBtn.addEventListener('click', async () => {
-    const playlists = await dopGetPlaylists();
+    const playlists = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
     const blob = new Blob([JSON.stringify(playlists, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -653,45 +833,57 @@
       const text = await file.text();
       const data = JSON.parse(text);
       if (!Array.isArray(data)) throw new Error('invalid format');
-      const cleaned = data.map((p) => ({
-        id: p.id || dopGenerateId(),
-        name: p.name || 'imported',
-        items: Array.isArray(p.items) ? p.items.map((i) => ({
-          id: i.id || dopGenerateId(),
-          partId: i.partId || '',
-          workId: i.workId || '',
-          title: i.title || '',
-          episodeTitle: i.episodeTitle || '',
-          url: i.url || '',
-          range: i.range ? { ...i.range } : null
-        })) : []
-      }));
+      const cleaned = data
+        .filter((p) => !isSystemPlaylist(p))
+        .map((p) => ({
+          id: p.id || dopGenerateId(),
+          name: p.name || 'imported',
+          items: Array.isArray(p.items) ? p.items.map((i) => ({
+            id: i.id || dopGenerateId(),
+            partId: i.partId || '',
+            workId: i.workId || '',
+            title: i.title || '',
+            episodeTitle: i.episodeTitle || '',
+            url: i.url || '',
+            range: i.range ? { ...i.range } : null
+          })) : []
+        }));
 
       const existing = (await dopGetPlaylists()).filter((p) => !isSystemPlaylist(p));
       if (existing.length > 0) {
         const choice = await showImportChoice();
-        if (choice === 'merge') {
-          const merged = [...existing];
-          cleaned.forEach((p) => {
-            const dup = merged.find((m) => m.name === p.name);
-            if (dup) {
-              dup.items.push(...p.items);
-            } else {
-              merged.push(p);
-            }
-          });
-          await dopSavePlaylists(merged);
-        } else if (choice === 'replace') {
+        if (choice === 'replace') {
           await dopSavePlaylists(cleaned);
+          renderPlaylists();
+          showStatus('インポートしました（上書き）。');
+        } else if (choice === 'merge') {
+          const conflicts = findNameConflicts(existing, cleaned);
+          let mergeMode = 'merge';
+          if (conflicts.length > 0) {
+            mergeMode = await showMergeNameChoice(conflicts);
+            if (!mergeMode) { renderPlaylists(); e.target.value = ''; return; }
+          }
+          let toImport = cleaned;
+          if (mergeMode === 'separate') {
+            toImport = dedupeNames(cleaned, existing);
+          }
+          const mergeNames = mergeMode === 'merge' ? conflicts.map((c) => c.name) : [];
+          const { playlists: merged, skipped } = mergePlaylists(existing, toImport, mergeNames);
+          await dopSavePlaylists(merged);
+          renderPlaylists();
+          const imported = cleaned.reduce((s, p) => s + p.items.length, 0);
+          const added = imported - skipped;
+          showStatus(`インポート: ${added}件追加${skipped > 0 ? `（${skipped}件の重複をスキップ）` : ''}`);
         } else {
           e.target.value = '';
           return;
         }
       } else {
         await dopSavePlaylists(cleaned);
+        renderPlaylists();
+        const total = cleaned.reduce((s, p) => s + p.items.length, 0);
+        showStatus(`インポート: ${total}件追加`);
       }
-      renderPlaylists();
-      showStatus('インポートしました。');
     } catch (err) {
       showStatus('インポートに失敗しました: ' + err.message, 'error');
     }
