@@ -1,0 +1,10 @@
+node_modules
+.DS_Store
+.env
+out
+render.log
+render.err
+
+# Keep the final rendered video in the repo
+!dist/promo.mp4
+
