@@ -1,122 +1,21 @@
-name: Release
+name: Release (frozen by task 5)
 
+# Task 5 freeze: ordinary main pushes must not delete/recreate tags, create
+# releases, sign binaries, publish stores, or deploy production. The legacy
+# packaging flow below is disabled until task 25 defines the v2 release
+# procedure (immutable tags, AMO source ZIP, store publishing checklist).
+# This workflow runs only on manual dispatch and always stops loudly.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  frozen:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      # Task 2 guard (full release gate is task 5/25): the v2 workspace exists
-      # but is incomplete, so an ordinary main push must not delete/recreate
-      # tags or publish store artifacts. Remove this step only when the v2
-      # release workflow explicitly approves store publication.
-      - name: Block incomplete v2 auto-release
+      - name: Refuse release while v2 procedure is undefined
         run: |
-          if [ -d "apps/extension" ] && [ ! -f ".omo/v2-store-release-approved" ]; then
-            echo "::error::v2 workspace present without store-release approval marker; refusing to publish."
-            exit 1
-          fi
-
-      - name: Read version from manifest
-        id: version
-        run: |
-          VERSION=$(grep '"version"' manifest.json | head -1 | sed 's/.*"version"\s*:\s*"\([^"]*\)".*/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      # --- Chrome package (uses manifest.json with service_worker) ---
-      - name: Create Chrome ZIP package
-        run: |
-          zip -r "d-op-v${{ steps.version.outputs.version }}-chrome.zip" \
-            manifest.json \
-            background.js \
-            browser-polyfill.js \
-            common.js \
-            content.js \
-            content-store.js \
-            injected.js \
-            popup.html \
-            popup.css \
-            popup.js \
-            options.html \
-            options.css \
-            options.js \
-            styles.css \
-            styles-store.css \
-            icons/ \
-            PRIVACY.md \
-            README.md
-
-      # --- Firefox package (uses manifest.firefox.json → manifest.json) ---
-      - name: Create Firefox XPI package
-        run: |
-          mkdir -p firefox-build/icons
-          cp manifest.firefox.json firefox-build/manifest.json
-          cp background.js browser-polyfill.js common.js content.js content-store.js injected.js firefox-build/
-          cp popup.html popup.css popup.js options.html options.css options.js firefox-build/
-          cp styles.css styles-store.css firefox-build/
-          cp PRIVACY.md README.md firefox-build/
-          cp -r icons/* firefox-build/icons/
-          cd firefox-build
-          zip -r "../d-op-v${{ steps.version.outputs.version }}-firefox.zip" .
-          zip -r "../d-op-v${{ steps.version.outputs.version }}-firefox.xpi" .
-          cd ..
-          rm -rf firefox-build
-
-      - name: Create CRX package (if key available)
-        if: env.CRX_PRIVATE_KEY != ''
-        env:
-          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
-        run: |
-          echo "$CRX_PRIVATE_KEY" > key.pem
-          npx crx3 pack \
-            --keyPath key.pem \
-            --zipPath "d-op-v${{ steps.version.outputs.version }}-chrome.zip" \
-            -o "d-op-v${{ steps.version.outputs.version }}-chrome.crx"
-          rm key.pem
-
-      - name: Delete existing tag/release if exists
-        continue-on-error: true
-        run: |
-          git push origin :refs/tags/v${{ steps.version.outputs.version }} 2>/dev/null || true
-          gh release delete "v${{ steps.version.outputs.version }}" --yes 2>/dev/null || true
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
-          draft: true
-          generate_release_notes: true
-          body: |
-            ## Summary
-            <!-- 1-3行で今回の目的を書く -->
-
-            ## Changes
-            - 
-
-            ## Verification
-            - [ ] 動作確認済み
-
-            ## Notes
-            - `d-op-v*-chrome.zip` — Chrome 手動インストール / CWS アップロード用
-            - `d-op-v*-chrome.crx` — Chrome CRX パッケージ（署名キーがある場合のみ）
-            - `d-op-v*-firefox.zip` — Firefox 手動インストール / ソース確認用
-            - `d-op-v*-firefox.xpi` — Firefox AMO アップロード用
-          files: |
-            d-op-v${{ steps.version.outputs.version }}-chrome.zip
-            d-op-v${{ steps.version.outputs.version }}-chrome.crx
-            d-op-v${{ steps.version.outputs.version }}-firefox.zip
-            d-op-v${{ steps.version.outputs.version }}-firefox.xpi
-          fail_on_unmatched_files: false
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          echo "::error::v2 release is frozen (task 5). Task 25 owns the release workflow; no tags, artifacts, signing, publishing, or deployment may run from here."
+          exit 1

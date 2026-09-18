@@ -46,6 +46,8 @@
       "!**/options.js",
       "!**/test",
       "!**/.omo",
+      "!**/test-results",
+      "!**/playwright-report",
       "!**/manifest.json",
       "!**/manifest.firefox.json",
       "!**/worker-configuration.d.ts",
@@ -57,6 +59,7 @@
     {
       "includes": [
         "**/vitest.*.config.ts",
+        "**/playwright.config.ts",
         "**/wxt.config.ts",
         "**/astro.config.mjs",
         "**/apps/extension/entrypoints/**",

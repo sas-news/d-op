@@ -11,3 +11,5 @@ apps/web/dist/
 apps/web/.astro/
 apps/web/.wrangler/
 .dev.vars
+test-results/
+playwright-report/

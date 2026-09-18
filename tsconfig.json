@@ -6,7 +6,12 @@
     "apps/web/src",
     "apps/web/tests",
     "apps/web/vitest.worker.config.ts",
-    "vitest.unit.config.ts"
+    "vitest.unit.config.ts",
+    "playwright.config.ts",
+    "tests/e2e/harness.spec.ts"
   ],
-  "exclude": ["**/node_modules", "**/dist", "**/.output", "**/.wxt", "**/.astro"]
+  "exclude": ["**/node_modules", "**/dist", "**/.output", "**/.wxt", "**/.astro"],
+  "compilerOptions": {
+    "types": ["node", "@cloudflare/vitest-plugin/types"]
+  }
 }
