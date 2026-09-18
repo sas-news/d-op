@@ -1,0 +1,47 @@
+---
+import Button from "../../components/Button.astro"
+import Card from "../../components/Card.astro"
+import DialogShell from "../../components/DialogShell.astro"
+import Notice from "../../components/Notice.astro"
+import ShellLayout from "../../layouts/ShellLayout.astro"
+
+const longTitle =
+  "静かな夜の向こう側で見つけた、何度でも再生したくなる長いタイトルのサンプル作品です"
+const longDescription = "再生範囲の説明を読みやすく保つためのサンプル文章です。"
+  .repeat(100)
+  .slice(0, 2000)
+---
+
+<ShellLayout title="状態のサンプル | d-OP Share" description="Webシェルの読み込み状態サンプル。">
+  <section class="section" aria-labelledby="fixture-title">
+    <p class="eyebrow">FOUNDATION STATES</p>
+    <h1 id="fixture-title">状態のサンプル</h1>
+    <p class="lead">実データを使わず、読み込み・空・エラー・未登録・操作不可の表示を確認できます。</p>
+  </section>
+
+  <section class="section fixture-stack" aria-labelledby="status-title">
+    <h2 id="status-title">通知と操作</h2>
+    <Notice title="読み込み中" testId="fixture-loading">データを準備しています。</Notice>
+    <Notice title="まだありません" testId="fixture-empty">ここに表示するプレイリストはありません。</Notice>
+    <Notice title="読み込めませんでした" tone="error" testId="fixture-error">時間をおいて、もう一度お試しください。</Notice>
+    <DialogShell
+      title="未登録の範囲"
+      description="この状態では操作を実行できません。"
+      testId="fixture-dialog"
+    >
+      <p data-testid="fixture-missing">この範囲は未登録です。成功したように見せる代替表示は行いません。</p>
+      <div class="button-row">
+        <Button disabled testId="fixture-disabled-action">再生する</Button>
+      </div>
+    </DialogShell>
+  </section>
+
+  <section class="section fixture-stack" aria-labelledby="long-content-title">
+    <h2 id="long-content-title">長い日本語コンテンツ</h2>
+    <Card heading="タイトルの折り返し">
+      <p class="fixture-copy" data-testid="fixture-long-title">{longTitle}</p>
+      <p class="fixture-copy" data-testid="fixture-long-description">{longDescription}</p>
+      <p class="fixture-copy"><code>&lt;script&gt;alert(&quot;inert&quot;)&lt;/script&gt;</code> は実行せず、文字列として扱います。</p>
+    </Card>
+  </section>
+</ShellLayout>
