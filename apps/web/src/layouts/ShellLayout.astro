@@ -1,0 +1,43 @@
+---
+import "../styles/tokens.css"
+
+interface Props {
+  title: string
+  description: string
+}
+
+const { title, description } = Astro.props
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0a0a0c" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content" data-testid="skip-link">メインコンテンツへスキップ</a>
+    <header class="site-header" data-testid="site-header">
+      <a class="brand" href="/" aria-label="d-OP ホーム">
+        <span class="brand-mark" aria-hidden="true">d</span>
+        <span class="brand-copy"><span class="brand-name">d-OP</span><span class="brand-version">v1.0.0</span></span>
+      </a>
+      <nav class="site-nav" aria-label="サイト内メニュー">
+        <a href="/#gallery">できること</a>
+        <a href="/#download">ダウンロード</a>
+        <a href="/#privacy">プライバシー</a>
+      </nav>
+    </header>
+    <main id="main-content" class="page-wrap" data-testid="site-main">
+      <slot />
+    </main>
+    <footer class="site-footer" data-testid="site-footer">
+      <span>© 2026 sasnews</span>
+      <span>d-OP は dアニメストアの非公式拡張機能です。</span>
+    </footer>
+  </body>
+</html>
