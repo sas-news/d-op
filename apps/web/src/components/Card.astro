@@ -1,0 +1,12 @@
+---
+interface Props {
+  heading: string
+}
+
+const { heading } = Astro.props
+---
+
+<article class="card">
+  <h3>{heading}</h3>
+  <slot />
+</article>
