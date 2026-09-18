@@ -1,0 +1,24 @@
+{
+  "name": "@d-op/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "d-OP v2 share web (Astro + Cloudflare Workers/D1 skeleton, task 2).",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "check": "astro check && wrangler types"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "14.3.2",
+    "astro": "7.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@cloudflare/vitest-plugin": "1.1.12",
+    "@cloudflare/workers-types": "5.20260918.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.134.0"
+  }
+}

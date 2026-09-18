@@ -14,6 +14,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Task 2 guard (full release gate is task 5/25): the v2 workspace exists
+      # but is incomplete, so an ordinary main push must not delete/recreate
+      # tags or publish store artifacts. Remove this step only when the v2
+      # release workflow explicitly approves store publication.
+      - name: Block incomplete v2 auto-release
+        run: |
+          if [ -d "apps/extension" ] && [ ! -f ".omo/v2-store-release-approved" ]; then
+            echo "::error::v2 workspace present without store-release approval marker; refusing to publish."
+            exit 1
+          fi
+
       - name: Read version from manifest
         id: version
         run: |

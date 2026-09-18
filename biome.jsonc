@@ -1,0 +1,68 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConfusingVoidType": "error",
+        "noFallthroughSwitchClause": "error"
+      },
+      "style": {
+        "noDefaultExport": "error",
+        "useImportType": "error",
+        "noNonNullAssertion": "error",
+        "noParameterAssign": "error"
+      },
+      "correctness": { "noUnusedVariables": "error", "noUnusedImports": "error" },
+      "complexity": { "noBannedTypes": "error" }
+    }
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "javascript": { "formatter": { "quoteStyle": "double", "semicolons": "asNeeded" } },
+  "css": { "linter": { "enabled": false }, "formatter": { "enabled": false } },
+  "html": { "linter": { "enabled": false }, "formatter": { "enabled": false } },
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/coverage",
+      "!**/.output",
+      "!**/.wxt",
+      "!**/.astro",
+      "!**/.wrangler",
+      "!**/bun.lock",
+      "!**/background.js",
+      "!**/browser-polyfill.js",
+      "!**/common.js",
+      "!**/content.js",
+      "!**/content-store.js",
+      "!**/injected.js",
+      "!**/popup.js",
+      "!**/options.js",
+      "!**/test",
+      "!**/.omo",
+      "!**/manifest.json",
+      "!**/manifest.firefox.json",
+      "!**/worker-configuration.d.ts",
+      "!**/*.css",
+      "!**/*.html"
+    ]
+  },
+  "overrides": [
+    {
+      "includes": [
+        "**/vitest.*.config.ts",
+        "**/wxt.config.ts",
+        "**/astro.config.mjs",
+        "**/apps/extension/entrypoints/**",
+        "**/apps/web/src/pages/**"
+      ],
+      "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
+    }
+  ]
+}

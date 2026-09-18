@@ -2,3 +2,12 @@ memo/
 *.crx
 *.zip
 *.pem
+
+# Task 2 Bun workspace (legacy root runtime stays loadable; see docs/decisions/001-toolchain.md)
+node_modules/
+apps/extension/.output/
+apps/extension/.wxt/
+apps/web/dist/
+apps/web/.astro/
+apps/web/.wrangler/
+.dev.vars

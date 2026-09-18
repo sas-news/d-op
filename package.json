@@ -1,0 +1,34 @@
+{
+  "name": "d-op-v2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "d-OP v2 Bun workspace (extension + share web + shared). Legacy loadable root extension is untouched; see docs/decisions/001-toolchain.md.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:extension": "cd apps/extension && bunx wxt dev --browser chrome",
+    "dev:extension:firefox": "cd apps/extension && bunx wxt dev --browser firefox",
+    "dev:web": "cd apps/web && bunx astro dev",
+    "build": "cd apps/extension && bunx wxt build --browser chrome && bunx wxt build --browser firefox && cd ../web && bunx astro build",
+    "test": "bun run test:unit && bun run test:worker",
+    "test:unit": "bunx vitest run --config vitest.unit.config.ts",
+    "test:worker": "bunx vitest run --config apps/web/vitest.worker.config.ts",
+    "test:e2e": "bun -e \"console.error('task-5 owns test:e2e (Playwright harness): not implemented');process.exit(1)\"",
+    "test:browser:firefox": "bun -e \"console.error('task-5/task-23 own test:browser:firefox (native harness): not implemented');process.exit(1)\"",
+    "typecheck": "bunx tsc --noEmit -p tsconfig.json && cd apps/extension && bunx wxt prepare && bunx tsc --noEmit -p tsconfig.json && cd ../web && bun run check",
+    "lint": "bunx biome check .",
+    "verify:artifacts": "bun -e \"console.error('task-25 owns verify:artifacts (packaging checker): not implemented');process.exit(1)\"",
+    "verify:upgrade": "bun -e \"console.error('task-26 owns verify:upgrade (migration rehearsal): not implemented');process.exit(1)\"",
+    "verify:staging": "bun -e \"console.error('task-28 owns verify:staging (remote staging proof): not implemented');process.exit(1)\"",
+    "verify:cutover": "bun -e \"console.error('task-29 owns verify:cutover (production cutover proof): not implemented');process.exit(1)\""
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "26.6.1",
+    "jsdom": "30.1.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

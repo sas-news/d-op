@@ -1,0 +1,13 @@
+{
+  "name": "@d-op/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "d-OP v2 shared contracts. Domain schemas land in task 3; task 2 reserves the entrypoint.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  }
+}
