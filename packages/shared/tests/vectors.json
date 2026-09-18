@@ -1,0 +1,4 @@
+{
+  "minimalCanonical": "{\"author\":\"\",\"description\":\"\",\"items\":[{\"episodeTitle\":\"第1話\",\"partId\":\"pt_base\",\"range\":{\"end\":90000,\"name\":\"OP\",\"start\":0},\"title\":\"作品A\"}],\"schemaVersion\":1,\"tags\":[],\"title\":\"共有リスト\",\"visibility\":\"public\"}",
+  "note": "Hand-authored from the canonical spec (alphabetical keys, absent optionals omitted, tags sorted, item order kept). Runtimes hash these exact bytes; digests must agree. See .omo/evidence/task-3-d-op-v2-share/vectors.md."
+}
