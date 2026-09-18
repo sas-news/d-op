@@ -1,0 +1,21 @@
+---
+import Button from "./Button.astro"
+
+interface Props {
+  title: string
+  message: string
+}
+
+const { title, message } = Astro.props
+---
+
+<section class="section" aria-labelledby="error-title">
+  <div class="notice notice-error" role="alert" data-testid="error-notice">
+    <p class="eyebrow">404 / NOT FOUND</p>
+    <h1 id="error-title">{title}</h1>
+    <p class="lead">{message}</p>
+    <div class="button-row">
+      <Button href="/" testId="error-home-link">ホームへ戻る</Button>
+    </div>
+  </div>
+</section>

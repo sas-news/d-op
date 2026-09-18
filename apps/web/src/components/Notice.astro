@@ -1,0 +1,14 @@
+---
+interface Props {
+  tone?: "info" | "error"
+  title: string
+  testId?: string
+}
+
+const { tone = "info", title, testId } = Astro.props
+---
+
+<div class={`notice notice-${tone}`} role={tone === "error" ? "alert" : "status"} data-testid={testId}>
+  <strong>{title}</strong>
+  <slot />
+</div>

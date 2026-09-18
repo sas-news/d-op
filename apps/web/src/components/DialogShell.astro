@@ -1,0 +1,25 @@
+---
+interface Props {
+  title: string
+  description?: string
+  modal?: boolean
+  testId?: string
+}
+
+const { title, description, modal = false, testId } = Astro.props
+const titleId = `dialog-title-${title.length}`
+const descriptionId = description ? `dialog-description-${description.length}` : undefined
+---
+
+<section
+  class="dialog-shell"
+  role="dialog"
+  aria-modal={modal ? "true" : undefined}
+  aria-labelledby={titleId}
+  aria-describedby={descriptionId}
+  data-testid={testId}
+>
+  <h2 id={titleId}>{title}</h2>
+  {description && <p id={descriptionId} class="dialog-description">{description}</p>}
+  <slot />
+</section>
