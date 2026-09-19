@@ -138,7 +138,7 @@ export function isPrivilegedSurface(surface: SenderSurface): boolean {
 }
 
 export class CapabilityLeakError extends Error {
-  readonly name = "CapabilityLeakError"
+  override readonly name = "CapabilityLeakError"
   readonly surface: SenderSurface
   readonly field: string
   constructor(surface: SenderSurface, field: string) {

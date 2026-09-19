@@ -94,7 +94,7 @@ export type UnpublishableReason = {
   readonly message: string
 }
 export class UnpublishablePlaylistError extends Error {
-  readonly name = "UnpublishablePlaylistError"
+  override readonly name = "UnpublishablePlaylistError"
   constructor(readonly reasons: readonly UnpublishableReason[]) {
     super(`playlist cannot be published: ${reasons.map((reason) => reason.message).join("; ")}`)
   }

@@ -13,13 +13,13 @@ import { OversizePayloadError } from "./share-errors"
 export { mapLegacyRangeTypeToName, repairMissingId } from "./local-legacy"
 
 export class FutureExportVersionError extends Error {
-  readonly name = "FutureExportVersionError"
+  override readonly name = "FutureExportVersionError"
   constructor(readonly version: unknown) {
     super(`unsupported export version: ${JSON.stringify(version)}`)
   }
 }
 export class MalformedExportError extends Error {
-  readonly name = "MalformedExportError"
+  override readonly name = "MalformedExportError"
   constructor(readonly path: string) {
     super(`malformed export at ${path}`)
   }
