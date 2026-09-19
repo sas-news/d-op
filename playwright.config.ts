@@ -22,12 +22,12 @@ export default defineConfig({
   projects: [
     {
       name: "web-chromium",
-      testMatch: /web-shell\.spec\.ts|harness\.spec\.ts/,
+      testMatch: /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts/,
       use: { browserName: "chromium" },
     },
     {
       name: "web-firefox",
-      testMatch: /web-shell\.spec\.ts|harness\.spec\.ts/,
+      testMatch: /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts/,
       use: { browserName: "firefox" },
     },
     {
@@ -38,7 +38,8 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "node ./tests/e2e/serve-fixture.mjs",
+      command:
+        "cd apps/extension && bunx wxt build --browser chrome && bunx wxt build --browser firefox && cd ../.. && node ./tests/e2e/serve-fixture.mjs",
       url: FIXTURE_URL,
       timeout: 30_000,
       reuseExistingServer: false,

@@ -25,5 +25,11 @@ export default defineConfig({
           },
         }
       : {}),
+    web_accessible_resources: [
+      {
+        resources: ["danime-main.js"],
+        matches: ["https://animestore.docomo.ne.jp/*", "https://anime.dmkt-sp.jp/*"],
+      },
+    ],
   }),
 })
