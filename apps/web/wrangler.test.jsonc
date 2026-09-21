@@ -1,0 +1,12 @@
+{
+  // Miniflare/vitest-pool config (task-infra): deliberately minimal — the
+  // suites inject every binding they exercise via the inline miniflare
+  // options in vitest.worker.config.ts plus per-test env overrides. In
+  // particular there is NO `assets` directory here: loading production
+  // wrangler.jsonc made workerd open ./dist, which locked the directory and
+  // broke concurrent `astro build` runs (EPERM on rmdirSync) whenever worker
+  // tests ran alongside a Playwright webServer build.
+  "name": "d-op-test",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+}

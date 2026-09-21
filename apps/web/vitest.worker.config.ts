@@ -8,6 +8,11 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   plugins: [
     cloudflareTest({
+      // Minimal test-only wrangler config: the production wrangler.jsonc's
+      // `assets: ./dist` made workerd hold a directory handle on dist, which
+      // broke concurrent `astro build` runs (EPERM on rmdirSync) whenever a
+      // Playwright webServer built the site during a worker-test session.
+      wrangler: { configPath: "./wrangler.test.jsonc" },
       miniflare: {
         compatibilityDate: "2026-09-01",
         compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
@@ -29,6 +34,7 @@ export default defineConfig({
       "tests/repository/**/*.test.ts",
       "tests/publication-api/**/*.test.ts",
       "tests/security/**/*.test.ts",
+      "tests/share-page/**/*.test.ts",
     ],
     reporters: ["default"],
     passWithNoTests: false,
