@@ -36,6 +36,7 @@ export default defineConfig({
       "tests/security/**/*.test.ts",
       "tests/share-page/**/*.test.ts",
       "tests/import-counts/**/*.test.ts",
+      "tests/discovery/**/*.test.ts",
     ],
     reporters: ["default"],
     passWithNoTests: false,

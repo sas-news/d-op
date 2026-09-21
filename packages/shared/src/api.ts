@@ -36,6 +36,7 @@ export const API_ERROR_CODES = [
   "RATE_LIMITED",
   "TRANSIENT_FAILURE",
   "METHOD_NOT_ALLOWED",
+  "CURSOR_EXPIRED",
 ] as const
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number]
 
@@ -180,3 +181,19 @@ export const ListResponseSchema = z.strictObject({
   ranking: RankingSchema,
 })
 export type ListResponse = z.infer<typeof ListResponseSchema>
+
+// --- GET collection: public tag dictionary -------------------------------------
+// Tag listing with public-only counts (task 19). Additive to the contract:
+// the fixed table defines the collection shape; this schema fixes the tag
+// dictionary payload `{tags:[{tag,count}]}` served for filter UIs.
+
+export const TagCountSchema = z.strictObject({
+  tag: z.string().min(SHARE_TAG_MIN).max(SHARE_TAG_MAX),
+  count: z.number().int().min(0),
+})
+export type TagCount = z.infer<typeof TagCountSchema>
+
+export const TagListResponseSchema = z.strictObject({
+  tags: z.array(TagCountSchema),
+})
+export type TagListResponse = z.infer<typeof TagListResponseSchema>

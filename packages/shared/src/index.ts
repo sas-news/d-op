@@ -19,6 +19,8 @@ export type {
   Ranking,
   ReplaceOperation,
   Revision,
+  TagCount,
+  TagListResponse,
 } from "./api"
 export {
   ActivateOperationSchema,
@@ -43,6 +45,8 @@ export {
   RankingSchema,
   ReplaceOperationSchema,
   RevisionSchema,
+  TagCountSchema,
+  TagListResponseSchema,
 } from "./api"
 export type {
   BackgroundRequest,

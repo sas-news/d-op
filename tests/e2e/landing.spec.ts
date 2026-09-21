@@ -87,7 +87,10 @@ test("root/privacy/explore/share navigation resolves on header and footer", asyn
   const exploreResponse = await page.goto(`${WEB_ORIGIN}/explore`)
   expect(exploreResponse?.ok()).toBe(true)
   await expect(page.locator("main h1")).toHaveText("共有プレイリストを探す")
-  await expect(page.locator("[data-testid='explore-status']")).toContainText("準備中")
+  // The explore page renders either the results list or the honest empty state.
+  await expect(
+    page.locator("[data-testid='explore-list'], [data-testid='explore-empty']").first(),
+  ).toBeVisible()
 
   // Legacy footer linked the raw /PRIVACY.md file — it must not 404.
   const legacyPrivacy = await request.get(`${WEB_ORIGIN}/PRIVACY.md`, {

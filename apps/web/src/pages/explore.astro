@@ -1,37 +1,218 @@
 ---
+import ErrorShell from "../components/ErrorShell.astro"
 import ShellLayout from "../layouts/ShellLayout.astro"
-import { SHARE_SITE_ORIGIN } from "../server/services/share-page"
+import { loadExplorePage } from "../server/services/explore-page"
+import { newRequestId } from "../server/services/respond"
 
-// /explore entry point (task 21). The real adaptive discovery page is owned
-// by a later task; until then this route renders an honest "in preparation"
-// status instead of a dead link — no fake lists, no mock playlists.
-const CANONICAL_URL = `${SHARE_SITE_ORIGIN}/explore`
+// GET /explore — the public discovery surface (task 19). Fully server-rendered
+// over the same engine the collection API uses: adaptive popular/new ranking,
+// search and tag filters, cursor pagination with honest restart states. Works
+// with JavaScript disabled; CSP `script-src 'self'` stays clean because this
+// page ships no inline script and no inline handlers at all.
+
+const result = await loadExplorePage(Astro.request, newRequestId())
+
+if (result.kind === "invalid") {
+  Astro.response.status = 400
+} else if (result.kind === "expired") {
+  Astro.response.status = 410
+} else if (result.kind === "unavailable") {
+  Astro.response.status = result.status
+  if (result.retryAfter !== null) {
+    Astro.response.headers.set("retry-after", result.retryAfter)
+  }
+}
+
+// Cursor/expired/invalid states are ephemeral per-request views — never
+// indexable. The plain first page stays indexable.
+const isPaged = Astro.url.searchParams.has("cursor")
+const noindex = result.kind !== "ready" || isPaged
+
+const TITLE = "Explore | d-OP"
+const DESCRIPTION =
+  "公開されたd-OP共有プレイリストを検索・閲覧できるページ。人気順・新着順、タグ絞り込みに対応。"
+
+const sortLink = (sort: "new" | "popular"): string => {
+  const params = new URLSearchParams(Astro.url.searchParams)
+  params.set("sort", sort)
+  params.delete("cursor")
+  return `/explore?${params.toString()}`
+}
 ---
 
-<ShellLayout title="Explore | d-OP" description="公開されたd-OPプレイリストを探すページ。現在準備中です。">
+<ShellLayout title={TITLE} description={DESCRIPTION}>
   <Fragment slot="head">
-    <link rel="canonical" href={CANONICAL_URL} />
+    <link rel="canonical" href={result.kind === "ready" ? result.view.canonicalUrl : "https://d-op.sasnews.dev/explore"} />
+    {noindex && <meta name="robots" content="noindex" />}
     <meta name="color-scheme" content="dark" />
   </Fragment>
 
-  <section class="section explore" aria-labelledby="explore-title">
-    <p class="section-eyebrow">Explore</p>
-    <h1 id="explore-title">共有プレイリストを探す</h1>
-    <p class="lead">
-      公開されたプレイリストの一覧は現在準備中です。共有URLを受け取った場合は、そのリンクからプレイリストを開いて保存できます。
-    </p>
-    <div class="notice notice-info" role="status" data-testid="explore-status">
-      <strong>準備中</strong>
-      <p>
-        公開リストの検索・人気順表示は今後提供予定です。プレイリストの作成・共有は d-OP
-        拡張機能から行えます。
+  {result.kind === "ready" ? (
+    <section class="section explore" aria-labelledby="explore-title">
+      <p class="section-eyebrow">Explore</p>
+      <h1 id="explore-title">共有プレイリストを探す</h1>
+      <p class="lead">
+        公開設定のプレイリストを検索できます。表示数は概数の保存通知数であり、利用者数ではありません。
       </p>
-    </div>
-    <div class="button-row">
-      <a class="button button-primary" href="/#download" data-testid="explore-install-link">拡張機能を入手</a>
-      <a class="button button-secondary" href="/">ホームへ戻る</a>
-    </div>
-  </section>
+
+      <nav class="explore-sorts" aria-label="並び替え" data-testid="explore-sorts">
+        <a
+          class:list={["explore-sort", { "is-active": result.view.filters.sort === "popular" }]}
+          href={sortLink("popular")}
+          data-testid="explore-sort-popular"
+          aria-current={result.view.filters.sort === "popular" ? "true" : undefined}
+        >人気順</a>
+        <a
+          class:list={["explore-sort", { "is-active": result.view.filters.sort === "new" }]}
+          href={sortLink("new")}
+          data-testid="explore-sort-new"
+          aria-current={result.view.filters.sort === "new" ? "true" : undefined}
+        >新着順</a>
+      </nav>
+
+      <form class="explore-form" method="get" action="/explore" data-testid="explore-search-form">
+        <input type="hidden" name="sort" value={result.view.filters.sort} />
+        <label class="explore-field">
+          <span class="explore-label">検索</span>
+          <input
+            type="search"
+            name="q"
+            value={result.view.filters.q ?? ""}
+            maxlength="100"
+            placeholder="タイトル・説明・作者名で検索"
+            data-testid="explore-q"
+          />
+        </label>
+        <label class="explore-field">
+          <span class="explore-label">タグ</span>
+          <input
+            type="text"
+            name="tag"
+            value={result.view.filters.tag ?? ""}
+            maxlength="24"
+            placeholder="タグで絞り込み"
+            data-testid="explore-tag"
+          />
+        </label>
+        <button type="submit" class="button button-primary" data-testid="explore-submit">
+          絞り込む
+        </button>
+      </form>
+
+      {result.view.tagChips.length > 0 && (
+        <ul class="explore-chips" aria-label="公開タグ" data-testid="explore-tag-chips">
+          {result.view.tagChips.map((chip) => (
+            <li>
+              <a
+                class:list={["explore-chip", { "is-active": chip.active }]}
+                href={chip.url}
+                data-testid="explore-tag-chip"
+              >
+                {chip.tag}
+                <span class="explore-chip-count">{chip.count}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p class="explore-basis" data-testid="explore-basis">
+        {result.view.basisLabel}
+        <span class="explore-asof">（{result.view.asOfLabel}時点）</span>
+      </p>
+
+      {result.view.fallbackLabel !== null && (
+        <div class="notice notice-info" role="status" data-testid="explore-fallback">
+          <p>{result.view.fallbackLabel}</p>
+        </div>
+      )}
+
+      {result.view.truncated && (
+        <div class="notice notice-info" role="status" data-testid="explore-truncated">
+          <p>候補が1,000件を超えたため上位のみ表示しています。検索やタグで絞り込んでください。</p>
+        </div>
+      )}
+
+      {result.view.items.length === 0 ? (
+        <div class="notice notice-info" role="status" data-testid="explore-empty">
+          <strong>該当なし</strong>
+          <p>条件に一致する公開プレイリストはありません。検索条件やタグを変えてお試しください。</p>
+        </div>
+      ) : (
+        <ol class="explore-list" data-testid="explore-list">
+          {result.view.items.map((item) => (
+            <li class="explore-item card" data-testid="explore-item">
+              <h3 class="explore-item-title">
+                <a href={item.url} data-testid="explore-item-link">{item.title}</a>
+              </h3>
+              {item.author !== "" && <p class="explore-item-author">{item.author}</p>}
+              {item.tags.length > 0 && (
+                <ul class="explore-item-tags" aria-label="タグ">
+                  {item.tags.map((tag) => <li class="explore-tag">{tag}</li>)}
+                </ul>
+              )}
+              <dl class="explore-item-stats">
+                <div><dt>クリップ</dt><dd>{item.clipCount}</dd></div>
+                <div><dt>合計時間</dt><dd>{item.totalDurationLabel}</dd></div>
+                <div><dt>保存通知</dt><dd>約{item.importCount}回</dd></div>
+                <div><dt>公開日</dt><dd>{item.publishedAtLabel}</dd></div>
+              </dl>
+              {item.sourceUrl !== null && (
+                <p class="explore-item-source">
+                  Remix元: <a href={item.sourceUrl}>公開プレイリスト</a>
+                </p>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <div class="button-row explore-pager">
+        {result.view.nextPageUrl !== null && (
+          <a class="button button-secondary" href={result.view.nextPageUrl} data-testid="explore-next">
+            次のページ
+          </a>
+        )}
+        {result.view.restartUrl !== null && (
+          <a class="button button-secondary" href={result.view.restartUrl} data-testid="explore-restart">
+            先頭に戻る
+          </a>
+        )}
+      </div>
+    </section>
+  ) : result.kind === "invalid" ? (
+    <section class="section" aria-labelledby="explore-error-title">
+      <div class="notice notice-error" role="alert" data-testid="explore-error">
+        <p class="eyebrow">400 / BAD REQUEST</p>
+        <h1 id="explore-error-title">クエリが不正です</h1>
+        <p class="lead">検索条件またはページング情報が正しくありません。条件を変えてお試しください。</p>
+        <div class="button-row">
+          <a class="button button-secondary" href="/explore" data-testid="explore-reset">
+            一覧へ戻る
+          </a>
+        </div>
+      </div>
+    </section>
+  ) : result.kind === "expired" ? (
+    <section class="section" aria-labelledby="explore-expired-title">
+      <div class="notice notice-error" role="alert" data-testid="explore-expired">
+        <p class="eyebrow">410 / EXPIRED</p>
+        <h1 id="explore-expired-title">ページングの有効期限が切れました</h1>
+        <p class="lead">表示順は約15分で更新されます。先頭からもう一度ご覧ください。</p>
+        <div class="button-row">
+          <a class="button button-secondary" href="/explore" data-testid="explore-restart">
+            先頭から表示
+          </a>
+        </div>
+      </div>
+    </section>
+  ) : (
+    <ErrorShell
+      eyebrow={result.status === 429 ? "429 / BUSY" : "503 / UNAVAILABLE"}
+      title="一時的に利用できません"
+      message="しばらくしてからもう一度お試しください。"
+    />
+  )}
 </ShellLayout>
 
 <style>
@@ -43,11 +224,188 @@ const CANONICAL_URL = `${SHARE_SITE_ORIGIN}/explore`
     margin-top: var(--space-4);
   }
 
-  .explore .notice {
+  .explore-sorts {
+    display: flex;
+    gap: var(--space-3);
     margin-top: var(--space-6);
   }
 
-  .explore .button-row {
+  .explore-sort {
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-full);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .explore-sort.is-active {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+    color: var(--color-ink);
+  }
+
+  .explore-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+  }
+
+  .explore-field {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .explore-label {
+    color: var(--color-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+  }
+
+  .explore-field input {
+    min-height: 2.9rem;
+    min-width: 14rem;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font: inherit;
+  }
+
+  .explore-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .explore-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-full);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-decoration: none;
+  }
+
+  .explore-chip.is-active {
+    border-color: var(--color-accent);
+    color: var(--color-accent-bright);
+  }
+
+  .explore-chip-count {
+    color: var(--color-subtle);
+  }
+
+  .explore-basis {
+    margin-top: var(--space-6);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+  }
+
+  .explore-asof {
+    color: var(--color-subtle);
+  }
+
+  .explore .notice {
+    margin-top: var(--space-4);
+  }
+
+  .explore-list {
+    display: grid;
+    gap: var(--space-4);
+    margin: var(--space-6) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .explore-item-title {
+    font-size: var(--text-lg);
+    overflow-wrap: anywhere;
+  }
+
+  .explore-item-title a {
+    color: var(--color-ink);
+    text-decoration: none;
+  }
+
+  .explore-item-title a:hover {
+    color: var(--color-accent-bright);
+  }
+
+  .explore-item-author {
+    margin-top: var(--space-1);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+  }
+
+  .explore-item-author::before {
+    content: "by ";
+    color: var(--color-subtle);
+  }
+
+  .explore-item-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .explore-tag {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-full);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .explore-item-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin: var(--space-4) 0 0;
+  }
+
+  .explore-item-stats dt {
+    color: var(--color-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+  }
+
+  .explore-item-stats dd {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  .explore-item-source {
+    margin-top: var(--space-3);
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+  }
+
+  .explore-item-source a {
+    color: var(--color-info);
+  }
+
+  .explore-pager {
     margin-top: var(--space-6);
   }
 </style>

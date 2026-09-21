@@ -111,6 +111,8 @@ const EXPECTED_EXPORTS = [
   "SharedPlaylistSchema",
   "StorageRequestSchema",
   "TRANSIENT_STATE_KEY",
+  "TagCountSchema",
+  "TagListResponseSchema",
   "TransientOpEdModeSchema",
   "TransientPlaybackSchema",
   "TransientPlayerWindowSchema",
