@@ -8,5 +8,5 @@
   // tests ran alongside a Playwright webServer build.
   "name": "d-op-test",
   "compatibility_date": "2026-09-01",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"]
 }
