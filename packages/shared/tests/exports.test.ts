@@ -109,6 +109,8 @@ const EXPECTED_EXPORTS = [
   "ShareItemSchema",
   "ShareRangeSchema",
   "SharedPlaylistSchema",
+  "StorageRequestSchema",
+  "TRANSIENT_STATE_KEY",
   "TransientOpEdModeSchema",
   "TransientPlaybackSchema",
   "TransientPlayerWindowSchema",

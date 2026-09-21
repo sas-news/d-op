@@ -40,7 +40,9 @@ export default defineConfig({
       command:
         "cd apps/extension && bunx wxt build --browser chrome && bunx wxt build --browser firefox && cd ../.. && node ./tests/e2e/serve-fixture.mjs",
       url: FIXTURE_URL,
-      timeout: 30_000,
+      // Two cold WXT builds run inside this window; parallel workers can push
+      // a cold build well past 30 s, so keep real headroom.
+      timeout: 180_000,
       reuseExistingServer: false,
       stdout: "pipe",
       stderr: "pipe",
@@ -51,7 +53,9 @@ export default defineConfig({
       command: `bun run build && bunx astro preview --ignore-lock --host 127.0.0.1 --port ${WEB_PORT}`,
       url: WEB_URL,
       cwd: "apps/web",
-      timeout: 60_000,
+      // Cold `astro build` (types + two vite passes) plus preview startup can
+      // exceed 60 s when another worker is building concurrently.
+      timeout: 180_000,
       reuseExistingServer: false,
       stdout: "pipe",
       stderr: "pipe",

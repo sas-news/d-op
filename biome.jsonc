@@ -17,7 +17,14 @@
         "noParameterAssign": "error"
       },
       "correctness": { "noUnusedVariables": "error", "noUnusedImports": "error" },
-      "complexity": { "noBannedTypes": "error" }
+      "complexity": {
+        "noBannedTypes": "error",
+        // useLiteralKeys conflicts with tsconfig noPropertyAccessFromIndexSignature
+        // (enabled in tsconfig.base.json and both app configs): index-signature
+        // reads like record["key"] are required by tsc, so the rule can never be
+        // satisfied. Dot access on named fields is still the obvious style.
+        "useLiteralKeys": "off"
+      }
     }
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
