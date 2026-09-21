@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>d-OP</title>
+  <link rel="stylesheet" href="./popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>d-OP</h1>
+      <button id="openOptions" type="button">管理</button>
+    </header>
+
+    <div id="playback" class="hidden">
+      <div class="now-playing">
+        <div id="playlistName" class="playlist-name"></div>
+        <span id="shuffleBadge" class="shuffle-badge hidden">SHUFFLE</span>
+        <div id="trackInfo" class="track-info"></div>
+        <div id="trackDetail" class="track-detail"></div>
+        <div id="trackProgress" class="track-progress"></div>
+      </div>
+
+      <div class="controls">
+        <button id="prevBtn" type="button">⏮</button>
+        <button id="stopBtn" type="button" class="secondary">終了</button>
+        <button id="nextBtn" type="button">⏭</button>
+      </div>
+
+      <div id="playlistItems" class="playlist-items"></div>
+      <div id="shuffleActions" class="shuffle-actions hidden">
+        <button id="shuffleFullBtn" type="button" class="shuffle-action-btn">最初からシャッフル</button>
+        <button id="shuffleHereBtn" type="button" class="shuffle-action-btn">ここからシャッフル</button>
+      </div>
+    </div>
+
+    <div id="playlistListSection">
+      <p>プレイリストを選択（▶で先頭から再生）</p>
+      <div id="playlistList" class="playlist-list"></div>
+    </div>
+
+    <footer class="popup-footer">
+      <span class="popup-version" id="popupVersion"></span>
+    </footer>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

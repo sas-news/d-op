@@ -1,11 +1,12 @@
 // Player DOM renderer — applies PlayerUiSnapshot to the page. Ports the
 // structural parts of createPlaylistControls/updatePlaylistUI/
-// showTopRightPanel/runUpdateSeekMarkers/showCustomRangeBar (content.js:
-// 696-786, 799-864, 1009-1065, 1233-1370). All nodes are idempotent, removed
-// on idle/dispose, and aligned to the native 50px .buttonArea bar. The add
-// menu, playlist picker and seek popup label are task-10 scope.
+// showTopRightPanel/runUpdateSeekMarkers/showCustomRangeBar plus the seek
+// popup label (content.js:696-786, 799-864, 1009-1065, 1233-1429). All nodes
+// are idempotent, removed on idle/dispose, and aligned to the native 50px
+// .buttonArea bar. The ♪ add menu lives in add-menu.ts.
+import { parseTimeInput } from "../ui/format"
 import { PANEL_HIDE_DELAY_MS } from "./constants"
-import type { PlayerUiSnapshot, PlayerVideo } from "./runtime"
+import type { PlayerUiSnapshot, PlayerVideo, SeekMarker } from "./runtime"
 
 export type PlayerUiDeps = {
   readonly onPrev: () => void
@@ -18,6 +19,8 @@ export type PlayerUiDeps = {
   }) => void
   readonly onCustomTest: () => void
   readonly onCustomCancel: () => void
+  /** '追加' on the custom bar — opens the playlist picker with the draft. */
+  readonly onCustomAdd: () => void
   readonly getVideo: () => PlayerVideo | undefined
   readonly schedule: (callback: () => void, ms: number) => unknown
   readonly cancelTimer: (timer: unknown) => void
@@ -42,13 +45,22 @@ function formatTime(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`
 }
 
+/** Hover window for point markers (start == end) — ±500 ms like the legacy
+ *  updateSeekPopupTitle fallback (content.js:1413-1420). */
+const POINT_MARKER_HOVER_MS = 500
+
 export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
   let panelTimer: unknown
   let lastCustomName: string | undefined
+  let lastCustomStart: number | null | undefined
+  let lastCustomEnd: number | null | undefined
   // DOM writes feed back through the page MutationObserver → handleDomMutation
   // → render(). Skip no-op mutations so our own writes cannot loop forever
   // (the legacy freeze class of bug documented in AGENTS.md).
   let lastMarkersSignature = ""
+  // Last rendered marker list — feeds the seek-popup hover label.
+  let currentMarkers: readonly SeekMarker[] = []
+  let seekMoveTarget: Element | null = null
 
   const body = (): HTMLElement | null => doc.body ?? null
 
@@ -82,6 +94,65 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
     }
   }
 
+  /** Seek-popup label — ports the .seekArea mousemove + #seekPopupInWrap
+   *  wiring (content.js:1402-1429). Attached once per .seekArea element;
+   *  re-attaches if the player replaces the DOM. */
+  function onSeekAreaMove(event: Event): void {
+    const mouse = event as MouseEvent
+    const wrap = doc.getElementById("seekPopupInWrap") as HTMLElement | null
+    const seekArea = doc.querySelector(".seekArea") as HTMLElement | null
+    if (wrap === null || seekArea === null) return
+    let label = wrap.querySelector("#d-op-seek-popup-label") as HTMLElement | null
+    if (label === null) {
+      label = doc.createElement("div")
+      label.id = "d-op-seek-popup-label"
+      label.className = "d-op-seek-popup-label"
+      wrap.appendChild(label)
+    }
+    let current: string | null = null
+    const rect = seekArea.getBoundingClientRect()
+    const video = deps.getVideo()
+    if (
+      rect.width > 0 &&
+      video !== undefined &&
+      Number.isFinite(video.duration) &&
+      video.duration > 0
+    ) {
+      const hoverMs = ((mouse.clientX - rect.left) / rect.width) * video.duration * 1000
+      for (const marker of currentMarkers) {
+        if (marker.startMs < marker.endMs && hoverMs >= marker.startMs && hoverMs < marker.endMs) {
+          current = marker.label
+          break
+        }
+      }
+      if (current === null) {
+        for (const marker of currentMarkers) {
+          if (
+            marker.startMs === marker.endMs &&
+            Math.abs(hoverMs - marker.startMs) <= POINT_MARKER_HOVER_MS
+          ) {
+            current = marker.label
+            break
+          }
+        }
+      }
+    }
+    if (current !== null) {
+      if (label.textContent !== current) label.textContent = current
+      if (label.style.display !== "block") label.style.display = "block"
+    } else if (label.style.display !== "none") {
+      label.style.display = "none"
+    }
+  }
+
+  function ensureSeekPopupListener(): void {
+    const seekArea = doc.querySelector(".seekArea")
+    if (seekArea === seekMoveTarget) return
+    if (seekMoveTarget !== null) seekMoveTarget.removeEventListener("mousemove", onSeekAreaMove)
+    seekMoveTarget = seekArea
+    if (seekArea !== null) seekArea.addEventListener("mousemove", onSeekAreaMove)
+  }
+
   function renderMarkers(snapshot: PlayerUiSnapshot): void {
     const seekArea = doc.querySelector(".seekArea")
     const video = deps.getVideo()
@@ -107,7 +178,7 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       seekArea.appendChild(container)
     }
     const durationMs = duration * 1000
-    const signature = `${durationMs}:${snapshot.markers
+    const signature = `${durationMs}:${snapshot.markersColored ? 1 : 0}:${snapshot.markers
       .map((m) => `${m.startMs}-${m.endMs}-${m.label}-${m.active ? 1 : 0}`)
       .join(",")}`
     // A re-created container has no children even when the signature matches.
@@ -123,9 +194,13 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       )
       const el = doc.createElement("div")
       el.className = "d-op-seek-marker"
-      const kind = markerClass(marker.label)
-      if (kind.length > 0) el.classList.add(kind)
-      if (marker.active) el.classList.add("active")
+      // Legacy gates color + active on canSeekColor — a mode must own the page
+      // (content.js:1031-1057).
+      if (snapshot.markersColored) {
+        const kind = markerClass(marker.label)
+        if (kind.length > 0) el.classList.add(kind)
+        if (marker.active) el.classList.add("active")
+      }
       el.style.left = `${left}%`
       if (width > 0) el.style.width = `${width}%`
       else el.classList.add("point")
@@ -195,23 +270,49 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       bar = doc.createElement("div")
       bar.id = "d-op-custom-bar"
       bar.className = "d-op-custom-bar"
-      const startText = doc.createElement("span")
-      startText.className = "d-op-custom-bar-text"
-      startText.setAttribute("data-dop-field", "start")
+      // Editable start/end inputs (legacy .d-op-custom-bar-time-input,
+      // content.js:1270-1301): m:ss or raw seconds, parsed on change.
+      const startInput = doc.createElement("input")
+      startInput.type = "text"
+      startInput.className = "d-op-custom-bar-time-input"
+      startInput.placeholder = "--:--"
+      startInput.setAttribute("data-dop-field", "start")
+      startInput.addEventListener("change", () => {
+        const ms = parseTimeInput(startInput.value)
+        if (ms !== null) {
+          deps.onCustomDraft({ startMs: ms })
+          // Legacy reformats the input to canonical m:ss after a valid parse.
+          startInput.value = formatTime(ms)
+        }
+      })
+      const sep = doc.createElement("span")
+      sep.className = "d-op-custom-bar-time-sep"
+      sep.textContent = " - "
+      const endInput = doc.createElement("input")
+      endInput.type = "text"
+      endInput.className = "d-op-custom-bar-time-input"
+      endInput.placeholder = "--:--"
+      endInput.setAttribute("data-dop-field", "end")
+      endInput.addEventListener("change", () => {
+        const ms = parseTimeInput(endInput.value)
+        if (ms !== null) {
+          deps.onCustomDraft({ endMs: ms })
+          endInput.value = formatTime(ms)
+        }
+      })
       const startNow = doc.createElement("button")
       startNow.type = "button"
       startNow.textContent = "開始"
+      startNow.title = "開始地点を設定"
       startNow.addEventListener("click", () => {
         const video = deps.getVideo()
         if (video !== undefined)
           deps.onCustomDraft({ startMs: Math.floor(video.currentTime * 1000) })
       })
-      const endText = doc.createElement("span")
-      endText.className = "d-op-custom-bar-text"
-      endText.setAttribute("data-dop-field", "end")
       const endNow = doc.createElement("button")
       endNow.type = "button"
       endNow.textContent = "終了"
+      endNow.title = "終了地点を設定"
       endNow.addEventListener("click", () => {
         const video = deps.getVideo()
         if (video !== undefined) deps.onCustomDraft({ endMs: Math.floor(video.currentTime * 1000) })
@@ -224,26 +325,43 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       const test = doc.createElement("button")
       test.type = "button"
       test.className = "primary"
-      test.textContent = "テスト再生"
+      test.textContent = "テスト"
       test.addEventListener("click", deps.onCustomTest)
+      const add = doc.createElement("button")
+      add.type = "button"
+      add.className = "primary"
+      add.textContent = "追加"
+      add.title = "この範囲をプレイリストに追加"
+      add.addEventListener("click", deps.onCustomAdd)
       const cancel = doc.createElement("button")
       cancel.type = "button"
       cancel.textContent = "キャンセル"
       cancel.addEventListener("click", deps.onCustomCancel)
-      bar.append(startText, startNow, endText, endNow, name, test, cancel)
+      bar.append(startInput, sep, endInput, startNow, endNow, name, test, add, cancel)
       host.appendChild(bar)
       lastCustomName = undefined
+      lastCustomStart = undefined
+      lastCustomEnd = undefined
     }
     const field = (name: string): HTMLElement | null =>
       bar.querySelector(`[data-dop-field='${name}']`)
-    const startEl = field("start")
-    const endEl = field("end")
-    if (startEl !== null)
-      startEl.textContent =
-        snapshot.customBar.startMs === null ? "--:--" : formatTime(snapshot.customBar.startMs)
-    if (endEl !== null)
-      endEl.textContent =
-        snapshot.customBar.endMs === null ? "--:--" : formatTime(snapshot.customBar.endMs)
+    // Sync inputs only while the user is not editing them — overwriting a
+    // focused input on every render was a legacy focus-loss bug class.
+    const syncTime = (
+      input: HTMLElement | null,
+      ms: number | null,
+      last: number | null | undefined,
+    ): void => {
+      if (!(input instanceof HTMLInputElement)) return
+      if (last === ms) return
+      if (doc.activeElement === input) return
+      const value = ms === null ? "" : formatTime(ms)
+      if (input.value !== value) input.value = value
+    }
+    syncTime(field("start"), snapshot.customBar.startMs, lastCustomStart)
+    syncTime(field("end"), snapshot.customBar.endMs, lastCustomEnd)
+    if (doc.activeElement !== field("start")) lastCustomStart = snapshot.customBar.startMs
+    if (doc.activeElement !== field("end")) lastCustomEnd = snapshot.customBar.endMs
     const nameInput = field("name")
     if (nameInput instanceof HTMLInputElement && lastCustomName !== snapshot.customBar.name) {
       if (nameInput.value !== snapshot.customBar.name) nameInput.value = snapshot.customBar.name
@@ -254,6 +372,7 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
   const render = (snapshot: PlayerUiSnapshot): void => {
     const host = body()
     if (host === null) return
+    currentMarkers = snapshot.markers
     host.classList.toggle("d-op-playlist-active", snapshot.playlistActive)
     host.classList.toggle("d-op-skip-hidden", snapshot.skipUiHidden)
     ensureControls()
@@ -270,17 +389,23 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
     }
     renderPanel(snapshot)
     renderMarkers(snapshot)
+    ensureSeekPopupListener()
     renderCustomBar(snapshot)
   }
 
   const dispose = (): void => {
     if (panelTimer !== undefined) deps.cancelTimer(panelTimer)
     panelTimer = undefined
+    if (seekMoveTarget !== null) {
+      seekMoveTarget.removeEventListener("mousemove", onSeekAreaMove)
+      seekMoveTarget = null
+    }
     for (const id of [
       "d-op-playlist-prev",
       "d-op-playlist-next",
       "d-op-top-panel",
       "d-op-seek-markers",
+      "d-op-seek-popup-label",
       "d-op-custom-bar",
     ]) {
       doc.getElementById(id)?.remove()

@@ -400,3 +400,219 @@ body.d-op-skip-hidden .skipUi {
 .d-op-seek-marker.point.custom {
   border-left-color: rgba(255, 204, 0, 0.9);
 }
+
+/* --- ♪ add wrapper + hover popup (styles.css:54-181) ---------------------- */
+
+.d-op-add-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 50px;
+  vertical-align: top;
+}
+
+.d-op-add-button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--dop-radius-sm);
+  background: transparent;
+  color: #9b9b9a;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  transition: color var(--dop-transition-fast);
+}
+
+.d-op-add-button:hover {
+  color: #ffffff;
+}
+
+.d-op-popup {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(calc(-50% - 12px)) translateY(6px);
+  min-width: 150px;
+  padding: 2px 0;
+  background: rgba(0, 0, 0, 0.80);
+  border-radius: var(--dop-radius-md);
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.2));
+  z-index: 10000;
+  transition: opacity var(--dop-transition-fast), transform var(--dop-transition-base);
+}
+
+.d-op-popup.d-op-popup-visible,
+.d-op-add-wrapper:focus-within .d-op-popup {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(calc(-50% - 12px)) translateY(0);
+}
+
+.d-op-popup::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(calc(-50% + 12px));
+  border: 5px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.80);
+}
+
+.d-op-popup::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
+
+/* Popup visibility is managed by JS (createAddMenu) to prevent the CSS
+   :hover chain from breaking when the mouse transitions between the button
+   and the popup. */
+
+.d-op-popup-item {
+  padding: 5px 10px;
+  color: #9b9b9a;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  border-bottom: 1px solid var(--dop-border);
+  transition: color var(--dop-transition-fast), background var(--dop-transition-fast);
+}
+
+.d-op-popup-item:last-child {
+  border-bottom: none;
+}
+
+.d-op-popup-item:hover,
+.d-op-popup-item:focus-visible {
+  background: #1a1a1a;
+  outline: none;
+}
+
+/* --- Playlist picker modal list (styles.css:274-329) ---------------------- */
+
+.d-op-modal-playlist-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dop-space-3);
+  margin-bottom: var(--dop-space-5);
+}
+
+.d-op-modal-playlist-item {
+  padding: var(--dop-space-5);
+  border: 1px solid var(--dop-border);
+  border-radius: var(--dop-radius-md);
+  background: var(--dop-bg-elevated);
+  color: var(--dop-text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--dop-font);
+  font-size: 14px;
+  transition: background var(--dop-transition-fast), border-color var(--dop-transition-fast);
+}
+
+.d-op-modal-playlist-item:hover {
+  background: var(--dop-accent-subtle);
+  border-color: var(--dop-accent);
+}
+
+.d-op-modal-playlist-item.selected {
+  background: rgba(230, 0, 18, 0.25);
+  border-color: var(--dop-accent);
+  border-left: 3px solid var(--dop-accent);
+  padding-left: calc(var(--dop-space-5) - 2px);
+}
+
+.d-op-modal-playlist-item.selected::after {
+  content: '✓';
+  float: right;
+  color: var(--dop-accent);
+  font-weight: bold;
+}
+
+.d-op-modal-playlist-empty {
+  color: var(--dop-text-tertiary);
+  font-size: 13px;
+  padding: var(--dop-space-3) 0;
+}
+
+.d-op-modal-new-row input {
+  width: 100%;
+  padding: var(--dop-space-4) var(--dop-space-5);
+  border: 1px solid var(--dop-border-strong);
+  border-radius: var(--dop-radius-sm);
+  background: var(--dop-bg-elevated);
+  color: var(--dop-text-primary);
+  font-family: var(--dop-font);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.d-op-modal-new-row input:focus {
+  border-color: var(--dop-accent);
+  box-shadow: 0 0 0 3px var(--dop-accent-subtle);
+  outline: none;
+}
+
+.d-op-modal-name-row {
+  margin-top: 10px;
+}
+
+.d-op-modal-footer button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.d-op-modal-footer button.primary:disabled {
+  background: var(--dop-accent);
+  border-color: var(--dop-accent);
+}
+
+/* --- Custom-bar time inputs + seek popup label (styles.css:486-505,573-584) */
+
+.d-op-custom-bar input.d-op-custom-bar-time-input,
+.d-op-custom-bar input.d-op-custom-bar-time-input:focus {
+  width: 42px;
+  min-width: 0;
+  padding: 0;
+  border: none !important;
+  background: transparent;
+  color: var(--dop-text-secondary);
+  font-family: var(--dop-font-mono);
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+  box-shadow: none;
+}
+
+.d-op-custom-bar-time-sep {
+  color: var(--dop-text-tertiary);
+  font-family: var(--dop-font-mono);
+  font-size: 12px;
+}
+
+.d-op-seek-popup-label {
+  margin-top: 0;
+  color: var(--dop-text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  border-top: 1px solid var(--dop-border);
+  padding: var(--dop-space-2) var(--dop-space-4);
+  white-space: nowrap;
+  display: none;
+}

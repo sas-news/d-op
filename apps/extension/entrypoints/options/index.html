@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Legacy manifest used options_page — a full tab, not the embedded dialog. -->
+  <meta name="manifest.open_in_tab" content="true">
+  <title>d-OP - プレイリスト管理</title>
+  <link rel="stylesheet" href="./options.css">
+</head>
+<body>
+  <div class="container">
+    <h1>プレイリスト管理</h1>
+
+    <section class="create-section">
+      <h2>新規プレイリスト</h2>
+      <div class="row">
+        <input type="text" id="newPlaylistName" placeholder="プレイリスト名">
+        <button id="createPlaylistBtn" type="button">作成</button>
+      </div>
+    </section>
+
+    <section class="playlists-section">
+      <h2>プレイリスト一覧</h2>
+      <div id="playlistsContainer"></div>
+    </section>
+
+    <section class="import-section">
+      <h2>インポート / エクスポート</h2>
+      <div class="row">
+        <button id="exportBtn" type="button">JSONエクスポート</button>
+        <label class="file-btn">
+          JSONインポート
+          <input type="file" id="importFile" accept=".json">
+        </label>
+      </div>
+      <div id="importStatus"></div>
+    </section>
+
+    <section class="settings-section">
+      <h2>設定</h2>
+      <div class="setting-row">
+        <span class="setting-label">再生時の開き方</span>
+        <label><input type="radio" name="windowMode" value="window"> 新規ウィンドウ</label>
+        <label><input type="radio" name="windowMode" value="tab"> 新規タブ</label>
+      </div>
+      <p class="setting-desc">d-OP でプレイリストやOP/EDを再生する際の開き方です。dアニメストア標準の視聴ボタンの挙動は変わりません。</p>
+    </section>
+
+    <section class="guide-section">
+      <h2>使い方</h2>
+      <ol class="guide-list">
+        <li>dアニメストアの作品ページを開きます。</li>
+        <li>各エピソードに表示される <strong>「OP/ED」</strong> ボタンをクリック → スキップ区間（OP/ED）を選択します。</li>
+        <li>プレイヤー画面で <strong>「♪」</strong> ボタンをクリック → 区間をプレイリストに追加できます。</li>
+        <li>プレイリストから再生すると、OP/EDのみを連続再生できます。</li>
+        <li>プレイヤー下部の <strong>⏮ ⏭</strong> ボタンで前後のOP/EDに移動できます。</li>
+      </ol>
+      <p class="guide-note">※ dアニメストアのアカウントが必要です。本拡張機能はデータを外部に送信しません。</p>
+    </section>
+
+    <footer class="page-footer">
+      <div class="footer-links">
+        <a href="https://github.com/sas-news/d-op" target="_blank" rel="noopener">GitHub</a>
+        <span class="footer-sep">·</span>
+        <a href="https://github.com/sas-news/d-op/blob/main/PRIVACY.md" target="_blank" rel="noopener">プライバシー</a>
+        <span class="footer-sep">·</span>
+        <a href="https://d-op.sasnews.dev/" target="_blank" rel="noopener">公式サイト</a>
+        <span class="footer-sep">·</span>
+        <a href="https://d-op.sasnews.dev/#support" target="_blank" rel="noopener">お問い合わせ</a>
+        <span class="footer-sep">·</span>
+        <a href="https://x.com/sas_shinbun" target="_blank" rel="noopener">@sas_shinbun</a>
+      </div>
+      <p class="footer-version" id="optionsVersion"></p>
+    </footer>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

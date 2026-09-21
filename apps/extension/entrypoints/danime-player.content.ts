@@ -4,11 +4,13 @@ import "../src/player/player.css"
 import { type ChaptersFound, PlayerCommandSchema } from "../../../packages/shared/src/index"
 import { sendPageCommand } from "../src/adapter/isolated-bridge"
 import { installIsolatedBridge } from "../src/adapter/isolated-runtime"
+import { createAddMenu } from "../src/player/add-menu"
 import { OPED_SESSION_FLAG } from "../src/player/constants"
+import { installKeyboardFocusGuard } from "../src/player/keyboard-focus"
 import { createModalHost } from "../src/player/modal"
 import { createPlayerOrchestrator } from "../src/player/orchestrator"
-import { createPlayerStorageClient } from "../src/player/storage-client"
 import { createPlayerUi } from "../src/player/ui"
+import { createUiStorageClient, subscribePublicState } from "../src/ui/storage-client"
 
 type BridgeEventDetail =
   | { readonly kind: "ready" }
@@ -33,14 +35,14 @@ export default defineContentScript({
     const disposeBridge = await installIsolatedBridge(window, async () => {
       await injectScript("/danime-main.js", { keepInDom: true })
     })
-    const storage = createPlayerStorageClient((message) => browser.runtime.sendMessage(message))
+    const storage = createUiStorageClient((message) => browser.runtime.sendMessage(message))
     const modal = createModalHost(document)
     const getVideo = (): HTMLVideoElement | undefined => {
       const video = document.getElementById("video")
       return video instanceof HTMLVideoElement ? video : undefined
     }
-    // ui callbacks reference the orchestrator and the orchestrator's render
-    // dep references ui — resolved via this forward reference.
+    // ui/addMenu callbacks reference the orchestrator and the orchestrator's
+    // render dep references ui — resolved via this forward reference.
     let orchestrator: ReturnType<typeof createPlayerOrchestrator>
     const ui = createPlayerUi(document, {
       onPrev: () => void orchestrator.handleCommand({ type: "PLAYLIST_PREV" }),
@@ -49,6 +51,7 @@ export default defineContentScript({
       onCustomDraft: (patch) => orchestrator.customPreview.updateDraft(patch),
       onCustomTest: () => void orchestrator.customPreview.test(),
       onCustomCancel: () => void orchestrator.customPreview.cancel(),
+      onCustomAdd: () => void addMenu.openCustomPicker(),
       getVideo,
       schedule: (callback, ms) => window.setTimeout(callback, ms),
       cancelTimer: (timer) => window.clearTimeout(timer as number),
@@ -78,9 +81,43 @@ export default defineContentScript({
       render: (snapshot) => ui.render(snapshot),
     })
 
+    // ♪ add menu — ports createAddButton/openPlaylistModal (content.js:586-697,
+    // 1138-1227). Refreshes on DOM mutation + chapters arrival; storage-driven
+    // marker updates flow through orchestrator.handleStorageChange.
+    const addMenu = createAddMenu(document, {
+      getVideo,
+      getSession: () => orchestrator.session(),
+      readPublic: () => storage.readPublic(),
+      dispatch: (command) => storage.dispatch(command),
+      newId: () => crypto.randomUUID(),
+      showModal: (request) => modal.show(request),
+      beginCustomPreview: () => orchestrator.customPreview.begin(),
+      getCustomDraft: () => orchestrator.customPreview.draft(),
+      endCustomPreview: () => orchestrator.customPreview.cancel(),
+      currentUrl: () => window.location.href,
+      schedule: (callback, ms) => window.setTimeout(callback, ms),
+      cancelTimer: (timer) => window.clearTimeout(timer as number),
+      onChanged: () => orchestrator.handleStorageChange(),
+      log: (label, data) => console.warn("[d-op player]", label, data ?? ""),
+    })
+    addMenu.refresh()
+
+    // Canonical writes re-paint markers — debounced + serialized inside the
+    // orchestrator (legacy scheduleUpdateSeekMarkers parity).
+    const unsubscribeStorage = subscribePublicState(browser.storage.onChanged, () =>
+      orchestrator.handleStorageChange(),
+    )
+
+    // Keyboard focus guard: while an editable element is focused, keydown is
+    // swallowed in the capture phase (content.js:1533-1549).
+    const disposeFocusGuard = installKeyboardFocusGuard(document)
+
     const onBridgeEvent = (event: Event): void => {
       const detail = (event as CustomEvent<BridgeEventDetail>).detail
-      if (detail?.kind === "chapters") void orchestrator.handleChapters(detail.payload)
+      if (detail?.kind === "chapters") {
+        void orchestrator.handleChapters(detail.payload)
+        addMenu.refresh()
+      }
     }
     window.addEventListener("d-op-player-bridge", onBridgeEvent)
 
@@ -90,13 +127,19 @@ export default defineContentScript({
     }
     browser.runtime.onMessage.addListener(onRuntimeMessage)
 
-    const observer = new MutationObserver(() => orchestrator.handleDomMutation())
+    const observer = new MutationObserver(() => {
+      orchestrator.handleDomMutation()
+      addMenu.refresh()
+    })
     observer.observe(document.documentElement, { childList: true, subtree: true })
 
     const dispose = (): void => {
       observer.disconnect()
+      unsubscribeStorage()
+      disposeFocusGuard()
       window.removeEventListener("d-op-player-bridge", onBridgeEvent)
       browser.runtime.onMessage.removeListener(onRuntimeMessage)
+      addMenu.dispose()
       orchestrator.dispose()
       ui.dispose()
       modal.dispose()

@@ -34,6 +34,10 @@ export const PREV_RESTART_THRESHOLD_MS = 1000
 export const PANEL_HIDE_DELAY_MS = 3000
 /** Seek-marker rebuild debounce — DOP_SEEK_MARKER_DEBOUNCE_MS (common.js:27). */
 export const SEEK_MARKER_DEBOUNCE_MS = 100
+/** ♪ add-popup hover hide delay — DOP_POPUP_HIDE_DELAY_MS (common.js:26). */
+export const ADD_POPUP_HIDE_DELAY_MS = 200
+/** Work-page MutationObserver decorate debounce — DOP_STORE_DEBOUNCE_MS (common.js:28). */
+export const STORE_DEBOUNCE_MS = 300
 /** DOM reattach debounce for the player MutationObserver (v2 guard; legacy
  *  disconnected/re-observed per batch, content.js:1551-1565). */
 export const DOM_MUTATION_DEBOUNCE_MS = 100

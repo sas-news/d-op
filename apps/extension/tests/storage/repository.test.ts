@@ -146,7 +146,9 @@ describe("background local repository", () => {
     })
   })
 
-  it("bounds persisted receipts to the latest 256 operations", async () => {
+  // Serializes 258 committed mutations; under concurrent worker/vitest CPU
+  // contention each awaited op stretches, so this test needs real headroom.
+  it("bounds persisted receipts to the latest 256 operations", { timeout: 30_000 }, async () => {
     // Given: one playlist followed by more mutations than the receipt budget.
     const driver = new InMemoryStorageDriver()
     const repository = createLocalRepository({

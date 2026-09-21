@@ -15,6 +15,7 @@ import {
   SEEK_COOLDOWN_PLAYBACK_MS,
   SEEK_COOLDOWN_SEEKED_MS,
   SEEK_COOLDOWN_SEEKING_MS,
+  SEEK_MARKER_DEBOUNCE_MS,
 } from "./constants"
 import { decideEnforcement, type PlayerModeKind } from "./enforcement"
 import {
@@ -35,7 +36,9 @@ import {
 import { resumePlaybackIfAny, startFromPlaylistParams } from "./resume-flow"
 import {
   alive,
+  type CustomDraft,
   createContext,
+  currentPartId,
   enforcedRanges,
   type PlayerContext,
   type PlayerDeps,
@@ -57,12 +60,21 @@ export type CustomPreviewApi = {
   }) => void
   readonly test: () => Promise<boolean>
   readonly cancel: () => Promise<void>
+  /** Live draft for the add-menu's '追加' button; null outside selection. */
+  readonly draft: () => CustomDraft | null
 }
 
 export type PlayerOrchestrator = {
   readonly handleChapters: (payload: ChaptersFound) => Promise<void>
   readonly handleCommand: (command: PlayerCommand) => Promise<void>
   readonly handleDomMutation: () => void
+  /** Canonical storage writes (any surface) → debounced marker refresh. */
+  readonly handleStorageChange: () => void
+  /** Current partId + chapter list for the ♪ add menu. */
+  readonly session: () => {
+    readonly partId: string | null
+    readonly chapters: PlayerContext["chapters"]
+  }
   readonly customPreview: CustomPreviewApi
   readonly dispose: () => void
   readonly mode: () => PlayerModeKind
@@ -73,6 +85,9 @@ const VIDEO_EVENTS = ["timeupdate", "seeking", "seeked", "ended"] as const
 export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
   const ctx = createContext(deps)
   let domTimer: unknown
+  let markerTimer: unknown
+  let markersRefreshing = false
+  let markersQueued = false
 
   function onSeeking(): void {
     const now = deps.now()
@@ -206,6 +221,72 @@ export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
     }
   }
 
+  /**
+   * Refresh ctx.libraryRanges (and sameVideoItems while playlist mode is
+   * live) from the canonical public snapshot — the marker overlay's library
+   * half. Ports the storage side of updateSeekMarkers (content.js:958-1007);
+   * serialized so overlapping reads cannot paint stale state.
+   */
+  async function refreshLibraryRanges(): Promise<void> {
+    const generation = ctx.generation
+    const partId = currentPartId(ctx)
+    const state = await deps.storage.readPublic().catch((error: unknown) => {
+      deps.log?.("library-ranges-read-failed", error)
+      return null
+    })
+    if (state === null) return
+    if (!alive(ctx, generation)) return
+    const ranges: { startMs: number; endMs: number; name: string }[] = []
+    if (partId !== null) {
+      for (const playlist of state.playlists) {
+        for (const item of playlist.items) {
+          const range = item.range
+          if (item.partId !== partId || range === null) continue
+          ranges.push({ startMs: range.start, endMs: range.end, name: range.name ?? "" })
+        }
+      }
+    }
+    ctx.libraryRanges = ranges
+    if (ctx.state.mode === "playlist") {
+      const playlist = state.playlists.find(
+        (candidate) =>
+          ctx.state.mode === "playlist" && candidate.id === ctx.state.playback.playlistId,
+      )
+      if (playlist !== undefined) refreshSameVideoItems(ctx, playlist)
+    }
+    renderPlayerUi(ctx)
+  }
+
+  async function runLibraryRefresh(): Promise<void> {
+    if (markersRefreshing) {
+      markersQueued = true
+      return
+    }
+    markersRefreshing = true
+    try {
+      do {
+        markersQueued = false
+        await refreshLibraryRanges()
+      } while (markersQueued && !ctx.disposed)
+    } finally {
+      markersRefreshing = false
+    }
+  }
+
+  /** Debounced entry — legacy scheduleUpdateSeekMarkers (content.js:995-1007):
+   *  marker reads never run more than once per SEEK_MARKER_DEBOUNCE_MS and a
+   *  pending refresh coalesces instead of overlapping. */
+  function handleStorageChange(): void {
+    if (ctx.disposed) return
+    if (markerTimer !== undefined) deps.cancelTimer(markerTimer)
+    const generation = ctx.generation
+    markerTimer = deps.schedule(() => {
+      markerTimer = undefined
+      if (!alive(ctx, generation)) return
+      void runLibraryRefresh()
+    }, SEEK_MARKER_DEBOUNCE_MS)
+  }
+
   /** handleChapters (content.js:1468-1500). */
   async function handleChapters(payload: ChaptersFound): Promise<void> {
     const partId = readPlayerUrlParams(deps.currentUrl()).partId
@@ -224,6 +305,9 @@ export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
     }
     attachVideo()
     renderPlayerUi(ctx)
+    // Chapters arrival = marker source change — refresh library ranges like
+    // legacy handleChapters → updateSeekMarkers (content.js:1488).
+    handleStorageChange()
     const generation = ctx.generation
     await checkUrlParams(generation)
     if (!alive(ctx, generation)) return
@@ -285,6 +369,8 @@ export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
     ctx.generation += 1
     if (domTimer !== undefined) deps.cancelTimer(domTimer)
     domTimer = undefined
+    if (markerTimer !== undefined) deps.cancelTimer(markerTimer)
+    markerTimer = undefined
     if (ctx.attachedVideo !== null) {
       for (const event of VIDEO_EVENTS) {
         ctx.attachedVideo.removeEventListener(event, listeners[event])
@@ -300,11 +386,14 @@ export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
     handleChapters,
     handleCommand,
     handleDomMutation,
+    handleStorageChange,
+    session: () => ({ partId: currentPartId(ctx), chapters: ctx.chapters }),
     customPreview: {
       begin: () => beginCustomPreview(ctx),
       updateDraft: (patch) => updateCustomDraft(ctx, patch),
       test: () => testCustomPreview(ctx),
       cancel: () => cancelCustomPreview(ctx),
+      draft: () => (ctx.state.mode === "custom-preview" ? ctx.state.draft : null),
     },
     dispose,
     mode: () => ctx.state.mode,

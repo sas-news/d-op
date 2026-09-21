@@ -35,7 +35,7 @@ test("adapter fixture delivers READY before CHAPTERS and rejects forged messages
     iframe.srcdoc =
       `<script>parent.postMessage({source:'d-op-injected',version:1,type:'READY'}, '*')</scr` +
       `ipt>`
-    document.body.append(iframe)
+    document.body.appendChild(iframe)
     window.postMessage(
       {
         source: "d-op-injected",
@@ -56,7 +56,7 @@ test("adapter fixture delivers READY before CHAPTERS and rejects forged messages
   await page.evaluate(() => {
     const script = document.createElement("script")
     script.src = "/danime-main.js"
-    document.body.append(script)
+    document.body.appendChild(script)
   })
   await expect
     .poll(() => page.evaluate(() => (window as FixtureWindow).__adapterFixture?.events))

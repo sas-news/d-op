@@ -15,6 +15,7 @@ const IDLE: PlayerUiSnapshot = {
   panelSub: "",
   panelMeta: "",
   markers: [],
+  markersColored: false,
   customBar: { visible: false, startMs: null, endMs: null, name: "", testing: false },
 }
 
@@ -30,6 +31,7 @@ const PLAYLIST: PlayerUiSnapshot = {
   panelSub: "MyList",
   panelMeta: "1 / 3",
   markers: [{ startMs: 10_000, endMs: 90_000, label: "OP", active: true }],
+  markersColored: true,
 }
 
 function page(): void {
@@ -48,6 +50,7 @@ function uiDeps(overrides: Partial<PlayerUiDeps> = {}): PlayerUiDeps {
     onCustomDraft: () => undefined,
     onCustomTest: () => undefined,
     onCustomCancel: () => undefined,
+    onCustomAdd: () => undefined,
     // jsdom gives <video>.duration = NaN; markers need a finite duration.
     getVideo: () =>
       ({
@@ -148,11 +151,14 @@ describe("player ui", () => {
       ...IDLE,
       mode: "custom-preview",
       skipUiHidden: true,
+      markersColored: true,
       customBar: { visible: true, startMs: 5_000, endMs: 20_000, name: "X", testing: false },
     })
     const bar = document.getElementById("d-op-custom-bar")
     expect(bar).not.toBeNull()
-    expect(bar?.querySelector("[data-dop-field='start']")?.textContent).toBe("0:05")
+    // Start/end are editable inputs (legacy .d-op-custom-bar-time-input).
+    const startInput = bar?.querySelector("[data-dop-field='start']")
+    expect(startInput instanceof HTMLInputElement && startInput.value).toBe("0:05")
     ui.dispose()
     expect(document.getElementById("d-op-custom-bar")).toBeNull()
   })

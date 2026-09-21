@@ -20,6 +20,7 @@ import {
   STARTUP_LOCK_PLAYBACK_MS,
 } from "./constants"
 import type { EnforcedRange, PlayerModeKind, SameVideoRange } from "./enforcement"
+import { computeSeekMarkers } from "./seek-ranges"
 import {
   type ActivePlayback,
   mutateTransientState,
@@ -49,11 +50,27 @@ export type ModalButton = {
   readonly label: string
   readonly value: string
   readonly primary?: boolean
+  readonly disabled?: boolean
+}
+/** Live modal DOM handed to `onReady` — used by the playlist picker to wire
+ *  checkbox state into the primary button (content.js:1154-1160). `close`
+ *  resolves the pending show() promise — body rows (e.g. copy-target pickers)
+ *  resolve directly like footer buttons. */
+export type ModalHandle = {
+  readonly root: HTMLElement
+  readonly panel: HTMLElement
+  readonly close: (value: string | null) => void
 }
 export type ModalRequest = {
   readonly title: string
   readonly body: string
+  /** Rich body node appended after `body` text (legacy bodyHtml/body node). */
+  readonly bodyNode?: HTMLElement
   readonly buttons: readonly ModalButton[]
+  /** Called after the modal is attached — wire live DOM before it settles. */
+  readonly onReady?: (modal: ModalHandle) => void
+  /** Backdrop click resolves null like Escape (default true, legacy parity). */
+  readonly cancelOnBackdrop?: boolean
 }
 
 export type NamedRange = { readonly startMs: number; readonly endMs: number; readonly name: string }
@@ -98,8 +115,12 @@ export type PlayerUiSnapshot = {
   readonly panelLabel: string
   readonly panelSub: string
   readonly panelMeta: string
-  /** Seek-bar markers (legacy runUpdateSeekMarkers, content.js:1009-1065). */
+  /** Seek-bar markers (legacy runUpdateSeekMarkers, content.js:1009-1065):
+   *  chapters + stored playlist ranges for this partId + mode overlays. */
   readonly markers: readonly SeekMarker[]
+  /** Marker color/active classes apply only when a mode owns the page
+   *  (legacy canSeekColor — op-ed/custom-selecting/playlist, content.js:1031). */
+  readonly markersColored: boolean
   /** Custom-preview bar visibility + draft (legacy showCustomRangeBar). */
   readonly customBar: {
     readonly visible: boolean
@@ -144,6 +165,10 @@ export type PlayerContext = {
     readonly itemId: string
     readonly name: string
   })[]
+  /** Every playlist's ranges stored for the current partId — the marker
+   *  overlay's library half (content.js:925-948). Refreshed from the public
+   *  snapshot on chapters arrival + storage changes (debounced). */
+  libraryRanges: readonly NamedRange[]
   seekingStart: boolean
   cooldownUntil: number
   startupLockUntil: number
@@ -165,6 +190,7 @@ export function createContext(deps: PlayerDeps): PlayerContext {
     partId: null,
     playlistName: "",
     sameVideoItems: [],
+    libraryRanges: [],
     seekingStart: false,
     cooldownUntil: 0,
     startupLockUntil: 0,
@@ -341,81 +367,74 @@ const EMPTY_BAR = {
   testing: false,
 } as const
 
-function playlistMarkers(ctx: PlayerContext, currentItemId: string): readonly SeekMarker[] {
-  return ctx.sameVideoItems.map((item) => ({
-    startMs: item.startMs,
-    endMs: item.endMs,
-    label: item.name,
-    active: item.itemId === currentItemId,
-  }))
-}
-
 /** Build the render snapshot — ports updatePlaylistUI/showTopRightPanel state
  *  (content.js:747-786, 799-864). Native prev/next hide only under
- *  playlistActive; .skipUi hides under any active mode. */
+ *  playlistActive; .skipUi hides under any active mode. Markers come from
+ *  computeSeekMarkers: chapters + stored library ranges + mode overlays,
+ *  labeled like getSeekRanges (content.js:887-949). */
 export function playerUiSnapshot(ctx: PlayerContext): PlayerUiSnapshot {
   const state = ctx.state
+  const video = ctx.deps.getVideo()
+  const videoDurationMs =
+    video !== undefined &&
+    typeof video.duration === "number" &&
+    Number.isFinite(video.duration) &&
+    video.duration > 0
+      ? video.duration * 1000
+      : Number.POSITIVE_INFINITY
+  const markers = computeSeekMarkers({
+    mode: state.mode,
+    state,
+    chapters: ctx.chapters,
+    libraryRanges: ctx.libraryRanges,
+    durationMs: videoDurationMs,
+  })
+  const base = {
+    skipUiHidden: state.mode !== "idle",
+    markers,
+    markersColored: state.mode !== "idle",
+  }
   switch (state.mode) {
     case "playlist": {
       const playback = state.playback
       const position = playback.order.indexOf(playback.currentItemId)
       return {
+        ...base,
         mode: "playlist",
         playlistActive: true,
-        skipUiHidden: true,
         controlsVisible: true,
         prevDisabled: position <= 0,
         nextDisabled: position >= playback.order.length - 1,
         panelLabel: playback.item.range?.name ?? "範囲",
         panelSub: playback.mode === "shuffle" ? `SHUFFLE - ${ctx.playlistName}` : ctx.playlistName,
         panelMeta: `${position + 1} / ${playback.order.length}`,
-        markers: playlistMarkers(ctx, playback.currentItemId),
         customBar: EMPTY_BAR,
       }
     }
     case "op-ed":
       return {
+        ...base,
         mode: "op-ed",
         playlistActive: false,
-        skipUiHidden: true,
         controlsVisible: false,
         prevDisabled: true,
         nextDisabled: true,
         panelLabel: "OP/ED",
         panelSub: "",
         panelMeta: "",
-        markers: state.ranges.map((range, index) => ({
-          startMs: range.startMs,
-          endMs: range.endMs,
-          label: range.name,
-          active: index === state.rangeIndex,
-        })),
         customBar: EMPTY_BAR,
       }
     case "custom-preview":
       return {
+        ...base,
         mode: "custom-preview",
         playlistActive: false,
-        skipUiHidden: true,
         controlsVisible: false,
         prevDisabled: true,
         nextDisabled: true,
         panelLabel: state.draft.name || "CUSTOM",
         panelSub: "",
         panelMeta: "",
-        markers:
-          state.draft.startMs !== null &&
-          state.draft.endMs !== null &&
-          state.draft.startMs < state.draft.endMs
-            ? [
-                {
-                  startMs: state.draft.startMs,
-                  endMs: state.draft.endMs,
-                  label: state.draft.name || "CUSTOM",
-                  active: true,
-                },
-              ]
-            : [],
         customBar: {
           visible: true,
           startMs: state.draft.startMs,
@@ -426,16 +445,15 @@ export function playerUiSnapshot(ctx: PlayerContext): PlayerUiSnapshot {
       }
     case "idle":
       return {
+        ...base,
         mode: "idle",
         playlistActive: false,
-        skipUiHidden: false,
         controlsVisible: false,
         prevDisabled: true,
         nextDisabled: true,
         panelLabel: "",
         panelSub: "",
         panelMeta: "",
-        markers: [],
         customBar: EMPTY_BAR,
       }
   }
