@@ -44,6 +44,7 @@ function makeDeps(initial?: Partial<PublicReply>): Harness {
     doc: document,
     storage: {
       readPublic: async () => state.public,
+      readVault: async () => ({ revision: 0, publications: [], pendingCreates: [] }),
       readTransient: async () => state.transient,
       writeTransient: async (next) => {
         state.transient = next

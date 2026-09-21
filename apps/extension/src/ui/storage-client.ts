@@ -33,6 +33,18 @@ const PublicReplySchema = LocalV2StateSchema.pick({
 })
 export type PublicReply = ReturnType<typeof PublicReplySchema.parse>
 
+// Vault read for privileged Extension UI (options management list). The reply
+// carries publication records including manageSecret — callers may render only
+// the non-secret fields and must never export/forward them (task-11 boundary;
+// background authorization already rejects non-extension senders).
+const VaultReplySchema = LocalV2StateSchema.pick({
+  revision: true,
+  publications: true,
+  pendingCreates: true,
+  migrationRecovery: true,
+})
+export type VaultReply = ReturnType<typeof VaultReplySchema.parse>
+
 type SendMessage = (message: StorageRequest) => Promise<unknown>
 
 export class UiStorageError extends Error {
@@ -97,6 +109,7 @@ function parseCommandReply(reply: unknown): CommandReply {
 
 export type UiStorageClient = {
   readonly readPublic: () => Promise<PublicReply>
+  readonly readVault: () => Promise<VaultReply>
   readonly readTransient: () => Promise<TransientState>
   readonly writeTransient: (state: TransientState) => Promise<unknown>
   readonly dispatch: (command: LocalCommand) => Promise<CommandReply>
@@ -107,6 +120,12 @@ export function createUiStorageClient(sendMessage: SendMessage): UiStorageClient
     readPublic: async () => {
       const reply = await sendMessage({ type: "DOP_STORAGE_READ_PUBLIC" })
       const parsed = PublicReplySchema.safeParse(reply)
+      if (!parsed.success) throw malformed(issuePaths(parsed.error))
+      return parsed.data
+    },
+    readVault: async () => {
+      const reply = await sendMessage({ type: "DOP_STORAGE_READ_VAULT" })
+      const parsed = VaultReplySchema.safeParse(reply)
       if (!parsed.success) throw malformed(issuePaths(parsed.error))
       return parsed.data
     },

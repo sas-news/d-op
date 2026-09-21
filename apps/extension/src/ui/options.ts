@@ -12,6 +12,7 @@ import { createModalHost } from "../player/modal"
 import { mutateTransientState, withPlayback } from "../player/transient-session"
 import { buildPlaylistItemUrl } from "../player/url-params"
 import { formatSec, isSystemPlaylist, itemPlaybackUrl } from "./format"
+import { createShareManagement } from "./management"
 import { createDragController } from "./options-drag"
 import { createImportExport } from "./options-io"
 import { buildItemRow } from "./options-items"
@@ -130,6 +131,17 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     modal,
     showStatus,
     render: () => render(),
+  })
+  // Local data step 7: the detached '共有管理 / ローカル削除済み' list renders
+  // alongside playlists on every render cycle.
+  const management = createShareManagement({
+    doc,
+    storage: deps.storage,
+    newId: deps.newId,
+    modal,
+    showStatus,
+    log: deps.log,
+    onChanged: () => render(),
   })
 
   async function renderPlaylists(): Promise<void> {
@@ -293,6 +305,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
         do {
           renderQueued = false
           await renderPlaylists()
+          await management.render(el("managementList"))
         } while (renderQueued && !disposed)
       } catch (error) {
         deps.log?.("options-render-failed", error)

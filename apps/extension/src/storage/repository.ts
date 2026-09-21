@@ -10,6 +10,7 @@ import {
 import type { StorageDriver } from "./driver"
 import { loadOrMigrateState } from "./migration"
 import { applyStorageMutation } from "./mutations"
+import { reconcileTransientPlayback } from "./playback-reconcile"
 
 export type CommandReply =
   | { readonly kind: "committed"; readonly operationId: string; readonly revision: number }
@@ -137,6 +138,18 @@ export function createLocalRepository(options: RepositoryOptions): LocalReposito
       }
       await options.driver.set({ [LOCAL_STATE_KEY]: candidate })
       state = candidate
+      if (parsed.data.kind === "delete-playlist" || parsed.data.kind === "replace-library") {
+        // Local data contract steps 6-7: a committed library removal or JSON
+        // replacement reconciles the transient playback pointer — a playback
+        // entry referencing a vanished playlist/unresolvable index is cleared
+        // so it stops cleanly; resolvable playback is left alone.
+        try {
+          await reconcileTransientPlayback(options.driver, candidate.playlists)
+        } catch {
+          // Best effort: the canonical commit stands and a dangling pointer is
+          // still unresolvable at read time (fromTransientPlayback -> null).
+        }
+      }
       return result
     })
 
