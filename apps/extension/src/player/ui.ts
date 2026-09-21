@@ -75,6 +75,7 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       control.type = "button"
       control.textContent = label
       control.title = title
+      control.setAttribute("aria-label", title)
       control.addEventListener("click", onClick)
       wrapper.appendChild(control)
     }
@@ -276,6 +277,7 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       startInput.type = "text"
       startInput.className = "d-op-custom-bar-time-input"
       startInput.placeholder = "--:--"
+      startInput.setAttribute("aria-label", "開始地点")
       startInput.setAttribute("data-dop-field", "start")
       startInput.addEventListener("change", () => {
         const ms = parseTimeInput(startInput.value)
@@ -292,6 +294,7 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       endInput.type = "text"
       endInput.className = "d-op-custom-bar-time-input"
       endInput.placeholder = "--:--"
+      endInput.setAttribute("aria-label", "終了地点")
       endInput.setAttribute("data-dop-field", "end")
       endInput.addEventListener("change", () => {
         const ms = parseTimeInput(endInput.value)
@@ -320,6 +323,7 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       const name = doc.createElement("input")
       name.type = "text"
       name.placeholder = "区間名"
+      name.setAttribute("aria-label", "区間名")
       name.setAttribute("data-dop-field", "name")
       name.addEventListener("input", () => deps.onCustomDraft({ name: name.value }))
       const test = doc.createElement("button")

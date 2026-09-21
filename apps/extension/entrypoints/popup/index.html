@@ -13,6 +13,7 @@
       <button id="openOptions" type="button">管理</button>
     </header>
 
+    <main>
     <div id="playback" class="hidden">
       <div class="now-playing">
         <div id="playlistName" class="playlist-name"></div>
@@ -23,9 +24,9 @@
       </div>
 
       <div class="controls">
-        <button id="prevBtn" type="button">⏮</button>
+        <button id="prevBtn" type="button" aria-label="前のクリップ">⏮</button>
         <button id="stopBtn" type="button" class="secondary">終了</button>
-        <button id="nextBtn" type="button">⏭</button>
+        <button id="nextBtn" type="button" aria-label="次のクリップ">⏭</button>
       </div>
 
       <div id="playlistItems" class="playlist-items"></div>
@@ -39,6 +40,7 @@
       <p>プレイリストを選択（▶で先頭から再生）</p>
       <div id="playlistList" class="playlist-list"></div>
     </div>
+    </main>
 
     <footer class="popup-footer">
       <a href="https://d-op.sasnews.dev/privacy" target="_blank" rel="noopener">プライバシー</a>

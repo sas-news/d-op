@@ -110,8 +110,10 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
   let refreshQueued = false
   let disposed = false
 
-  function createPopupRow(label: string, onClick: () => void): HTMLElement {
-    const row = doc.createElement("div")
+  function createPopupRow(label: string, onClick: () => void): HTMLButtonElement {
+    // Button rows (task 24): the div variant was unreachable by keyboard.
+    const row = doc.createElement("button")
+    row.type = "button"
     row.className = "d-op-popup-item"
     row.textContent = label
     row.addEventListener("click", (event) => {
@@ -134,6 +136,9 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
     button.textContent = "♪"
     button.title = "プレイリストに追加"
     button.setAttribute("aria-label", "プレイリストに追加")
+    button.setAttribute("aria-haspopup", "true")
+    button.setAttribute("aria-controls", "d-op-add-popup")
+    button.setAttribute("aria-expanded", "false")
 
     const popup = doc.createElement("div")
     popup.id = "d-op-add-popup"
@@ -148,19 +153,43 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
         popupHideTimer = undefined
       }
       popup.classList.add("d-op-popup-visible")
+      button.setAttribute("aria-expanded", "true")
+    }
+    const hidePopup = (): void => {
+      popup.classList.remove("d-op-popup-visible")
+      button.setAttribute("aria-expanded", "false")
     }
     const scheduleHide = (): void => {
       popupHideTimer = deps.schedule(() => {
         popupHideTimer = undefined
-        popup.classList.remove("d-op-popup-visible")
+        hidePopup()
       }, ADD_POPUP_HIDE_DELAY_MS)
     }
     // Hover + focus keep the popup open while the pointer/cursor is inside
-    // (content.js:641-644 adds focus parity via CSS :focus-within).
+    // (content.js:641-644 adds focus parity via CSS :focus-within); explicit
+    // focusin/focusout mirror it so aria-expanded stays truthful for
+    // keyboard users even where :focus-within styling already shows it.
     wrapper.addEventListener("mouseenter", showPopup)
     wrapper.addEventListener("mouseleave", scheduleHide)
     popup.addEventListener("mouseenter", showPopup)
     popup.addEventListener("mouseleave", scheduleHide)
+    wrapper.addEventListener("focusin", showPopup)
+    wrapper.addEventListener("focusout", (event) => {
+      const next = event.relatedTarget
+      if (next instanceof Node && wrapper.contains(next)) return
+      scheduleHide()
+    })
+    // Escape closes the popup and returns focus to the ♪ trigger.
+    wrapper.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return
+      event.stopPropagation()
+      if (popupHideTimer !== undefined) {
+        deps.cancelTimer(popupHideTimer)
+        popupHideTimer = undefined
+      }
+      hidePopup()
+      button.focus()
+    })
     return wrapper
   }
 
@@ -217,7 +246,9 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
         }),
       }))
       if (ranges.length === 0) {
-        popup.appendChild(createPopupRow("スキップ区間なし", () => {}))
+        const emptyRow = createPopupRow("スキップ区間なし", () => {})
+        emptyRow.disabled = true
+        popup.appendChild(emptyRow)
       } else {
         for (const range of ranges) {
           const key = `${range.startMs}|${range.endMs}`
@@ -310,13 +341,18 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
       row.type = "button"
       row.className = "d-op-modal-playlist-item"
       row.textContent = `${playlist.name} (${playlist.items.length}曲)`
+      // Toggle semantics for screen readers — the .selected class alone is
+      // visual-only.
+      row.setAttribute("aria-pressed", "false")
       row.addEventListener("click", () => {
         if (selectedIds.has(playlist.id)) {
           selectedIds.delete(playlist.id)
           row.classList.remove("selected")
+          row.setAttribute("aria-pressed", "false")
         } else {
           selectedIds.add(playlist.id)
           row.classList.add("selected")
+          row.setAttribute("aria-pressed", "true")
         }
         updateAddButton()
       })
@@ -327,6 +363,7 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
     newRow.className = "d-op-modal-new-row"
     newInput.type = "text"
     newInput.placeholder = "新規プレイリスト名"
+    newInput.setAttribute("aria-label", "新規プレイリスト名")
     newInput.addEventListener("input", updateAddButton)
     newRow.appendChild(newInput)
 
@@ -335,6 +372,7 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
     const nameInput = doc.createElement("input")
     nameInput.type = "text"
     nameInput.placeholder = "区間名"
+    nameInput.setAttribute("aria-label", "区間名")
     nameInput.value = defaultName
     nameRow.appendChild(nameInput)
 

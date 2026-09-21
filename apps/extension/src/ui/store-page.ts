@@ -9,6 +9,12 @@
 // marked once (data-dop-decorated) so observer ticks never rebuild the page.
 import { PLAYBACK_URL_PATH } from "../../../../packages/shared/src/limits"
 import { guessRangeName } from "../domain/range"
+import {
+  captureFocusOrigin,
+  focusablesIn,
+  restoreFocusOrigin,
+  trapTabKey,
+} from "../player/focus-trap"
 import { decodeHtmlEntities, formatSec } from "./format"
 
 export type StoreChapter = {
@@ -55,6 +61,7 @@ export function createStorePage(doc: Document, deps: StorePageDeps): StorePage {
   let observer: MutationObserver | null = null
   let decorateTimer: unknown
   let menu: HTMLElement | null = null
+  let menuAnchor: HTMLElement | null = null
   let menuClose: ((event: Event) => void) | null = null
   let disposed = false
 
@@ -87,6 +94,8 @@ export function createStorePage(doc: Document, deps: StorePageDeps): StorePage {
   function closeMenu(): void {
     menu?.remove()
     menu = null
+    menuAnchor?.setAttribute("aria-expanded", "false")
+    menuAnchor = null
     if (menuClose !== null) {
       doc.removeEventListener("click", menuClose)
       menuClose = null
@@ -109,11 +118,18 @@ export function createStorePage(doc: Document, deps: StorePageDeps): StorePage {
     const el = doc.createElement("div")
     el.id = "d-op-store-range-menu"
     el.className = "d-op-store-range-menu"
+    // Menu semantics (task 24): items are real buttons so the list is
+    // Tab/Enter operable; Escape closes and returns focus to the trigger.
+    el.setAttribute("role", "menu")
+    el.setAttribute("aria-label", "スキップ区間")
 
     if (none.length === 0) {
-      const row = doc.createElement("div")
+      const row = doc.createElement("button")
+      row.type = "button"
       row.className = "d-op-store-range-item d-op-store-range-disabled"
+      row.setAttribute("role", "menuitem")
       row.textContent = "スキップ区間なし"
+      row.disabled = true
       el.appendChild(row)
     } else {
       for (const [index, chapter] of none.entries()) {
@@ -123,8 +139,10 @@ export function createStorePage(doc: Document, deps: StorePageDeps): StorePage {
           total: none.length,
           durationMs: durationMs ?? Number.POSITIVE_INFINITY,
         })
-        const row = doc.createElement("div")
+        const row = doc.createElement("button")
+        row.type = "button"
         row.className = "d-op-store-range-item"
+        row.setAttribute("role", "menuitem")
         row.textContent = `${name} (${formatSec(chapter.start)}-${formatSec(chapter.end)})`
         row.addEventListener("click", (event) => {
           event.stopPropagation()
@@ -138,26 +156,63 @@ export function createStorePage(doc: Document, deps: StorePageDeps): StorePage {
 
     ;(doc.body ?? doc.documentElement).appendChild(el)
     menu = el
+    menuAnchor = anchor
+    el.tabIndex = -1 // focusable fallback when the menu has no enabled items
     const rect = anchor.getBoundingClientRect()
     el.style.top = `${rect.bottom + (doc.defaultView?.scrollY ?? 0) + 4}px`
     el.style.left = `${rect.left + (doc.defaultView?.scrollX ?? 0)}px`
 
     el.addEventListener("click", (event) => event.stopPropagation())
+    el.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.stopPropagation()
+        closeMenu()
+        anchor.focus()
+        return
+      }
+      // Menu keyboard contract (task 24): ↑/↓ cycle items with wrap,
+      // Home/End jump to the edges, Tab dismisses like a native menu.
+      const items = focusablesIn(el)
+      if (event.key === "Tab") {
+        closeMenu()
+        return
+      }
+      if (items.length === 0) return
+      const index = items.indexOf(doc.activeElement as HTMLElement)
+      let next = -1
+      if (event.key === "ArrowDown") next = index < 0 ? 0 : (index + 1) % items.length
+      else if (event.key === "ArrowUp") next = index <= 0 ? items.length - 1 : index - 1
+      else if (event.key === "Home") next = 0
+      else if (event.key === "End") next = items.length - 1
+      else return
+      event.preventDefault()
+      items[next]?.focus()
+    })
     menuClose = () => closeMenu()
     doc.addEventListener("click", menuClose)
+    anchor.setAttribute("aria-expanded", "true")
+    // Move focus into the menu so keyboard users land on the first range.
+    ;(focusablesIn(el)[0] ?? el).focus()
   }
 
   /** Custom error modal — never native alert/confirm (styles-store.css
-   *  parity: #d-op-store-modal). */
+   *  parity: #d-op-store-modal). Task 24: real dialog semantics — labelled,
+   *  Tab-trapped, and focus returns to the element that had it on open. */
   function showError(message: string): Promise<null> {
     return new Promise<null>((resolve) => {
       doc.getElementById("d-op-store-modal")?.remove()
+      const focusOrigin = captureFocusOrigin(doc)
       const modal = doc.createElement("div")
       modal.id = "d-op-store-modal"
       modal.className = "d-op-store-modal"
       const panel = doc.createElement("div")
       panel.className = "d-op-store-modal-panel"
+      panel.setAttribute("role", "dialog")
+      panel.setAttribute("aria-modal", "true")
+      panel.setAttribute("aria-labelledby", "d-op-store-modal-title")
+      panel.tabIndex = -1
       const title = doc.createElement("h3")
+      title.id = "d-op-store-modal-title"
       title.textContent = "エラー"
       const body = doc.createElement("p")
       body.textContent = message
@@ -170,9 +225,15 @@ export function createStorePage(doc: Document, deps: StorePageDeps): StorePage {
         modal.remove()
         doc.removeEventListener("keydown", onKey)
         resolve(null)
+        restoreFocusOrigin(focusOrigin)
       }
       const onKey = (event: KeyboardEvent): void => {
-        if (event.key === "Escape") close()
+        if (event.key === "Escape") {
+          event.stopPropagation()
+          close()
+          return
+        }
+        trapTabKey(panel, event)
       }
       ok.addEventListener("click", close)
       doc.addEventListener("keydown", onKey)
@@ -204,6 +265,8 @@ export function createStorePage(doc: Document, deps: StorePageDeps): StorePage {
       button.className = "d-op-store-btn"
       button.textContent = "OP/ED"
       button.title = "スキップ区間を選択して再生"
+      button.setAttribute("aria-label", `${episodeTitle || "この話"}のスキップ区間を選択`)
+      button.setAttribute("aria-haspopup", "menu")
       button.addEventListener("click", (event) => {
         event.preventDefault()
         event.stopPropagation()

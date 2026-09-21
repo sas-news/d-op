@@ -50,19 +50,36 @@ export function createPlaylistPicker(ctx: PickerContext): PlaylistPicker {
     for (const playlist of playlists) {
       const card = doc.createElement("div")
       card.className = `playlist-card${expandedPlaylistId === playlist.id ? " expanded" : ""}`
+      card.dataset["playlistId"] = playlist.id
 
       const header = doc.createElement("div")
       header.className = "playlist-card-header"
       header.addEventListener("click", () => {
         expandedPlaylistId = expandedPlaylistId === playlist.id ? null : playlist.id
         renderPlaylistList(playlists)
+        // The re-render replaces every node — put focus back on the card's
+        // toggle so keyboard users do not drop to <body> (task 24).
+        list
+          .querySelector<HTMLElement>(
+            `.playlist-card[data-playlist-id="${playlist.id}"] .playlist-card-toggle`,
+          )
+          ?.focus()
       })
+      // The title/count area is a real button (task 24) so keyboard users can
+      // expand a card without relying on a clickable div; its click bubbles
+      // up to the header handler, keeping one toggle path for mouse + keys.
+      const toggle = doc.createElement("button")
+      toggle.type = "button"
+      toggle.className = "playlist-card-toggle"
+      toggle.setAttribute("aria-expanded", String(expandedPlaylistId === playlist.id))
+      toggle.setAttribute("aria-label", `${playlist.name}のクリップ一覧`)
       const title = doc.createElement("span")
       title.textContent = playlist.name
       title.className = "playlist-card-title"
       const count = doc.createElement("span")
       count.className = "count"
       count.textContent = `${playlist.items.length}曲`
+      toggle.append(title, count)
       const isEmpty = playlist.items.length === 0
 
       const playBtn = doc.createElement("button")
@@ -87,7 +104,7 @@ export function createPlaylistPicker(ctx: PickerContext): PlaylistPicker {
         if (isEmpty) return
         void actions.startShuffle(playlist).then(render)
       })
-      header.append(title, count, playBtn, shuffleBtn)
+      header.append(toggle, playBtn, shuffleBtn)
       card.appendChild(header)
 
       if (expandedPlaylistId === playlist.id) {
@@ -100,7 +117,10 @@ export function createPlaylistPicker(ctx: PickerContext): PlaylistPicker {
           items.appendChild(emptyMsg)
         } else {
           for (const [index, item] of playlist.items.entries()) {
-            const row = doc.createElement("div")
+            // Button rows (task 24): Tab-reachable, Enter/Space activate —
+            // the div variant was mouse-only.
+            const row = doc.createElement("button")
+            row.type = "button"
             row.className = "playlist-card-item"
             const texts = itemRowTexts(item)
             const titleEl = doc.createElement("div")

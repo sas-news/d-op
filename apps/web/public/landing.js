@@ -93,16 +93,18 @@
       }
     })
     root.querySelectorAll("[data-lightbox-trigger]").forEach((trigger) => {
-      trigger.addEventListener("click", () => openLightbox(root, activeIndex))
+      trigger.addEventListener("click", () => openLightbox(root, activeIndex, trigger))
     })
     show(activeIndex)
     startAuto()
   }
 
-  function openLightbox(galleryRoot, startIndex) {
+  function openLightbox(galleryRoot, startIndex, trigger) {
     if (activeLightbox !== null) return
     const slides = Array.from(galleryRoot.querySelectorAll("[data-slide]"))
     if (slides.length === 0) return
+    // Task 24: remember the opener so closing returns focus to it.
+    const focusOrigin = trigger instanceof HTMLElement ? trigger : document.activeElement
 
     const overlay = document.createElement("div")
     overlay.className = "lightbox"
@@ -159,6 +161,36 @@
       overlay.remove()
       document.removeEventListener("keydown", onKey)
       activeLightbox = null
+      // Return focus to the control that opened the viewer (task 24).
+      if (focusOrigin instanceof HTMLElement && focusOrigin.isConnected) {
+        focusOrigin.focus()
+      }
+    }
+    // Tab/Shift+Tab cycle inside the dialog so focus never escapes behind
+    // the modal overlay (task 24).
+    const trapTab = (event) => {
+      if (event.key !== "Tab") return
+      const focusables = Array.from(
+        overlay.querySelectorAll("button:not([disabled]), [href], [tabindex]"),
+      ).filter((el) => !el.hasAttribute("disabled"))
+      if (focusables.length === 0) {
+        event.preventDefault()
+        return
+      }
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      const active = document.activeElement
+      const inside = active instanceof HTMLElement && overlay.contains(active)
+      if (!inside) {
+        event.preventDefault()
+        first.focus()
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     const onKey = (event) => {
       if (event.key === "Escape") {
@@ -169,6 +201,8 @@
       } else if (event.key === "ArrowRight") {
         index = (index + 1) % slides.length
         render()
+      } else if (event.key === "Tab") {
+        trapTab(event)
       }
     }
     closeBtn.addEventListener("click", close)
@@ -187,6 +221,9 @@
     activeLightbox = { close }
     render()
     requestAnimationFrame(() => overlay.classList.add("is-open"))
+    // Focus lands on the close control so screen-reader and keyboard users
+    // start inside the dialog, not behind it (task 24).
+    closeBtn.focus()
   }
 
   const bindGallery = () => {

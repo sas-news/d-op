@@ -3,11 +3,18 @@
   --dop-accent-hover: #ff1a2d;
   --dop-accent-pressed: #b3000e;
   --dop-accent-subtle: rgba(230, 0, 18, 0.10);
-  --dop-danger: #ff2d55;
-  --dop-danger-hover: #d92045;
+  /* Accent as TEXT needs a darker shade: #e60012 is 4.3:1 on the base tint
+     and 3.6:1 on accent-subtle — both fail WCAG AA. #b3000e is ≥5.4:1 on
+     every surface tint (task 24). */
+  --dop-accent-text: #b3000e;
+  /* #ff2d55 was 3.6:1 on white — darker so danger text passes AA; white
+     labels on it still pass when used as a fill. */
+  --dop-danger: #cf1e41;
+  --dop-danger-hover: #b31736;
   --dop-info: #0a84ff;
   --dop-warning: #ffcc00;
-  --dop-success: #30d158;
+  /* #30d158 is ~2:1 on white — status text needs a dark green for AA. */
+  --dop-success: #146c2e;
 
   --dop-bg-base: #f2f2f6;
   --dop-bg-panel: #ffffff;
@@ -17,8 +24,10 @@
   --dop-border-strong: #d1d1d6;
 
   --dop-text-primary: #111114;
-  --dop-text-secondary: #6e6e78;
-  --dop-text-tertiary: #a1a1aa;
+  /* Both muted tiers must reach 4.5:1 on the lightest surface they sit on
+     (#f2f2f6 base / #f7f7f9 elevated). */
+  --dop-text-secondary: #62626a;
+  --dop-text-tertiary: #6b6b73;
 
   --dop-font: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --dop-font-mono: "SF Mono", "JetBrains Mono", "Fira Code", "Noto Sans JP", monospace;
@@ -228,7 +237,11 @@ button:disabled {
 }
 
 .playlist-toggle {
+  /* Real <button> (task 24) — reset the UA chrome, keep the legacy look. */
   display: inline-block;
+  padding: 0;
+  border: none;
+  background: transparent;
   font-size: 11px;
   color: var(--dop-text-tertiary);
   cursor: pointer;
@@ -329,6 +342,9 @@ button:disabled {
   gap: 3px;
   width: 20px;
   padding: 0 3px;
+  /* Real <button> (task 24): reset the UA chrome, keep the grip visuals. */
+  border: none;
+  background: transparent;
   cursor: grab;
   flex-shrink: 0;
   align-self: stretch;
@@ -339,6 +355,11 @@ button:disabled {
 
 .drag-grip:hover {
   opacity: 0.6;
+}
+
+/* Keyboard focus must reveal the grip even without a hover (task 24). */
+.drag-grip:focus-visible {
+  opacity: 1;
 }
 
 .drag-grip:active {
@@ -376,12 +397,15 @@ button:disabled {
   font-weight: 600;
   font-size: 14px;
   color: var(--dop-text-primary);
+  /* 200-char titles wrap anywhere instead of pushing controls out (task 24). */
+  overflow-wrap: anywhere;
 }
 
 .item-work {
   font-size: 12px;
   color: var(--dop-text-secondary);
   margin-top: var(--dop-space-1);
+  overflow-wrap: anywhere;
 }
 
 .item-meta {
@@ -394,7 +418,8 @@ button:disabled {
 .item-range-name {
   font-size: 13px;
   font-weight: 700;
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
+  overflow-wrap: anywhere;
 }
 
 .item-range-time {
@@ -492,6 +517,8 @@ button:disabled {
   padding: var(--dop-space-3) 0;
   border-bottom: 1px solid var(--dop-border);
   font-size: 13px;
+  /* Long share ids + action buttons wrap on narrow widths (task 24). */
+  flex-wrap: wrap;
 }
 
 .management-row:last-child {
@@ -504,6 +531,9 @@ button:disabled {
   color: var(--dop-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
+  /* nowrap makes the ellipsis actually engage on long share ids. */
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .management-visibility {
@@ -563,13 +593,32 @@ button:disabled {
   background: var(--dop-bg-panel);
   border-radius: var(--dop-radius-lg);
   padding: var(--dop-space-7);
-  min-width: 300px;
+  /* Narrow windows: cap the min-width so the panel never overflows (task 24). */
+  min-width: min(300px, calc(100vw - 40px));
   max-width: 80vw;
   max-height: 70vh;
   overflow-y: auto;
   color: var(--dop-text-primary);
   border: 1px solid var(--dop-border);
   animation: panel-in 150ms ease-out;
+}
+
+@media (max-width: 480px) {
+  /* At phone widths the panel takes the safe viewport width and the share
+     dialog's fixed min-width yields to it — no clipped buttons. */
+  .d-op-modal-panel {
+    min-width: 0;
+    width: calc(100vw - 40px);
+    max-width: calc(100vw - 40px);
+  }
+
+  .share-dialog {
+    min-width: 0;
+  }
+
+  .share-url-row {
+    flex-wrap: wrap;
+  }
 }
 
 @keyframes panel-in {
@@ -633,6 +682,8 @@ button:disabled {
   justify-content: flex-end;
   gap: var(--dop-space-4);
   margin-top: var(--dop-space-5);
+  /* Narrow panels wrap buttons onto a second line instead of clipping. */
+  flex-wrap: wrap;
 }
 
 .empty-state {
@@ -723,7 +774,7 @@ button:disabled {
 }
 
 .footer-links a:hover {
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
   text-decoration: underline;
 }
 
@@ -747,6 +798,9 @@ button:disabled {
   line-height: 1.5;
   color: var(--dop-text-secondary);
   white-space: pre-wrap;
+  /* Long unbroken strings (200-char CJK titles in confirm prompts) wrap
+     instead of forcing the panel wider than the viewport. */
+  overflow-wrap: anywhere;
 }
 
 .d-op-modal-footer button:disabled {
@@ -790,7 +844,7 @@ button:disabled {
 .share-url {
   font-family: var(--dop-font-mono);
   font-size: 12px;
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -878,4 +932,33 @@ button:disabled {
   font-size: 12px;
   color: var(--dop-text-secondary);
   flex-basis: 100%;
+}
+
+/* Reduced motion (task 24): entrance animations, collapse/expand and drag
+   FLIP transitions are decorative — removed entirely under
+   prefers-reduced-motion. !important on .item-row/.drag-clone beats the
+   inline FLIP styles set by options-drag.ts (which also skips them at
+   runtime; this is the belt-and-suspenders layer). */
+@media (prefers-reduced-motion: reduce) {
+  .d-op-modal,
+  .d-op-modal.modal-out,
+  .d-op-modal-panel {
+    animation: none;
+  }
+
+  button,
+  input[type="text"],
+  select,
+  textarea,
+  .playlist-toggle,
+  .playlist-items-wrapper,
+  .playlist-name-input,
+  .item-row,
+  .drag-grip,
+  .drag-clone,
+  .file-btn,
+  .d-op-modal-playlist-item,
+  .footer-links a {
+    transition: none !important;
+  }
 }

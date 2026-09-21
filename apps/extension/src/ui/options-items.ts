@@ -25,6 +25,11 @@ export type ItemRowContext = {
   readonly showConfirm: (message: string) => Promise<boolean>
   readonly render: () => void
   readonly startPlaylistPlayback: (playlistId: string, index?: number) => Promise<void>
+  /**
+   * Keyboard reorder entry point (task 24) — forwards to the drag
+   * controller's moveByKey so the persisted path stays identical to mouse.
+   */
+  readonly reorderItem: (row: HTMLElement, delta: -1 | 1) => boolean
 }
 
 /** Copy-target picker (options.js:528-594): rows resolve the modal
@@ -113,18 +118,21 @@ export function buildItemRow(
   titleInput.className = "item-title-input"
   titleInput.value = item.range !== null ? (item.range.name ?? formatRangeName(item.range)) : ""
   titleInput.placeholder = "タイトル"
+  titleInput.setAttribute("aria-label", "区間タイトル")
   titleInput.disabled = item.range === null
   const startInput = doc.createElement("input")
   startInput.type = "text"
   startInput.className = "item-time-input"
   startInput.value = item.range !== null ? formatSec(item.range.start) : ""
   startInput.placeholder = "開始"
+  startInput.setAttribute("aria-label", "開始時刻")
   startInput.disabled = item.range === null
   const endInput = doc.createElement("input")
   endInput.type = "text"
   endInput.className = "item-time-input"
   endInput.value = item.range !== null ? formatSec(item.range.end) : ""
   endInput.placeholder = "終了"
+  endInput.setAttribute("aria-label", "終了時刻")
   endInput.disabled = item.range === null
 
   const saveBtn = doc.createElement("button")
@@ -276,8 +284,20 @@ export function buildItemRow(
   divider()
   controls.appendChild(removeBtn)
 
-  const grip = doc.createElement("div")
+  // The grip doubles as the keyboard-reorder affordance (task 24): a real
+  // button so it is focusable, labelled for screen readers, and moves the row
+  // one step on ↑/↓. Mouse drag still starts from its mousedown.
+  const grip = doc.createElement("button")
+  grip.type = "button"
   grip.className = "drag-grip"
+  grip.setAttribute("aria-label", `${title.textContent ?? ""}を移動（↑または↓キー）`)
+  grip.title = "ドラッグまたは↑↓キーで並び替え"
+  grip.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+    event.preventDefault()
+    event.stopPropagation()
+    ctx.reorderItem(li, event.key === "ArrowUp" ? -1 : 1)
+  })
   for (let i = 0; i < 3; i += 1) {
     const line = doc.createElement("div")
     line.className = "drag-grip-line"

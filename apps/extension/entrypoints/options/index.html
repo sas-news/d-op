@@ -10,12 +10,13 @@
 </head>
 <body>
   <div class="container">
+    <main>
     <h1>プレイリスト管理</h1>
 
     <section class="create-section">
       <h2>新規プレイリスト</h2>
       <div class="row">
-        <input type="text" id="newPlaylistName" placeholder="プレイリスト名">
+        <input type="text" id="newPlaylistName" placeholder="プレイリスト名" aria-label="プレイリスト名">
         <button id="createPlaylistBtn" type="button">作成</button>
       </div>
     </section>
@@ -44,7 +45,7 @@
           <input type="file" id="importFile" accept=".json">
         </label>
       </div>
-      <div id="importStatus"></div>
+      <div id="importStatus" role="status" aria-live="polite"></div>
     </section>
 
     <section class="settings-section">
@@ -68,6 +69,7 @@
       </ol>
       <p class="guide-note">※ dアニメストアのアカウントが必要です。プレイリストは端末内にのみ保存され、「共有」ボタンから明示的に公開操作を行った場合のみ公開サーバーへ送信されます。自動送信・自動同期は行いません。</p>
     </section>
+    </main>
 
     <footer class="page-footer">
       <div class="footer-links">

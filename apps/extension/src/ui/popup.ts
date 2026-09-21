@@ -56,12 +56,22 @@ export function createPopupController(deps: PopupDeps): PopupController {
   ): void {
     const container = el("playlistItems")
     if (container === null) return
+    // A JUMP re-render replaces every row — remember the focused position so
+    // keyboard users keep their place (task 24).
+    const focusedPos = (() => {
+      const active = doc.activeElement
+      if (!(active instanceof HTMLElement) || !container.contains(active)) return null
+      return active.closest<HTMLElement>(".playlist-item")?.dataset["pos"] ?? null
+    })()
     container.replaceChildren()
     for (const [displayPos, itemId] of order.entries()) {
       const item = playlist.items.find((candidate) => candidate.id === itemId)
       if (item === undefined) continue
-      const row = doc.createElement("div")
+      // Button rows (task 24) so the now-playing list is keyboard-operable.
+      const row = doc.createElement("button")
+      row.type = "button"
       row.className = `playlist-item${displayPos === position ? " current" : ""}`
+      row.dataset["pos"] = String(displayPos)
       const thumb = doc.createElement("div")
       thumb.className = "item-thumb"
       thumb.textContent = String(displayPos + 1)
@@ -93,6 +103,9 @@ export function createPopupController(deps: PopupDeps): PopupController {
         render()
       })
       container.appendChild(row)
+    }
+    if (focusedPos !== null) {
+      container.querySelector<HTMLElement>(`.playlist-item[data-pos="${focusedPos}"]`)?.focus()
     }
 
     const shuffleActions = el("shuffleActions")

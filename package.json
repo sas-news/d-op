@@ -27,6 +27,7 @@
     "verify:cutover": "bun -e \"console.error('task-29 owns verify:cutover (production cutover proof): not implemented');process.exit(1)\""
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@biomejs/biome": "2.5.14",
     "@cloudflare/vitest-plugin": "1.1.12",
     "@playwright/test": "1.61.0",

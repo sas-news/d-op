@@ -17,7 +17,8 @@
 
   --dop-text-primary: #ffffff;
   --dop-text-secondary: rgba(255, 255, 255, 0.68);
-  --dop-text-tertiary: rgba(255, 255, 255, 0.42);
+  /* 0.42 alpha composites to ~4:1 on the panel tints — 0.55 reaches ~6:1. */
+  --dop-text-tertiary: rgba(255, 255, 255, 0.55);
 
   --dop-font: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 
@@ -108,9 +109,16 @@
 }
 
 .d-op-store-range-item {
+  /* Real <button> rows (task 24) — reset UA chrome, stretch full width. */
+  display: block;
+  width: 100%;
   padding: var(--dop-space-4) var(--dop-space-6);
+  border: none;
+  background: transparent;
   color: var(--dop-text-primary);
+  font-family: var(--dop-font);
   font-size: 12px;
+  text-align: left;
   white-space: nowrap;
   cursor: pointer;
   transition: background var(--dop-transition-fast);
@@ -119,7 +127,15 @@
 .d-op-store-range-item:hover,
 .d-op-store-range-item:focus-visible {
   background: var(--dop-bg-elevated);
-  outline: none;
+}
+
+.d-op-store-range-item:focus-visible {
+  outline: 2px solid var(--dop-accent);
+  outline-offset: -2px;
+}
+
+.d-op-store-range-item:disabled {
+  cursor: default;
 }
 
 .d-op-store-range-disabled {
@@ -155,7 +171,8 @@
   background: var(--dop-bg-panel);
   border-radius: var(--dop-radius-lg);
   padding: var(--dop-space-7);
-  min-width: 260px;
+  /* Narrow windows: cap the min-width so the panel never overflows. */
+  min-width: min(260px, calc(100vw - 32px));
   max-width: 80vw;
   color: var(--dop-text-primary);
   border: 1px solid var(--dop-border);
@@ -216,4 +233,20 @@
   animation: dop-spin 0.8s linear infinite;
   vertical-align: -2px;
   margin-right: var(--dop-space-2);
+}
+
+/* Reduced motion (task 24): the modal entrance and hover transitions are
+   decorative — removed under prefers-reduced-motion. The loading spinner
+   keeps its animation: it is the only progress signal, not decoration. */
+@media (prefers-reduced-motion: reduce) {
+  .d-op-store-modal,
+  .d-op-store-modal-panel {
+    animation: none;
+  }
+
+  .d-op-store-btn,
+  .d-op-store-range-item,
+  .d-op-store-modal-footer button {
+    transition: none;
+  }
 }

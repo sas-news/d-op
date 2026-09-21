@@ -2,14 +2,18 @@
   --color-ink: #f7f8fa;
   --color-white: #fff;
   --color-muted: rgb(247 248 250 / 68%);
-  --color-subtle: rgb(247 248 250 / 44%);
+  /* 44% composites to ~4:1 on the paper/surface tints — below WCAG AA.
+     56% reaches ~5.9:1 while staying visually quieter than --color-muted. */
+  --color-subtle: rgb(247 248 250 / 56%);
   --color-paper: #0a0a0c;
   --color-surface: #141418;
   --color-surface-raised: #1c1c22;
   --color-line: rgb(255 255 255 / 10%);
   --color-line-strong: rgb(255 255 255 / 18%);
   --color-accent: #e60012;
-  --color-accent-bright: #ff1a2d;
+  /* Text-on-dark accent: #ff1a2d is only ~4.3:1 on surface-raised and
+     accent-soft tints; #ff5c6a reaches ≥4.8:1 everywhere it is used as text. */
+  --color-accent-bright: #ff5c6a;
   --color-accent-dark: #b3000e;
   --color-accent-soft: rgb(230 0 18 / 15%);
   --color-info: #0a84ff;
@@ -112,7 +116,7 @@ h2 { font-size: var(--text-xl); }
 
 .button { display: inline-flex; align-items: center; justify-content: center; min-height: 2.9rem; gap: var(--space-2); padding: var(--space-2) var(--space-5); border: 1px solid transparent; border-radius: var(--radius-md); font: inherit; font-weight: 700; text-decoration: none; transition: background-color var(--motion-fast), border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast); }
 .button-primary { background: var(--color-accent); color: var(--color-white); }
-.button-primary:hover:not(:disabled) { background: var(--color-accent-bright); box-shadow: var(--shadow-lift); transform: translateY(-0.1rem); }
+.button-primary:hover:not(:disabled) { background: var(--color-accent-dark); box-shadow: var(--shadow-lift); transform: translateY(-0.1rem); }
 .button-secondary { border-color: var(--color-line-strong); background: transparent; color: var(--color-ink); }
 .button-secondary:hover:not(:disabled) { border-color: var(--color-accent); color: var(--color-accent-bright); }
 .button:disabled { cursor: not-allowed; opacity: 0.45; }

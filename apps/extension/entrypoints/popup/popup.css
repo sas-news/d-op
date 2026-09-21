@@ -3,10 +3,17 @@
   --dop-accent-hover: #ff1a2d;
   --dop-accent-pressed: #b3000e;
   --dop-accent-subtle: rgba(230, 0, 18, 0.10);
-  --dop-danger: #ff2d55;
+  /* Accent as TEXT needs a darker shade: #e60012 is 4.3:1 on the base tint
+     and 3.6:1 on accent-subtle — both fail WCAG AA. #b3000e is ≥5.4:1 on
+     every surface tint (task 24). */
+  --dop-accent-text: #b3000e;
+  /* #ff2d55 was 3.6:1 on white — darker so danger text passes AA; white
+     labels on it still pass when used as a fill. */
+  --dop-danger: #cf1e41;
   --dop-info: #0a84ff;
   --dop-warning: #ffcc00;
-  --dop-success: #30d158;
+  /* #30d158 is ~2:1 on white — status text needs a dark green for AA. */
+  --dop-success: #146c2e;
 
   --dop-bg-base: #f2f2f6;
   --dop-bg-panel: #ffffff;
@@ -16,8 +23,10 @@
   --dop-border-strong: #d1d1d6;
 
   --dop-text-primary: #111114;
-  --dop-text-secondary: #6e6e78;
-  --dop-text-tertiary: #a1a1aa;
+  /* Both muted tiers must reach 4.5:1 on the lightest surface they sit on
+     (#f2f2f6 base / #f7f7f9 elevated). */
+  --dop-text-secondary: #62626a;
+  --dop-text-tertiary: #6b6b73;
 
   --dop-font: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --dop-font-mono: "SF Mono", "JetBrains Mono", "Fira Code", "Noto Sans JP", monospace;
@@ -118,7 +127,7 @@ header button:hover {
 
 .playlist-name {
   font-size: 12px;
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
   font-weight: 700;
   margin-bottom: var(--dop-space-2);
 }
@@ -130,7 +139,7 @@ header button:hover {
   padding: 1px 6px;
   border-radius: var(--dop-radius-sm);
   background: var(--dop-accent-subtle);
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
   letter-spacing: 0.04em;
   position: absolute;
   top: var(--dop-space-4);
@@ -141,12 +150,15 @@ header button:hover {
   font-size: 14px;
   font-weight: 700;
   margin-bottom: var(--dop-space-1);
+  /* Long CJK/unbroken titles wrap inside the 340px popup (task 24). */
+  overflow-wrap: anywhere;
 }
 
 .track-detail {
   font-size: 12px;
   color: var(--dop-text-secondary);
   margin-bottom: var(--dop-space-3);
+  overflow-wrap: anywhere;
 }
 
 .track-progress {
@@ -208,11 +220,19 @@ header button:hover {
 }
 
 .playlist-item {
+  /* Real <button> row (task 24) — reset UA chrome, keep the row layout. */
   display: flex;
   align-items: center;
   gap: var(--dop-space-4);
+  width: 100%;
   padding: var(--dop-space-4);
+  border: none;
   border-radius: var(--dop-radius-md);
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--dop-text-primary);
+  text-align: left;
   cursor: pointer;
   transition: background var(--dop-transition-fast);
   border-left: 2px solid transparent;
@@ -229,11 +249,13 @@ header button:hover {
 
 .playlist-item.current .item-thumb {
   background: rgba(230, 0, 18, 0.15);
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
 }
 
+/* The current row sits on the accent-subtle tint: secondary/tertiary both
+   fall below 4.5:1 there, so the emphasized row uses primary text (task 24). */
 .playlist-item.current .item-range-time {
-  color: var(--dop-text-secondary);
+  color: var(--dop-text-primary);
 }
 
 .item-thumb {
@@ -272,7 +294,7 @@ header button:hover {
 .item-range-name {
   font-size: 12px;
   font-weight: 700;
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
 }
 
 .item-range-time {
@@ -284,6 +306,7 @@ header button:hover {
   font-size: 10px;
   color: var(--dop-text-tertiary);
   margin-top: var(--dop-space-1);
+  overflow-wrap: anywhere;
 }
 
 p {
@@ -324,6 +347,23 @@ p.empty {
   font-size: 13px;
   font-weight: 600;
   transition: background var(--dop-transition-fast);
+}
+
+/* The title/count area is a real <button> (task 24): keyboard-focusable
+   expand/collapse. Reset UA chrome; it fills the header's flexible space. */
+.playlist-card-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--dop-space-4);
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .playlist-card-header:hover {
@@ -377,7 +417,16 @@ p.empty {
 }
 
 .playlist-card-item {
+  /* Real <button> row (task 24) — reset UA chrome, keep the row layout. */
+  display: block;
+  width: 100%;
   padding: var(--dop-space-4) var(--dop-space-5);
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--dop-text-primary);
+  text-align: left;
   cursor: pointer;
   transition: background var(--dop-transition-fast);
 }
@@ -401,7 +450,7 @@ p.empty {
 .playlist-card-item .item-range-name {
   font-size: 11px;
   font-weight: 700;
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
 }
 
 .playlist-card-item .item-range-time {
@@ -465,7 +514,7 @@ p.empty {
 
 .playlist-card-shuffle:hover {
   background: var(--dop-accent-subtle);
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
 }
 
 .playlist-card-shuffle:active {
@@ -494,7 +543,7 @@ p.empty {
 
 .shuffle-action-btn:hover {
   background: var(--dop-accent-subtle);
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
   border-color: var(--dop-accent);
 }
 
@@ -520,4 +569,21 @@ p.empty {
 .popup-version {
   font-size: 10px;
   color: var(--dop-text-tertiary);
+}
+
+/* Reduced motion (task 24): hover/expand transitions are decorative —
+   removed entirely under prefers-reduced-motion. */
+@media (prefers-reduced-motion: reduce) {
+  header button,
+  .controls button,
+  .playlist-item,
+  .playlist-card,
+  .playlist-card-header,
+  .playlist-card-item,
+  .playlist-card-play,
+  .playlist-card-shuffle,
+  .shuffle-action-btn,
+  .empty-state button {
+    transition: none;
+  }
 }

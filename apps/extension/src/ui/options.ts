@@ -135,6 +135,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     showConfirm,
     render: () => render(),
     startPlaylistPlayback,
+    reorderItem: (row: HTMLElement, delta: -1 | 1) => drag.moveByKey(row, delta),
   }
   const io = createImportExport({
     doc,
@@ -184,6 +185,73 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     onChanged: () => render(),
   })
 
+  /**
+   * Keyboard-driven mutations (reorder, rename, collapse) commit through the
+   * single writer and come back through subscribe() as a full re-render, which
+   * replaces every node and drops focus to <body>. Capture the focused
+   * control's identity before the rebuild and re-focus the equivalent fresh
+   * node afterwards so keyboard flows never lose their place (task 24).
+   */
+  function takeFocusRestore(container: HTMLElement): (() => void) | null {
+    const active = doc.activeElement
+    if (!(active instanceof HTMLElement) || !container.contains(active)) return null
+    const itemRow = active.closest<HTMLElement>(".item-row")
+    if (itemRow !== null && active.classList.contains("drag-grip")) {
+      const itemId = itemRow.dataset["itemId"]
+      if (itemId === undefined) return null
+      return () => {
+        container
+          .querySelector<HTMLElement>(`.item-row[data-item-id="${itemId}"] .drag-grip`)
+          ?.focus()
+      }
+    }
+    const card = active.closest<HTMLElement>(".playlist-card")
+    const playlistId = card?.dataset["playlistId"]
+    if (playlistId === undefined) return null
+    if (active.classList.contains("playlist-name-input")) {
+      return () => {
+        const input = container.querySelector<HTMLInputElement>(
+          `.playlist-card[data-playlist-id="${playlistId}"] .playlist-name-input`,
+        )
+        input?.focus()
+        input?.setSelectionRange(input.value.length, input.value.length)
+      }
+    }
+    if (active.classList.contains("playlist-toggle")) {
+      return () => {
+        container
+          .querySelector<HTMLElement>(
+            `.playlist-card[data-playlist-id="${playlistId}"] .playlist-toggle`,
+          )
+          ?.focus()
+      }
+    }
+    // Action buttons (item 編集/コピー/削除/▶ and card 再生/共有/削除): after a
+    // mutation the same labelled button is re-focused inside its row scope;
+    // when the row itself was deleted the card toggle is the safe landing.
+    if (active instanceof HTMLButtonElement) {
+      const row = active.closest<HTMLElement>(".item-row")
+      const itemId = row?.dataset["itemId"]
+      const label = active.textContent ?? ""
+      return () => {
+        const scope =
+          itemId === undefined
+            ? container.querySelector<HTMLElement>(
+                `.playlist-card[data-playlist-id="${playlistId}"]`,
+              )
+            : container.querySelector<HTMLElement>(`.item-row[data-item-id="${itemId}"]`)
+        const sameLabel = Array.from(scope?.querySelectorAll("button") ?? []).find(
+          (candidate) => candidate.textContent === label,
+        )
+        const fallback = container.querySelector<HTMLElement>(
+          `.playlist-card[data-playlist-id="${playlistId}"] .playlist-toggle`,
+        )
+        ;(sameLabel ?? fallback)?.focus()
+      }
+    }
+    return null
+  }
+
   async function renderPlaylists(): Promise<void> {
     const container = el("playlistsContainer")
     if (container === null) return
@@ -200,6 +268,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     if (disposed) return
     const playlists = state.playlists.filter((playlist) => !isSystemPlaylist(playlist))
     const collapsed = state.preferences.collapsedPlaylists
+    const restoreFocus = takeFocusRestore(container)
     container.replaceChildren()
 
     if (playlists.length === 0) {
@@ -218,18 +287,25 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     for (const playlist of playlists) {
       const card = doc.createElement("div")
       card.className = "playlist-card"
+      card.dataset["playlistId"] = playlist.id
 
       const header = doc.createElement("div")
       header.className = "playlist-header"
 
       const toggleGroup = doc.createElement("span")
       toggleGroup.className = "playlist-toggle-group"
-      const toggleBtn = doc.createElement("span")
+      // Real button (task 24): keyboard-focusable collapse toggle — the
+      // legacy span was mouse-only. aria-expanded mirrors .collapsed.
+      const toggleBtn = doc.createElement("button")
+      toggleBtn.type = "button"
       toggleBtn.className = "playlist-toggle"
       toggleBtn.textContent = "▶"
+      toggleBtn.setAttribute("aria-label", `${playlist.name}の一覧を開閉`)
       // Legacy semantics: collapsed by default; only an explicit `false`
       // expands (options.js:49, 398).
-      if (collapsed[playlist.id] === false) toggleBtn.classList.add("expanded")
+      const expanded = collapsed[playlist.id] === false
+      if (expanded) toggleBtn.classList.add("expanded")
+      toggleBtn.setAttribute("aria-expanded", String(expanded))
       const count = doc.createElement("span")
       count.className = "playlist-count"
       const totalMs = playlist.items.reduce(
@@ -243,6 +319,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
       nameInput.type = "text"
       nameInput.value = playlist.name
       nameInput.className = "playlist-name-input"
+      nameInput.setAttribute("aria-label", "プレイリスト名")
       nameInput.addEventListener("change", () => {
         const name = nameInput.value.trim()
         if (name === "" || name === playlist.name) return
@@ -299,6 +376,9 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
 
       const itemsList = doc.createElement("ol")
       itemsList.className = "items-list"
+      // Keyboard reorder resolves the owning playlist from the list node so
+      // the same moveByKey path works after any re-render.
+      itemsList.dataset["playlistId"] = playlist.id
       for (const item of playlist.items) {
         itemsList.appendChild(buildItemRow(itemRowCtx, playlist, item))
       }
@@ -325,10 +405,10 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
         })
       })
 
-      header.addEventListener("click", (event) => {
-        if ((event.target as HTMLElement).closest("input, button") !== null) return
-        const isCollapsed = card.classList.toggle("collapsed")
+      const setCollapsed = (isCollapsed: boolean): void => {
+        card.classList.toggle("collapsed", isCollapsed)
         toggleBtn.classList.toggle("expanded", !isCollapsed)
+        toggleBtn.setAttribute("aria-expanded", String(!isCollapsed))
         void runMutation(
           deps.storage,
           (fresh) => ({
@@ -343,6 +423,17 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
           }),
           deps.newId,
         )
+      }
+
+      // The toggle button is skipped by the header's input/button guard, so it
+      // needs its own activation path for keyboard users.
+      toggleBtn.addEventListener("click", () => {
+        setCollapsed(!card.classList.contains("collapsed"))
+      })
+
+      header.addEventListener("click", (event) => {
+        if ((event.target as HTMLElement).closest("input, button") !== null) return
+        setCollapsed(!card.classList.contains("collapsed"))
       })
 
       const itemsWrapper = doc.createElement("div")
@@ -352,6 +443,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
       card.appendChild(itemsWrapper)
       container.appendChild(card)
     }
+    restoreFocus?.()
   }
 
   /** render() coalescing guard (popup.js:76-81 parity). */

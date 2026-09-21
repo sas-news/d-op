@@ -223,7 +223,11 @@ export function subscribePublicState(
   onChange: (state: PublicReply) => void,
 ): () => void {
   return subscribeKey(surface, LOCAL_STATE_KEY, (value) => {
-    const parsed = PublicReplySchema.safeParse(value)
+    // The stored value is the FULL canonical state — PublicReplySchema is a
+    // strict pick and would reject it (unrecognized_keys), silently killing
+    // every re-render subscription. Validate the real envelope, then hand
+    // callers the superset state; they only read the projection fields.
+    const parsed = LocalV2StateSchema.safeParse(value)
     if (parsed.success) onChange(parsed.data)
   })
 }

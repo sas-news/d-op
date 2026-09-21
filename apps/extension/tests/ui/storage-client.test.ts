@@ -132,9 +132,19 @@ describe("ui/storage-client subscriptions", () => {
     const { surface, fire, listenerCount } = fakeSurface()
     const seen: number[] = []
     const unsubscribe = subscribePublicState(surface, (state) => seen.push(state.revision))
-    fire({ [LOCAL_STATE_KEY]: { newValue: { ...PUBLIC_REPLY, revision: 11 } } })
-    fire({ other_key: { newValue: PUBLIC_REPLY } })
-    fire({ [LOCAL_STATE_KEY]: { newValue: PUBLIC_REPLY } }, "sync")
+    // The stored value is the FULL canonical state (strict envelope with
+    // publications/pendingCreates/appliedOperations) — not the readPublic
+    // projection. Regression: a picked strict schema rejected it and every
+    // re-render subscription silently died.
+    const canonical = {
+      ...PUBLIC_REPLY,
+      publications: [],
+      pendingCreates: [],
+      appliedOperations: [],
+    }
+    fire({ [LOCAL_STATE_KEY]: { newValue: { ...canonical, revision: 11 } } })
+    fire({ other_key: { newValue: canonical } })
+    fire({ [LOCAL_STATE_KEY]: { newValue: canonical } }, "sync")
     fire({ [LOCAL_STATE_KEY]: { newValue: { not: "a state" } } })
     expect(seen).toEqual([11])
     unsubscribe()

@@ -25,13 +25,35 @@ export type DragController = {
   readonly onMouseUp: () => void
   /** Abandon an in-flight drag (dispose path): drop the clone + row state. */
   readonly cancel: () => void
+  /**
+   * Keyboard alternative to drag (task 24): moves `row` one step inside its
+   * list and persists the resulting order through the same revision-checked
+   * replace-library path as a mouse drop. Returns false on a no-op (list
+   * edge or missing list context) so callers can leave focus alone.
+   */
+  readonly moveByKey: (row: HTMLElement, delta: -1 | 1) => boolean
+}
+
+/** Reduced-motion check routed through the row's own window — the options
+ *  page has no injected matchMedia dep and jsdom may lack the API. */
+function prefersReducedMotion(element: HTMLElement): boolean {
+  try {
+    return (
+      element.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)")
+        ?.matches === true
+    )
+  } catch {
+    return false
+  }
 }
 
 export function createDragController(deps: DragDeps): DragController {
   let dragState: DragState | null = null
 
-  /** flipAnimate (options.js:277-298) — FLIP transform on reorder. */
+  /** flipAnimate (options.js:277-298) — FLIP transform on reorder. Skipped
+   *  under prefers-reduced-motion (no-op animator keeps call sites intact). */
   function flipAnimate(listEl: HTMLElement, skipRow: HTMLElement): () => void {
+    if (prefersReducedMotion(listEl)) return () => {}
     const firsts = new Map<string, number>()
     for (const row of listEl.querySelectorAll<HTMLElement>(".item-row")) {
       const id = row.dataset["itemId"]
@@ -91,21 +113,28 @@ export function createDragController(deps: DragDeps): DragController {
     const state = dragState
     if (state === null) return
     dragState = null
-    const finalRect = state.row.getBoundingClientRect()
-    state.clone.style.transition = "left 150ms ease-out, top 150ms ease-out, opacity 150ms ease-out"
-    state.clone.style.left = `${finalRect.left}px`
-    state.clone.style.top = `${finalRect.top}px`
-    state.clone.style.opacity = "0"
-    state.clone.addEventListener(
-      "transitionend",
-      () => {
-        state.clone.parentNode?.removeChild(state.clone)
-      },
-      { once: true },
-    )
-    // jsdom never fires transitionend — also clear via timer so no orphan
-    // clone survives when the animation cannot run.
-    deps.schedule(() => state.clone.remove(), 400)
+    if (prefersReducedMotion(state.clone)) {
+      // No fade transition under reduced motion — remove the clone at once so
+      // no orphan survives when transitionend can never fire.
+      state.clone.remove()
+    } else {
+      const finalRect = state.row.getBoundingClientRect()
+      state.clone.style.transition =
+        "left 150ms ease-out, top 150ms ease-out, opacity 150ms ease-out"
+      state.clone.style.left = `${finalRect.left}px`
+      state.clone.style.top = `${finalRect.top}px`
+      state.clone.style.opacity = "0"
+      state.clone.addEventListener(
+        "transitionend",
+        () => {
+          state.clone.parentNode?.removeChild(state.clone)
+        },
+        { once: true },
+      )
+      // jsdom never fires transitionend — also clear via timer so no orphan
+      // clone survives when the animation cannot run.
+      deps.schedule(() => state.clone.remove(), 400)
+    }
     state.row.classList.remove("dragging")
     for (const row of state.itemsList.querySelectorAll<HTMLElement>(".item-row")) {
       row.style.transition = ""
@@ -150,6 +179,28 @@ export function createDragController(deps: DragDeps): DragController {
       dragState.clone.remove()
       dragState.row.classList.remove("dragging")
       dragState = null
+    },
+    moveByKey: (row, delta) => {
+      const listEl = row.parentElement
+      if (listEl === null || !listEl.classList.contains("items-list")) return false
+      const playlistId = (listEl as HTMLElement).dataset["playlistId"]
+      if (playlistId === undefined) return false
+      const sibling = delta === -1 ? row.previousElementSibling : row.nextElementSibling
+      if (sibling === null || !sibling.classList.contains("item-row")) return false
+      if (delta === -1) listEl.insertBefore(row, sibling)
+      else listEl.insertBefore(row, sibling.nextElementSibling)
+      // insertBefore runs remove+insert, which unfocuses the moved row's
+      // control — re-focus it so repeated Arrow presses keep working until
+      // the commit-driven re-render takes over (task 24).
+      const doc = row.ownerDocument
+      if (doc.activeElement === doc.body || doc.activeElement === null) {
+        row.querySelector<HTMLElement>(".drag-grip")?.focus()
+      }
+      const newOrder = [...listEl.querySelectorAll<HTMLElement>(".item-row")]
+        .map((candidate) => candidate.dataset["itemId"])
+        .filter((id): id is string => id !== undefined)
+      void persistReorder(playlistId, newOrder)
+      return true
     },
   }
 }

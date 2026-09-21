@@ -9,13 +9,17 @@
   --dop-accent-hover: #ff1a2d;
   --dop-accent-pressed: #b3000e;
   --dop-accent-subtle: rgba(230, 0, 18, 0.15);
+  /* Accent as TEXT on the dark panels needs a lighter shade: #e60012 is only
+     ~3.5:1 on #1c1c22. #ff5c6a reaches ~5.6:1 (task 24). */
+  --dop-accent-text: #ff5c6a;
   --dop-bg-panel: #141418;
   --dop-bg-elevated: #1c1c22;
   --dop-border: rgba(255, 255, 255, 0.10);
   --dop-border-strong: rgba(255, 255, 255, 0.18);
   --dop-text-primary: #ffffff;
   --dop-text-secondary: rgba(255, 255, 255, 0.68);
-  --dop-text-tertiary: rgba(255, 255, 255, 0.42);
+  /* 0.42 alpha composites to ~4:1 on the panel tints — 0.55 reaches ~6:1. */
+  --dop-text-tertiary: rgba(255, 255, 255, 0.55);
   --dop-font: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --dop-font-mono: "SF Mono", "JetBrains Mono", "Fira Code", "Noto Sans JP", monospace;
   --dop-radius-sm: 2px;
@@ -110,7 +114,8 @@ body.d-op-skip-hidden .skipUi {
   background: var(--dop-bg-panel);
   border-radius: var(--dop-radius-lg);
   padding: var(--dop-space-7);
-  min-width: 320px;
+  /* Narrow windows: cap the min-width so the panel never overflows (task 24). */
+  min-width: min(320px, calc(100vw - 32px));
   max-width: 90vw;
   max-height: 80vh;
   overflow-y: auto;
@@ -137,12 +142,17 @@ body.d-op-skip-hidden .skipUi {
   font-size: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
+  /* Long unbroken strings (200-char CJK titles in confirm prompts) wrap
+     instead of forcing the panel wider than the viewport. */
+  overflow-wrap: anywhere;
 }
 
 .d-op-modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: var(--dop-space-4);
+  /* Narrow panels wrap buttons onto a second line instead of clipping. */
+  flex-wrap: wrap;
 }
 
 .d-op-modal-footer button {
@@ -190,6 +200,7 @@ body.d-op-skip-hidden .skipUi {
   z-index: 10001;
   font-family: var(--dop-font);
   min-width: 160px;
+  max-width: calc(100vw - 32px);
   opacity: 1;
   transition: opacity var(--dop-transition-slow);
   pointer-events: auto;
@@ -224,12 +235,15 @@ body.d-op-skip-hidden .skipUi {
   color: #ffffff;
   letter-spacing: 0.02em;
   line-height: 1.2;
+  /* Long CJK/unbroken titles wrap inside the capped panel width (task 24). */
+  overflow-wrap: anywhere;
 }
 
 .d-op-top-sub {
   font-size: 10px;
   color: rgba(255, 255, 255, 0.85);
   line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .d-op-top-meta {
@@ -266,7 +280,10 @@ body.d-op-skip-hidden .skipUi {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  flex-wrap: nowrap;
+  /* Wrap (task 24): at narrow window widths the inputs/buttons must not
+     overflow the viewport edge. */
+  flex-wrap: wrap;
+  max-width: calc(100vw - 16px);
   align-items: center;
   gap: var(--dop-space-4);
   padding: var(--dop-space-4) var(--dop-space-5);
@@ -483,13 +500,24 @@ body.d-op-skip-hidden .skipUi {
    and the popup. */
 
 .d-op-popup-item {
+  /* Real <button> rows (task 24) — reset the UA chrome and stretch to the
+     popup width so focus rings cover the whole row. */
+  display: block;
+  width: 100%;
   padding: 5px 10px;
+  border: none;
+  border-bottom: 1px solid var(--dop-border);
+  background: transparent;
   color: #9b9b9a;
+  font-family: var(--dop-font);
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
+  text-align: left;
+  /* Custom range names are user-length — wrap instead of overflowing the
+     popup (task 24). */
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: pointer;
-  border-bottom: 1px solid var(--dop-border);
   transition: color var(--dop-transition-fast), background var(--dop-transition-fast);
 }
 
@@ -500,7 +528,33 @@ body.d-op-skip-hidden .skipUi {
 .d-op-popup-item:hover,
 .d-op-popup-item:focus-visible {
   background: #1a1a1a;
-  outline: none;
+  color: #ffffff;
+}
+
+.d-op-popup-item:focus-visible {
+  outline: 1px solid var(--dop-accent);
+  outline-offset: -1px;
+}
+
+.d-op-popup-item:disabled {
+  cursor: default;
+}
+
+.d-op-popup-item:disabled:hover {
+  background: transparent;
+  color: #9b9b9a;
+}
+
+/* Keyboard focus on the generated player controls must be visible against
+   the dark bar — the UA default outline is too subtle here (task 24). */
+.d-op-playlist-btn:focus-visible,
+.d-op-add-button:focus-visible,
+.d-op-top-panel button:focus-visible,
+.d-op-custom-bar button:focus-visible,
+.d-op-modal-footer button:focus-visible,
+.d-op-modal-playlist-item:focus-visible {
+  outline: 2px solid var(--dop-accent);
+  outline-offset: 2px;
 }
 
 /* --- Playlist picker modal list (styles.css:274-329) ---------------------- */
@@ -519,6 +573,8 @@ body.d-op-skip-hidden .skipUi {
   background: var(--dop-bg-elevated);
   color: var(--dop-text-primary);
   text-align: left;
+  /* Long playlist names wrap inside the dialog (task 24). */
+  overflow-wrap: anywhere;
   cursor: pointer;
   font-family: var(--dop-font);
   font-size: 14px;
@@ -540,7 +596,7 @@ body.d-op-skip-hidden .skipUi {
 .d-op-modal-playlist-item.selected::after {
   content: '✓';
   float: right;
-  color: var(--dop-accent);
+  color: var(--dop-accent-text);
   font-weight: bold;
 }
 
@@ -615,4 +671,27 @@ body.d-op-skip-hidden .skipUi {
   padding: var(--dop-space-2) var(--dop-space-4);
   white-space: nowrap;
   display: none;
+}
+
+/* Reduced motion (task 24): the modal/popup/panel entrance animations and
+   hover transitions are decorative — under prefers-reduced-motion they are
+   removed entirely (no shortened duration). */
+@media (prefers-reduced-motion: reduce) {
+  .d-op-modal,
+  .d-op-modal-panel,
+  .d-op-popup,
+  .d-op-top-panel {
+    animation: none;
+    transition: none;
+  }
+
+  .d-op-playlist-btn,
+  .d-op-add-button,
+  .d-op-popup-item,
+  .d-op-top-panel button,
+  .d-op-custom-bar button,
+  .d-op-modal-footer button,
+  .d-op-modal-playlist-item {
+    transition: none;
+  }
 }
