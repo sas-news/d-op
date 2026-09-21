@@ -1,6 +1,7 @@
 # Testing
 
-Bun is the task runner. Install once with `bun install` from the repo root.
+Bun is the task runner. Install once with `bun install --frozen-lockfile`
+from the repo root (the lockfile is committed).
 
 ## Suites
 
@@ -21,10 +22,35 @@ Release/artifact commands (see `docs/release.md`):
 - `bun run verify:artifacts` — unpacks the zips and asserts manifest identity, permissions, required resources, and absence of fixture/secret/remote-code content; `--self-test` proves every gate can fail, `--release-tag v<x.y.z>` adds the immutable-tag refusal.
 - `bun run pack:sources` / `bun run pack:crx` / `bun run rehearse:source-build` — AMO source archive, optional CRX signing, and the clean-build rehearsal.
 
+Deployment/upgrade gates (runbooks in `docs/staging.md` / `docs/cutover.md`):
+
+- `bun run verify:upgrade -- --browser=chromium|firefox` — installed-profile v1→v2 rehearsal (below).
+- `bun run verify:staging -- --base-url=<staging-origin>` — disposable-resource API flow against a deployed staging Worker; remote run is BLOCKED until Cloudflare auth exists.
+- `bun run verify:cutover -- --base-url=https://d-op.sasnews.dev` — non-mutating production gate; correctly fails while the domain still serves GitHub Pages.
+
 Playwright projects:
 
 - `web-chromium` / `web-firefox` — synthetic harness + Astro SSR pages (landing, explore, share page, CSP).
 - `extension-chromium` — loads the real unpacked `apps/extension/.output/chrome-mv3` via `launchPersistentContext`. Every `extension-*.spec.ts` runs here.
+
+## Supported browser matrix (native proof, task 23/26)
+
+Support policy: **desktop Chrome stable + previous major** and
+**Firefox current stable + ESR**. Only these recorded versions are
+evidenced — do not claim others:
+
+| Browser | Version tested | Harness | Result |
+|---|---|---|---|
+| Chrome stable (Chrome for Testing) | 153.0.8010.52 | `bun run test:browser:chrome -- --channel=stable` (`tests/browser/chrome-harness.mjs` → real CfT binary + `extension-chromium` specs) | 31/31 PASS |
+| Chrome previous major (CfT) | 152.0.7977.82 | `bun run test:browser:chrome -- --channel=previous` | 31/31 PASS |
+| Firefox stable | 153.0.1 | `bun run test:browser:firefox -- --channel=stable` (`tests/browser/firefox-harness.mjs` → geckodriver 0.37.1 `/moz/addon/install`) | 36/36 PASS |
+| Firefox ESR | 140.16.0esr | `bun run test:browser:firefox -- --channel=esr` | 35/35 PASS |
+
+Playwright's bundled Chromium and page-only Firefox are the `test:e2e`
+defaults only — they never satisfy this matrix. Evidence:
+`.omo/evidence/task-23-d-op-v2-share/native-*.json`. The harnesses resolve
+real binaries from `tools/browser-cache/` (or the installed Firefox); a
+missing binary is an explicit launch failure (exit 3), never a skip.
 
 ## E2E conventions
 
@@ -49,7 +75,14 @@ Unit-side, `apps/extension/tests/share/consent.test.ts` covers the gate semantic
 
 ## Firefox native consent smoke
 
-`bun run test:browser:firefox` is owned by tasks 5/23 and is currently a stub that exits non-zero. When implemented it must load the real Firefox build and exercise the `data_collection_permissions` path. Do not substitute Playwright's page-only Firefox.
+`bun run test:browser:firefox` (`tests/browser/firefox-harness.mjs`, task 23)
+loads the real `firefox-mv3` build into stable/ESR Firefox via geckodriver
+`/moz/addon/install` — never Playwright's page-only Firefox. The native
+`data_collection_permissions` doorhanger is unanswerable under headless
+geckodriver, so the harness sets
+`extensions.dataCollectionPermissions.enabled=false` and exercises the
+in-extension consent gate (the same path Chrome and Firefox <140 use);
+the native-layer prompt itself is recorded NOT RUN in the leg JSONs.
 
 ## Installed-profile upgrade rehearsal (task 26)
 

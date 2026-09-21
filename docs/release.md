@@ -61,6 +61,33 @@ is no `wxt submit`, no store API call, no main-push publish anywhere.
 - AMO → upload `d-op-<version>-firefox.zip`; attach
   `d-op-<version>-sources.zip` in the "source code" field (reviewers rebuild
   per `BUILD-INSTRUCTIONS.md` inside the archive).
+- After the v2 listing is actually published, bump the landing JSON-LD
+  `softwareVersion` (`apps/web/src/pages/index.astro`) — it intentionally
+  tracks the *published* store version, so it stays `1.0.0` until then
+  (`tests/e2e/landing.spec.ts` asserts it and must be updated together).
+
+## Release status ledger (task 30 — honest handoff)
+
+DONE = receipt exists in `.omo/evidence/`. BLOCKED/PENDING = named
+prerequisite; nothing below is claimed or waived.
+
+| Item | Status | Reference |
+|---|---|---|
+| Reproducible artifacts + gates (`build`, `verify:artifacts`, self-test, source-archive byte-identical rebuild) | DONE | task-25 |
+| Unit/worker/e2e suites + native 4-browser matrix (Chrome 153/152, Firefox 153.0.1/140.16.0esr) | DONE | task-23, `docs/testing.md` |
+| v1→v2 upgrade + rollback rehearsal on real binaries (unpacked-path identity) | DONE | task-26 |
+| Staging deploy + `verify:staging` remote run | **BLOCKED** — no Cloudflare auth; local workerd rehearsal PASS only | task-28, `docs/staging.md` |
+| Production deploy + `d-op.sasnews.dev` cutover + `verify:cutover` green | **BLOCKED** — CF auth + owner authorization + DNS | task-29, `docs/cutover.md` |
+| Archive-tag push, Pages disable, `gh-pages`/`dev` retirement | **PENDING** — gated on the cutover above; local tags verified | task-29 checklist |
+| Real logged-in d-Anime smoke | **BLOCKED — production Extension release gate** (2FA, no static accounts) | `docs/cutover.md` §9 |
+| Store uploads (CWS + AMO) | **PENDING** — manual draft/review gate; never automated | this file |
+| Signed-store update continuity | **PENDING** — distinct from rehearsed unpacked-path identity | task-26 |
+| `RATE_LIMIT_HMAC_KEY` secret | **PENDING at deploy** — `wrangler secret put` on staging + prod | `docs/staging.md` §2 |
+| `scheduled()` export + `triggers.crons` TTL pruning | **NOT WIRED** — `runScheduledCleanup` ready; lazy per-request expiry covers pending provisionals | `docs/staging.md` §9 |
+
+Until the BLOCKED rows carry receipts, overall release status is
+**incomplete** — the blocked prerequisites cannot yield "release
+complete" and are deliberately left unchecked.
 
 ## Optional CRX signing (`bun run pack:crx`)
 

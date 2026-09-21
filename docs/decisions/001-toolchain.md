@@ -58,6 +58,10 @@ is runtime-neutral; verified by workerd execution in `test:worker`).
 - Legacy root runtime (`manifest.json`, `manifest.firefox.json`, `background.js`,
   `common.js`, `content*.js`, `injected.js`, `popup.*`, `options.*`) is untouched
   and still loads directly in browsers.
+  > Task-25 update: those root files were removed after parity evidence; the
+  > historical source stays at git tag `v1.0.0`. The destructive
+  > delete/recreate release workflow was replaced by an immutable-tag,
+  > human-approved `workflow_dispatch` (`docs/release.md`).
 - `.github/workflows/release.yml` gains a `Block incomplete v2 auto-release` step:
   while `apps/extension/` exists without `.omo/v2-store-release-approved`, the job
   fails before any tag deletion or artifact publication.
@@ -70,6 +74,11 @@ exit 1 (`test:e2e`, `test:browser:firefox`, `verify:artifacts`, `verify:upgrade`
 `verify:staging`, `verify:cutover`) are owned by tasks 5/23/25/26/28/29.
 `test:unit`/`test:worker` forward CLI args and fail on zero selected tests
 (`passWithNoTests: false`; verified with `does-not-exist.test.ts`).
+> Task-30 status: every stub has since been implemented — `test:e2e` (Playwright,
+> task 5), `test:browser:firefox`/`test:browser:chrome` (native harnesses,
+> task 23), `verify:artifacts` (task 25), `verify:upgrade` (task 26),
+> `verify:staging` (task 28), `verify:cutover` (task 29). `test` now runs
+> unit + worker + e2e. See `docs/testing.md`.
 
 ## Evidence
 

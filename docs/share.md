@@ -11,7 +11,10 @@ d-OP v2 adds an **optional** sharing service. Ordinary playlist/playback use is 
 | Privacy / terms | `/privacy`, `/terms` |
 | API base | `/api/v1/playlists` |
 
-API surface (`apps/extension/src/share/` clients → `apps/web/src/pages/api/v1/playlists/`):
+API surface (`apps/extension/src/share/` clients → `apps/web/src/pages/api/v1/playlists/`).
+The full wire contract — envelopes, exact payloads, status map, and
+schema-validated examples — is `docs/api.md`; the normative source is
+`packages/shared/src/api.ts`.
 
 | Extension call | Route | Body | Auth |
 |---|---|---|---|
@@ -22,6 +25,13 @@ API surface (`apps/extension/src/share/` clients → `apps/web/src/pages/api/v1/
 | `notifyImport` | `POST /api/v1/playlists/<shareId>/import` | `{eventId}` (random UUID) | none |
 
 Read-only collection routes `GET /api/v1/playlists` (list/search/ranking) and `GET /api/v1/playlists/tags` exist server-side for the web Explore page; the extension does not call them.
+
+Publication is **two-step**: `POST` creates an invisible `pending`
+snapshot (1 h expiry) and returns the one-time `manageSecret`; the
+extension persists it locally, then `PATCH …activate` makes the snapshot
+public at revision 2. A lost create ack cannot strand a public orphan or
+re-issue a secret — retries see `409 CREATE_RECEIPT_UNAVAILABLE`. See
+`docs/decisions/003-provisional-publication.md`.
 
 All extension fetches use `credentials: "omit"`, `redirect: "error"`, `cache: "no-store"`, a timeout, and bounded response reads with strict schema validation. Mutations carry a caller-minted `Idempotency-Key` UUID. The manage secret never appears in URLs or request bodies — only the `Authorization` header of the operation it authorizes.
 
@@ -72,6 +82,7 @@ Vault-only fields are never rendered, logged, or exported. Legacy v1 keys are re
 | `discovery_snapshots` | ranked `[shareId, score]` pages + per-snapshot HMAC `cursor_key` | ~15 min |
 | `operator_takedowns` | actor label, shareId, reason, removed flag — operator-only, no public endpoint | durable audit |
 | `write_asserts` | assertion sink; must stay empty (trigger aborts) | — |
+| `schema_migrations` | wrangler bookkeeping of applied migration ids | durable |
 
 Operational logging: `request-log.ts` emits only `{event, requestId, route-template, status, durationMs}` — no URLs, IPs, bodies, or headers. Rate limiting (`security/rate-limit.ts`) uses daily-rotating HMAC'd IP digests that live only inside the limiter. Deletes are hard deletes; operator takedown is a deployment-credential CLI (`bun run takedown`), never a public endpoint.
 

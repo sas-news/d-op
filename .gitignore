@@ -3,7 +3,7 @@ memo/
 *.zip
 *.pem
 
-# Task 2 Bun workspace (legacy root runtime stays loadable; see docs/decisions/001-toolchain.md)
+# Task 2 Bun workspace (legacy root runtime removed in task 25; see docs/decisions/001-toolchain.md)
 node_modules/
 apps/extension/.output/
 apps/extension/.wxt/

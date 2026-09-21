@@ -14,6 +14,7 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 - **シークバーマーカー**: プレイヤーのシークバーに OP/ED 区間を可視化
 - **インポート/エクスポート**: プレイリストを JSON で保存・共有
 - **新規ウィンドウ再生**: dアニメ本来のプレイヤー挙動に合わせたポップアップ再生（設定でタブ切替可）
+- **共有（任意機能）**: プレイリストを共有URLとして公開・取り込み。同意した場合のみ有効（公開 / 限定公開・検索・Remix 対応）
 
 ## 紹介画像
 
@@ -35,14 +36,14 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 
 #### Chrome
 
-1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-chrome.zip` をダウンロード・解凍（またはソースから `bun run build` で `apps/extension/.output/chrome-mv3/` を生成）
+1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-chrome.zip` をダウンロード・解凍（v2 の ZIP はリリースワークフロー実行後に発行。またはソースから `bun run build` で `apps/extension/.output/chrome-mv3/` を生成）
 2. Chrome で `chrome://extensions` を開く
 3. 右上の「デベロッパーモード」を ON
 4. 「パッケージ化されていない拡張機能を読み込む」→ 解凍したフォルダ（または `.output/chrome-mv3/`）を選択
 
 #### Firefox
 
-1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-firefox.zip` をダウンロード・解凍（または `bun run build` で `apps/extension/.output/firefox-mv3/` を生成）
+1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-firefox.zip` をダウンロード・解凍（v2 の ZIP は同上。または `bun run build` で `apps/extension/.output/firefox-mv3/` を生成）
 2. Firefox で `about:debugging` を開く
 3. 「この Firefox」→「一時的なアドオンを読み込む」→ 解凍したフォルダの `manifest.json`（または `.output/firefox-mv3/manifest.json`）を選択
 
@@ -80,19 +81,28 @@ v2 は WXT + TypeScript のモノレポ構成です。ブラウザに読み込�
 | `apps/extension/src/` | アダプタ・プレイヤー・ストレージ・Share・UI ロジック（TypeScript） |
 | `apps/web/` | 共有サイト（Astro + Cloudflare Workers/D1、`d-op.sasnews.dev`） |
 | `packages/shared/` | 拡張機能と Web で共有する Zod スキーマ・ドメインロジック |
+| `tests/e2e/` `tests/browser/` | Playwright E2E とネイティブブラウザ証跡ハーネス（[docs/testing.md](docs/testing.md)） |
+| `docs/` | アーキテクチャ・共有API契約・テスト・リリース手順・要件トレース（[docs/traceability.md](docs/traceability.md)） |
 
 > 旧 v1（ルートの素 JS ランタイム）は task 25 で削除されました。履歴ソースは git タグ `v1.0.0`（ベースライン `fc9d7fd`）を参照してください。
 
 
+## 共有機能（v2 で実装済み）
+
+v2 では任意機能「共有（Share）」を追加しました。すべて同意ベースの明示操作のみで、
+アカウント・自動同期・自動更新はありません（今後も追加しません）。
+
+- **公開**: プレイリストをスナップショットとして共有URLで公開（公開 / 限定公開を選択）
+- **取り込み**: 共有URLから他人のプレイリストを独立したコピーとして保存・再生
+- **Explore**: [d-op.sasnews.dev/explore](https://d-op.sasnews.dev/explore) で公開リストの新着・人気・検索・タグ絞り込み
+- **Remix**: 公開リストを取り込んで編集・再公開すると、出典関係が公開ページに表示されます
+- **管理**: 公開版の更新・削除は拡張機能の管理画面からのみ（管理キーはエクスポートされません）
+
 ## ロードマップ
 
-要望があれば作る。それぐらいです。
-
-- [ ] **クラウド同期**: Google アカウント経由でプレイリストをデバイス間同期
-- [ ] **プレイリスト共有**: URL 発行によるプレイリストの他ユーザーとの共有
-- [ ] **コミュニティ投稿**: ユーザーが作成した OP/ED 区間情報の共有システム
-- [ ] **ランキング・評価**: 人気のプレイリスト、評価機能
-- [ ] **サムネイル表示**: プレイリストアイテムに作品サムネイルを表示
+大きな機能追加の予定はありません。以下は方針として**実装しない**ものです：
+アカウント機能、クラウド同期、自動バックアップ、動画・画像の収集、外部作品画像連携、
+管理キーのエクスポート。不具合修正・dアニメ側の仕様変更追従は継続します。
 
 ## プライバシー
 
@@ -112,9 +122,11 @@ v2 は WXT + TypeScript のモノレポ構成です。ブラウザに読み込�
 
 ## 必要環境
 
-- Google Chrome 88 以降（Manifest V3 対応）
-- Mozilla Firefox 121 以降（Manifest V3 対応）
-- dアニメストアのアカウント
+サポート対象は **デスクトップ版 Chrome 現行安定版 + 1つ前のメジャー版**、
+**Firefox 現行安定版 + ESR** です（Manifest V3）。動作確認済みの実バージョンは
+[docs/testing.md](docs/testing.md) のブラウザマトリクスを参照してください。
+
+- dアニメストアのアカウント（OP/ED 区間の再生に必要）
 
 ## ライセンス
 
