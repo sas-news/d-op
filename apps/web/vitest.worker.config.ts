@@ -17,7 +17,7 @@ export default defineConfig({
   ],
   root: import.meta.dirname,
   test: {
-    include: ["tests/worker/**/*.test.ts"],
+    include: ["tests/worker/**/*.test.ts", "tests/repository/**/*.test.ts"],
     reporters: ["default"],
     passWithNoTests: false,
   },
