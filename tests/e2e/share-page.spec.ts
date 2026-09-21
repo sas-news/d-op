@@ -1,9 +1,5 @@
-import { execSync } from "node:child_process"
-import { randomBytes } from "node:crypto"
-import { mkdtempSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
 import { expect, test } from "@playwright/test"
+import { d1Execute, d1Migrate, hex64, isoNow, shareId, sqlString, WEB_ORIGIN } from "./d1"
 
 // Task-16 public snapshot page (/p/:shareId) against the real built Worker
 // preview (astro preview + platformProxy local D1). Runs on BOTH web-chromium
@@ -22,9 +18,6 @@ import { expect, test } from "@playwright/test"
 // overflow, save/install shell, copy + X affordances, CSP headers, and zero
 // remote requests (offline-clean by construction).
 
-const WEB_PORT = process.env["DOP_WEB_PORT"] ?? "4321"
-const WEB_ORIGIN = `http://127.0.0.1:${WEB_PORT}`
-const WEB_CWD = join(__dirname, "..", "..", "apps", "web")
 const PROD_ORIGIN = "https://d-op.sasnews.dev"
 
 type SeedItem = {
@@ -47,11 +40,6 @@ type SeedPlaylist = {
   readonly pending?: boolean
   readonly derivedFrom?: { readonly shareId: string; readonly revision: number }
 }
-
-const shareId = (): string => randomBytes(16).toString("base64url")
-const hex64 = (): string => randomBytes(32).toString("hex")
-const isoNow = (): string => new Date().toISOString()
-const sqlString = (value: string): string => `'${value.replaceAll("'", "''")}'`
 
 function seedSql(shareIdValue: string, playlist: SeedPlaylist, out: string[]): string {
   const now = isoNow()
@@ -93,36 +81,8 @@ function seedSql(shareIdValue: string, playlist: SeedPlaylist, out: string[]): s
   return shareIdValue
 }
 
-function d1Execute(statements: readonly string[]): void {
-  const dir = mkdtempSync(join(tmpdir(), "dop-share-seed-"))
-  const file = join(dir, "seed.sql")
-  writeFileSync(file, `${statements.join(";\n")};\n`, "utf8")
-  execSync(`bunx wrangler d1 execute dop_share --local --file "${file}"`, {
-    cwd: WEB_CWD,
-    stdio: "pipe",
-    env: { ...process.env, CI: "true" },
-  })
-}
-
-// Parallel specs share one local-D1 file; concurrent wrangler processes can
-// crash miniflare with a transient "internal error". Migrations are idempotent
-// (wrangler tracks applied ids), so bounded retries are safe — unlike
-// d1Execute, whose ON CONFLICT increments must never replay.
-function d1Migrate(): void {
-  const maxAttempts = 4
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      execSync("bunx wrangler d1 migrations apply dop_share --local", {
-        cwd: WEB_CWD,
-        stdio: "pipe",
-        env: { ...process.env, CI: "true" },
-      })
-      return
-    } catch (error) {
-      if (attempt + 1 >= maxAttempts) throw error
-    }
-  }
-}
+// d1Execute/d1Migrate live in ./d1.ts — wrangler batches are atomic, so the
+// shared bounded-retry policy is replay-safe even for ON CONFLICT increments.
 
 const item = (index: number, start: number, end: number, title = `作品${index}`): SeedItem => ({
   partId: `part_${index}`,

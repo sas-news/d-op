@@ -55,6 +55,7 @@
       "!**/.omo",
       "!**/test-results",
       "!**/playwright-report",
+      "!**/tools",
       "!**/manifest.json",
       "!**/manifest.firefox.json",
       "!**/worker-configuration.d.ts",
