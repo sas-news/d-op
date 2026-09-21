@@ -26,21 +26,33 @@ const { title, description } = Astro.props
     <a class="skip-link" href="#main-content" data-testid="skip-link">メインコンテンツへスキップ</a>
     <header class="site-header" data-testid="site-header">
       <a class="brand" href="/" aria-label="d-OP ホーム">
-        <span class="brand-mark" aria-hidden="true">d</span>
+        <img class="brand-icon" src="/assets/d-OP-icon.png" width="40" height="40" alt="" />
         <span class="brand-copy"><span class="brand-name">d-OP</span><span class="brand-version">v1.0.0</span></span>
       </a>
       <nav class="site-nav" aria-label="サイト内メニュー">
         <a href="/#gallery">できること</a>
         <a href="/#download">ダウンロード</a>
-        <a href="/#privacy">プライバシー</a>
+        <a href="/#support">サポート</a>
+        <a href="/explore">Explore</a>
+        <a href="/privacy">プライバシー</a>
       </nav>
     </header>
     <main id="main-content" class="page-wrap" data-testid="site-main">
       <slot />
     </main>
     <footer class="site-footer" data-testid="site-footer">
-      <span>© 2026 sasnews</span>
-      <span>d-OP は dアニメストアの非公式拡張機能です。</span>
+      <div class="footer-meta">
+        <span>© 2026 sasnews</span>
+        <span>d-OP は dアニメストアの非公式拡張機能です。dアニメストアおよび株式会社NTTドコモとは一切関係ありません。</span>
+      </div>
+      <ul class="footer-links">
+        <li><a href="/">ホーム</a></li>
+        <li><a href="/explore">Explore</a></li>
+        <li><a href="/privacy">プライバシー</a></li>
+        <li><a href="/#share">シェア</a></li>
+        <li><a href="https://github.com/sas-news/d-op" rel="noopener" target="_blank">GitHub</a></li>
+        <li><a href="https://github.com/sas-news/d-op/blob/main/LICENSE" rel="noopener" target="_blank">MIT ライセンス</a></li>
+      </ul>
     </footer>
   </body>
 </html>

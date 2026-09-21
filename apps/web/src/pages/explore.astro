@@ -1,0 +1,53 @@
+---
+import ShellLayout from "../layouts/ShellLayout.astro"
+import { SHARE_SITE_ORIGIN } from "../server/services/share-page"
+
+// /explore entry point (task 21). The real adaptive discovery page is owned
+// by a later task; until then this route renders an honest "in preparation"
+// status instead of a dead link — no fake lists, no mock playlists.
+const CANONICAL_URL = `${SHARE_SITE_ORIGIN}/explore`
+---
+
+<ShellLayout title="Explore | d-OP" description="公開されたd-OPプレイリストを探すページ。現在準備中です。">
+  <Fragment slot="head">
+    <link rel="canonical" href={CANONICAL_URL} />
+    <meta name="color-scheme" content="dark" />
+  </Fragment>
+
+  <section class="section explore" aria-labelledby="explore-title">
+    <p class="section-eyebrow">Explore</p>
+    <h1 id="explore-title">共有プレイリストを探す</h1>
+    <p class="lead">
+      公開されたプレイリストの一覧は現在準備中です。共有URLを受け取った場合は、そのリンクからプレイリストを開いて保存できます。
+    </p>
+    <div class="notice notice-info" role="status" data-testid="explore-status">
+      <strong>準備中</strong>
+      <p>
+        公開リストの検索・人気順表示は今後提供予定です。プレイリストの作成・共有は d-OP
+        拡張機能から行えます。
+      </p>
+    </div>
+    <div class="button-row">
+      <a class="button button-primary" href="/#download" data-testid="explore-install-link">拡張機能を入手</a>
+      <a class="button button-secondary" href="/">ホームへ戻る</a>
+    </div>
+  </section>
+</ShellLayout>
+
+<style>
+  .explore {
+    padding-block: var(--space-9);
+  }
+
+  .explore .lead {
+    margin-top: var(--space-4);
+  }
+
+  .explore .notice {
+    margin-top: var(--space-6);
+  }
+
+  .explore .button-row {
+    margin-top: var(--space-6);
+  }
+</style>

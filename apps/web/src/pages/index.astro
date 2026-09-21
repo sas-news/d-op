@@ -1,19 +1,74 @@
 ---
-import Button from "../components/Button.astro"
-import Card from "../components/Card.astro"
+import DevCards from "../components/DevCards.astro"
+import LandingGallery from "../components/LandingGallery.astro"
+import StoreCards from "../components/StoreCards.astro"
+import SupportCards from "../components/SupportCards.astro"
 import ShellLayout from "../layouts/ShellLayout.astro"
+import { SHARE_SITE_ORIGIN } from "../server/services/share-page"
+
+// Landing page ported from the preserved gh-pages revision (task 21): same
+// copy, same section anchors (#top/#gallery/#download/#support/#developer),
+// same store/support/developer links, and the canonical d-op.sasnews.dev
+// origin. Version truth follows the published extension manifest (1.0.0) —
+// the legacy JSON-LD's stale 0.9.2 is updated here.
+const SITE_URL = `${SHARE_SITE_ORIGIN}/`
+const OG_IMAGE_URL = `${SHARE_SITE_ORIGIN}/assets/ogp.png`
+
+const xIntent = new URL("https://x.com/intent/post")
+xIntent.searchParams.set("text", "d-OP | dアニメストアでOPだけ再生する拡張機能")
+xIntent.searchParams.set("url", SITE_URL)
+const xIntentUrl = xIntent.toString()
 ---
 
-<ShellLayout title="d-OP | dアニメストアでOPだけ再生する拡張機能" description="dアニメストアの動画からOP/EDを抽出して連続再生できるブラウザ拡張機能 d-OP の公式サイト。">
+<ShellLayout
+  title="d-OP | dアニメストアでOPだけ再生する拡張機能"
+  description="dアニメストアの動画からOP/EDを抽出して連続再生できるブラウザ拡張機能「d-OP」の公式サイト。Chrome / Firefox 対応。"
+>
+  <Fragment slot="head">
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href={SITE_URL} />
+    <link rel="apple-touch-icon" href="/assets/d-OP-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="d-OP" />
+    <meta property="og:title" content="d-OP | dアニメストアでOPだけ再生する拡張機能" />
+    <meta property="og:description" content="作品一覧からワンクリックでOP/ED区間を選択し、プレイリストを作成して連続再生。" />
+    <meta property="og:url" content={SITE_URL} />
+    <meta property="og:image" content={OG_IMAGE_URL} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="ja_JP" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@sas_shinbun" />
+    <meta name="twitter:creator" content="@sas_shinbun" />
+    <meta name="twitter:title" content="d-OP | dアニメストアでOPだけ再生する拡張機能" />
+    <meta name="twitter:description" content="作品一覧からワンクリックでOP/ED区間を選択し、プレイリストを作成して連続再生。" />
+    <meta name="twitter:image" content={OG_IMAGE_URL} />
+    <script is:inline type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "d-OP",
+        "applicationCategory": "BrowserApplication",
+        "operatingSystem": "Chrome, Firefox",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" },
+        "author": { "@type": "Person", "name": "sasnews", "url": "https://sasnews.dev" },
+        "url": "https://d-op.sasnews.dev/",
+        "downloadUrl": "https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc",
+        "description": "dアニメストアの動画からOP/EDを抽出して連続再生するブラウザ拡張機能。",
+        "softwareVersion": "1.0.0"
+      }
+    </script>
+  </Fragment>
+
   <section class="hero" id="top" aria-labelledby="page-title">
     <div>
       <p class="hero-eyebrow">Chrome / Firefox 対応</p>
       <h1 id="page-title"><span>dアニメストア</span>のOPを、<span>もっと自由に。</span></h1>
       <p class="hero-lede">作品一覧からワンクリックでOP/ED区間を選択し、プレイリストを作成して連続再生できるブラウザ拡張機能です。</p>
       <div class="hero-actions">
-        <Button href="#download" testId="download-link">ダウンロード</Button>
-        <Button href="https://github.com/sas-news/d-op" variant="secondary">GitHub を見る</Button>
-        <Button href="/fixtures/shell" variant="secondary" testId="shell-fixture-link">状態のサンプル</Button>
+        <a class="button button-primary" href="#download" data-testid="download-link">ダウンロード</a>
+        <a class="button button-secondary" href="https://github.com/sas-news/d-op" rel="noopener" target="_blank">GitHub を見る</a>
+        <a class="button button-secondary" href="/explore" data-testid="explore-link">共有リストを探す</a>
       </div>
     </div>
     <div class="hero-art" aria-label="d-OPの再生範囲を表すプレビュー">
@@ -25,24 +80,100 @@ import ShellLayout from "../layouts/ShellLayout.astro"
   </section>
 
   <section class="section" id="gallery" aria-labelledby="gallery-title">
-    <div class="section-heading"><div><p class="section-eyebrow">How it works</p><h2 id="gallery-title">見たいシーンだけを、すぐに。</h2></div><p>作品一覧のボタン、シークバーのマーカー、プレイリスト。毎日の再生を小さく整えます。</p></div>
-    <div class="card-grid">
-      <Card heading="範囲を選ぶ"><p>作品一覧からOP・EDを選び、好きな区間をプレイリストに追加します。</p></Card>
-      <Card heading="続けて楽しむ"><p>複数の作品から選んだ範囲をまとめて、スムーズに連続再生できます。</p></Card>
-      <Card heading="手元で管理する"><p>プレイリストはブラウザのローカルストレージに保存。外部送信を前提にしません。</p></Card>
+    <div class="section-heading">
+      <div>
+        <p class="section-eyebrow">Gallery</p>
+        <h2 id="gallery-title">実際の使い心地を、画像で。</h2>
+      </div>
+      <p>作品一覧への OP/ED ボタン追加、シークバーへの区間マーカー、プレイリスト連続再生まで。</p>
     </div>
+    <LandingGallery />
   </section>
 
   <section class="section" id="download" aria-labelledby="download-title">
-    <div class="section-heading"><div><p class="section-eyebrow">Store links</p><h2 id="download-title">ブラウザに追加する</h2></div><p>お使いのブラウザに合わせてインストールしてください。</p></div>
-    <div class="store-grid">
-      <a class="store-card" data-testid="chrome-store-link" href="https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc" rel="noopener" target="_blank"><span class="store-badge" aria-hidden="true">CH</span><span class="store-body"><span class="store-label">CHROME WEB STORE</span><span class="store-title">Chrome 版を入手</span><span class="store-desc">Chrome / Vivaldi / Brave などのChromium系ブラウザに対応。</span></span><span class="store-arrow" aria-hidden="true">→</span></a>
-      <a class="store-card" data-testid="firefox-store-link" href="https://addons.mozilla.org/ja/firefox/addon/d-op/" rel="noopener" target="_blank"><span class="store-badge" aria-hidden="true">FX</span><span class="store-body"><span class="store-label">FIREFOX ADD-ONS</span><span class="store-title">Firefox 版を入手</span><span class="store-desc">Firefox / Zen Browser / Floorp などのGecko系ブラウザに対応。</span></span><span class="store-arrow" aria-hidden="true">→</span></a>
+    <div class="section-heading">
+      <div>
+        <p class="section-eyebrow">Store links</p>
+        <h2 id="download-title">インストール</h2>
+      </div>
+      <p>お使いのブラウザに合わせてインストールしてください。インストール後、dアニメストアの作品ページを開くとOP/EDボタンが表示されます。</p>
     </div>
+    <StoreCards />
+  </section>
+
+  <section class="section" id="support" aria-labelledby="support-title">
+    <div class="section-heading">
+      <div>
+        <p class="section-eyebrow">Support &amp; Feedback</p>
+        <h2 id="support-title">サポート・お問い合わせ</h2>
+      </div>
+      <p>用途に合わせてお好きな窓口からご連絡ください。</p>
+    </div>
+    <SupportCards />
+  </section>
+
+  <section class="section" id="developer" aria-labelledby="developer-title">
+    <div class="section-heading">
+      <div>
+        <p class="section-eyebrow">Developer</p>
+        <h2 id="developer-title">開発者について</h2>
+      </div>
+    </div>
+    <DevCards />
   </section>
 
   <section class="section" id="privacy" aria-labelledby="privacy-title">
-    <div class="section-heading"><div><p class="section-eyebrow">Privacy</p><h2 id="privacy-title">静かなプライバシー</h2></div><p>アカウントや再生履歴を要求する画面は、このWebシェルにはありません。</p></div>
-    <div class="notice notice-info" role="status"><strong>ローカル中心の設計</strong><p>必要な範囲だけを、明確に扱います。共有データやアカウント操作は後続タスクで実装します。</p></div>
+    <div class="section-heading">
+      <div>
+        <p class="section-eyebrow">Privacy</p>
+        <h2 id="privacy-title">静かなプライバシー</h2>
+      </div>
+      <p>アカウントや再生履歴を要求する画面は、このサイトにはありません。</p>
+    </div>
+    <div class="notice notice-info" role="status">
+      <strong>ローカル中心の設計</strong>
+      <p>プレイリストはブラウザのローカルストレージに保存されます。共有は明示的な公開操作だけが行います。詳しくは<a href="/privacy">プライバシーポリシー</a>をご覧ください。</p>
+    </div>
   </section>
+
+  <section class="section section-share" id="share" aria-labelledby="share-title">
+    <div class="share-inner">
+      <p class="section-eyebrow">Share</p>
+      <h2 id="share-title">X で d-OPをシェアする</h2>
+      <p class="section-desc">気に入ったらぜひ共有してください。開発の励みになります。</p>
+      <a class="button button-primary btn-share" href={xIntentUrl} rel="noopener noreferrer" target="_blank" data-testid="share-x-link">
+        <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true">
+          <path d="M18.244 2 H21.5 l-7.5 8.57 L23 22 h-6.828 l-5.347 -7.006 L4.7 22 H1.443 l8.04 -9.19 L1 2 h6.99 l4.83 6.39 L18.244 2 zm-1.197 18.2 h1.847 L7.045 3.69 H5.05 l11.997 16.51 z" fill="currentColor"></path>
+        </svg>
+        <span>X でシェアする</span>
+      </a>
+    </div>
+  </section>
+  <script is:inline src="/landing.js" defer></script>
 </ShellLayout>
+
+<style>
+  .section-share {
+    background: radial-gradient(31.25rem 15.625rem at 50% 0%, rgb(230 0 18 / 10%), transparent 70%);
+  }
+
+  .share-inner {
+    display: grid;
+    justify-items: center;
+    padding-block: var(--space-5);
+    text-align: center;
+  }
+
+  .share-inner .section-desc {
+    margin-bottom: var(--space-5);
+  }
+
+  .btn-share {
+    padding: var(--space-4) var(--space-6);
+    font-size: var(--text-base);
+  }
+
+  .notice a {
+    color: var(--color-info);
+  }
+</style>

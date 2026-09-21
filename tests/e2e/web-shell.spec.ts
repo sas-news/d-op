@@ -40,7 +40,9 @@ test("shell home exposes skip link, landmarks and a unique h1", async ({ page })
   await expect(page.locator("nav[aria-label='サイト内メニュー']")).toBeVisible()
   await expect(page.locator("main h1")).toHaveCount(1)
   await expect(page.locator("main h1")).not.toBeEmpty()
-  await expect(page.locator("a[data-testid='shell-fixture-link']")).toBeVisible()
+  // Task 21 removed the fixture-navigation link from the production landing
+  // page; the fixture route is still exercised directly via FIXTURE_URL below.
+  await expect(page.locator("nav a[href='/explore']")).toBeVisible()
 
   await expectNoHorizontalOverflow(page)
   expect(errors).toEqual([])

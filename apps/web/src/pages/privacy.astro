@@ -1,0 +1,122 @@
+---
+import ShellLayout from "../layouts/ShellLayout.astro"
+import { SHARE_SITE_ORIGIN } from "../server/services/share-page"
+
+// Privacy page ported from the legacy gh-pages PRIVACY.md (task 21) and
+// updated to the current hosting truth: the site now runs on Cloudflare
+// Workers with the Share API/D1 backend, so the old "GitHub Pages only"
+// wording is replaced by what this deployment actually does — no tracking,
+// no cookies, redacted operational logs, and server-side storage limited to
+// playlists a user explicitly publishes.
+const CANONICAL_URL = `${SHARE_SITE_ORIGIN}/privacy`
+---
+
+<ShellLayout title="プライバシーポリシー | d-OP" description="d-OP 拡張機能とこのサイトのデータ取り扱いについて。">
+  <Fragment slot="head">
+    <link rel="canonical" href={CANONICAL_URL} />
+    <meta name="color-scheme" content="dark" />
+  </Fragment>
+
+  <article class="section privacy" aria-labelledby="privacy-title">
+    <p class="section-eyebrow">Privacy Policy</p>
+    <h1 id="privacy-title">プライバシーポリシー</h1>
+    <p class="lead">
+      d-OP 拡張機能およびこのサイト（以下「本サービス」）は、ユーザーのプライバシーを尊重し、個人情報の保護に配慮しています。
+    </p>
+
+    <section class="privacy-block" aria-labelledby="privacy-site">
+      <h2 id="privacy-site">このサイトについて</h2>
+      <p>
+        このサイトはアクセス解析・トラッキング・Cookie
+        を一切使用していません。広告や第三者への情報提供も行いません。
+      </p>
+      <p>
+        サイトは Cloudflare Workers
+        上で配信されています。サーバー側の運用ログは識別子やURLを伏せた最小限の記録に限定され、
+        閲覧だけではプレイリストの内容や個人情報は送信されません。
+      </p>
+    </section>
+
+    <section class="privacy-block" aria-labelledby="privacy-share">
+      <h2 id="privacy-share">共有プレイリスト機能について</h2>
+      <p>
+        プレイリストの共有は、拡張機能内で明示的に公開操作を行った場合にのみ実行されます。
+        公開されたプレイリストのスナップショット（タイトル・説明・クリップ範囲・タグ・公開者名）だけが
+        このサイトのサーバーに保存され、共有URLを知っている人が閲覧・保存できます。
+      </p>
+      <p>
+        保存回数は匿名の合計値としてのみ集計され、保存した人を特定する情報は記録しません。
+        公開操作を行わない限り、ローカルのプレイリストがサーバーへ送信されることはありません。
+      </p>
+    </section>
+
+    <section class="privacy-block" aria-labelledby="privacy-extension">
+      <h2 id="privacy-extension">拡張機能本体のデータ取り扱い</h2>
+      <p>
+        拡張機能本体のデータ取り扱いについては、リポジトリの
+        <a href="https://github.com/sas-news/d-op/blob/main/PRIVACY.md" rel="noopener" target="_blank">PRIVACY.md</a>
+        を参照してください。プレイリストや設定はブラウザのローカルストレージにのみ保存され、
+        明示的な共有操作を除いて外部サーバーへの送信は行われません。
+      </p>
+    </section>
+
+    <section class="privacy-block" aria-labelledby="privacy-contact">
+      <h2 id="privacy-contact">お問い合わせ窓口</h2>
+      <ul class="privacy-contact">
+        <li>
+          GitHub Issues:
+          <a href="https://github.com/sas-news/d-op/issues" rel="noopener" target="_blank">https://github.com/sas-news/d-op/issues</a>
+        </li>
+        <li>メール: <a href="mailto:contact@sasnews.dev">contact@sasnews.dev</a></li>
+      </ul>
+      <p class="privacy-updated">最終更新日: 2026-09-21</p>
+    </section>
+  </article>
+</ShellLayout>
+
+<style>
+  .privacy {
+    max-inline-size: 44rem;
+  }
+
+  .privacy .lead {
+    margin-top: var(--space-4);
+  }
+
+  .privacy-block {
+    margin-top: var(--space-6);
+  }
+
+  .privacy-block h2 {
+    margin-bottom: var(--space-3);
+    font-size: var(--text-lg);
+  }
+
+  .privacy-block p {
+    color: var(--color-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .privacy-block p + p {
+    margin-top: var(--space-3);
+  }
+
+  .privacy-block a {
+    color: var(--color-info);
+    overflow-wrap: anywhere;
+  }
+
+  .privacy-contact {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding-inline-start: var(--space-5);
+    color: var(--color-muted);
+  }
+
+  .privacy-updated {
+    margin-top: var(--space-4);
+    color: var(--color-subtle);
+    font-size: var(--text-sm);
+  }
+</style>
