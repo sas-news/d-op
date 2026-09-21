@@ -5,7 +5,14 @@ import { join } from "node:path"
 // Proves test-only origins and fixture markers are absent from production
 // build output. Missing output directories are a hard failure, never a pass:
 // the build must run before this check so absence cannot masquerade as clean.
+//
+// Task 25: the `*-sources.zip` AMO archive is exempt — it is NOT production
+// runtime output but the reproducible source bundle, which by design carries
+// the repo's tests and docs (where fixture names legitimately appear). The
+// production extension zips and unpacked dirs stay fully scanned; marker
+// CONTENT inside them is additionally checked unpacked by verify-artifacts.
 const OUTPUT_ROOTS = ["apps/extension/.output", "apps/web/dist"]
+const EXEMPT = /-sources\.zip$/
 const FORBIDDEN_MARKERS = [
   "DOP_TEST_FIXTURE",
   "127.0.0.1:8123",
@@ -42,6 +49,7 @@ for (const root of OUTPUT_ROOTS) {
     continue
   }
   for (const file of files) {
+    if (EXEMPT.test(file)) continue
     const bytes = await readFile(file)
     for (const marker of FORBIDDEN_MARKERS) {
       if (bytes.includes(Buffer.from(marker))) {

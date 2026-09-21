@@ -15,6 +15,12 @@ Bun is the task runner. Install once with `bun install` from the repo root.
 
 `bun run test` runs unit + worker + e2e sequentially.
 
+Release/artifact commands (see `docs/release.md`):
+
+- `bun run build` — WXT production builds + `d-op-<v>-chrome.zip`, `d-op-<v>-firefox.zip`, `d-op-<v>-sources.zip` under `apps/extension/.output/`.
+- `bun run verify:artifacts` — unpacks the zips and asserts manifest identity, permissions, required resources, and absence of fixture/secret/remote-code content; `--self-test` proves every gate can fail, `--release-tag v<x.y.z>` adds the immutable-tag refusal.
+- `bun run pack:sources` / `bun run pack:crx` / `bun run rehearse:source-build` — AMO source archive, optional CRX signing, and the clean-build rehearsal.
+
 Playwright projects:
 
 - `web-chromium` / `web-firefox` — synthetic harness + Astro SSR pages (landing, explore, share page, CSP).

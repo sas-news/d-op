@@ -1,5 +1,8 @@
 # d-Anime Player Contract (observed, baseline fc9d7fd)
 
+> Task 25 note: the baseline root files cited below were removed after parity
+> evidence; read them via `git show v1.0.0:<path>` (or the fc9d7fd commit).
+
 Source: `injected.js:14-56,58-153,168-206`, `content.js` bridge
 (`sendCommand`, `injectPageScript`, `CHAPTERS_FOUND` handling, enforcement),
 `content-store.js:21-40` fetch path. Checked at

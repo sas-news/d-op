@@ -49,6 +49,9 @@ is runtime-neutral; verified by workerd execution in `test:worker`).
   Firefox from `entrypoints/background.ts`. Content scripts, popup/options entries,
   and icons land in tasks 8/10/21/25. Skeleton version is 0.1.0; the first
   production v2 release uses v2.0.0 (or newer if published meanwhile) per task 25.
+  > Task 25 update: version moved to `apps/extension/package.json` (2.0.0) as the
+  > single source WXT injects; icons shipped via `public/icons/`; the legacy root
+  > runtime listed below was removed after parity evidence (history at tag v1.0.0).
 
 ## Release safety (task 2 slice, full gate in tasks 5/25)
 

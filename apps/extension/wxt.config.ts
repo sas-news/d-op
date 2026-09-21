@@ -1,18 +1,37 @@
 import { defineConfig } from "wxt"
 
-// Task 2 WXT skeleton: generate per-browser MV3 manifests preserving listing identity
-// inputs (name, permissions, d-Anime hosts, Firefox gecko ID). WXT emits
-// background.service_worker for Chrome and background.scripts for Firefox.
-// Content scripts, popup/options entries, and icons land in tasks 8/10/21/25.
+// Task 2 WXT skeleton, task 25 packaging: generate per-browser MV3 manifests
+// preserving listing identity inputs (name, permissions, d-Anime hosts,
+// Firefox gecko ID). WXT emits background.service_worker for Chrome and
+// background.scripts for Firefox.
+// The manifest version is intentionally NOT set here: WXT resolves it from
+// apps/extension/package.json so package.json stays the single version source
+// (scripts/verify-artifacts.mjs asserts manifests/package.json equality).
 export default defineConfig({
   // Both target browsers ship MV3 (matching legacy manifest.json / manifest.firefox.json).
   manifestVersion: 3,
+  zip: {
+    // Release zips land in .output/ as d-op-<version>-<browser>.zip. WXT's
+    // zero-zip writer emits sorted entries with zeroed timestamps, so the same
+    // input bytes always produce the same archive bytes.
+    name: "d-op",
+    // The AMO reproducible source archive is repo-wide (lockfile + workspace);
+    // scripts/pack-sources.mjs owns it, so WXT's per-package sources zip is off.
+    zipSources: false,
+  },
   manifest: ({ browser, mode }) => ({
     name: "d-OP",
-    version: "0.1.0",
     description:
       "dアニメストアの動画からOP/EDを抽出して連続再生。劇中歌や好きなシーンのプレイリスト化にも対応しています！",
     homepage_url: "https://github.com/sas-news/d-op",
+    // Task 25: ship the same icon set the v1 listing used (copied from the
+    // historical root icons/ into public/icons/ so WXT emits them).
+    icons: {
+      16: "icons/icon16.png",
+      32: "icons/icon32.png",
+      48: "icons/icon48.png",
+      128: "icons/icon128.png",
+    },
     permissions: ["tabs", "storage"],
     host_permissions: [
       "https://animestore.docomo.ne.jp/*",

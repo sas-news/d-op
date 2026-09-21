@@ -1,9 +1,12 @@
 // Legacy pure-logic characterization (task 3).
-// Given: the checked-in legacy common.js at the task-1 baseline.
+// Given: the legacy common.js from git tag v1.0.0 (task-1 baseline fc9d7fd).
+//   The root runtime was removed in task 25 after parity evidence; the
+//   historical source stays reachable through the tag archive, so this test
+//   loads it via `git show` instead of the working tree.
 // When: its pure migration helpers are evaluated in-test only.
 // Then: preserved behavior vs intentional fixes are pinned without shipping
 // legacy globals into production source.
-import { readFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
 import { describe, expect, it } from "vitest"
 
 type LegacyChapter = { readonly start: number; readonly end: number }
@@ -54,7 +57,17 @@ type LegacyPureApi = {
 }
 
 function loadLegacyPure(): LegacyPureApi {
-  const source = readFileSync(new URL("../../../common.js", import.meta.url), "utf8")
+  let source: string
+  try {
+    source = execFileSync("git", ["show", "v1.0.0:common.js"], {
+      encoding: "utf8",
+      cwd: new URL("../../../", import.meta.url),
+    })
+  } catch (err) {
+    throw new Error(
+      `legacy characterization needs git tag v1.0.0 (historical source archive): ${err instanceof Error ? err.message : err}`,
+    )
+  }
   const factory = new Function(
     `${source}; return { deriveRangeName, cleanItem, migrateItem, migratePlaylist, guessRangeName, dopCreateShuffledIndices };`,
   ) as () => LegacyPureApi

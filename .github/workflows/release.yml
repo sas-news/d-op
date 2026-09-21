@@ -1,21 +1,118 @@
-name: Release (frozen by task 5)
+name: Release (immutable tag)
 
-# Task 5 freeze: ordinary main pushes must not delete/recreate tags, create
-# releases, sign binaries, publish stores, or deploy production. The legacy
-# packaging flow below is disabled until task 25 defines the v2 release
-# procedure (immutable tags, AMO source ZIP, store publishing checklist).
-# This workflow runs only on manual dispatch and always stops loudly.
+# Task-25 release procedure. Hard rules enforced here and by
+# scripts/verify-artifacts.mjs:
+#   * manual only — workflow_dispatch, never on push;
+#   * human approval — the job binds to the `release` GitHub environment,
+#     which must have required reviewers configured (repo settings);
+#   * immutable tags — an existing v<version> tag or GitHub release is a loud
+#     refusal; nothing is ever deleted, re-created, or force-pushed;
+#   * no automatic store submission — CWS/AMO upload is a documented manual
+#     step (docs/release.md); this workflow only publishes a GitHub release
+#     with the reproducible artifacts.
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version X.Y.Z — must equal apps/extension/package.json version"
+        required: true
+      confirm:
+        description: 'Type RELEASE to confirm packaging this version'
+        required: true
 
 permissions:
-  contents: read
+  contents: write # required solely for `gh release create` (tag + release)
+
+concurrency:
+  group: release
+  cancel-in-progress: false # never cancel a release mid-publish
 
 jobs:
-  frozen:
+  release:
     runs-on: ubuntu-latest
+    # Manual approval gate: configure required reviewers on the `release`
+    # environment (Settings → Environments). The job cannot start until a
+    # reviewer approves the dispatch.
+    environment: release
     steps:
-      - name: Refuse release while v2 procedure is undefined
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # needed to enumerate existing tags
+
+      - name: Validate dispatch inputs
         run: |
-          echo "::error::v2 release is frozen (task 5). Task 25 owns the release workflow; no tags, artifacts, signing, publishing, or deployment may run from here."
-          exit 1
+          set -euo pipefail
+          [ "${{ inputs.confirm }}" = "RELEASE" ] || {
+            echo "::error::type RELEASE in the confirm input to run a release"; exit 1; }
+          echo "${{ inputs.version }}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+            echo "::error::version must be X.Y.Z, got '${{ inputs.version }}'"; exit 1; }
+          pkg="$(node -p "require('./apps/extension/package.json').version")"
+          root="$(node -p "require('./package.json').version")"
+          [ "$pkg" = "${{ inputs.version }}" ] || {
+            echo "::error::input version ${{ inputs.version }} != apps/extension/package.json $pkg — bump the version in a normal PR first"; exit 1; }
+          [ "$root" = "$pkg" ] || {
+            echo "::error::root package.json $root != apps/extension/package.json $pkg"; exit 1; }
+          echo "version $pkg confirmed"
+
+      - name: Immutable release gate — refuse existing tag/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${{ inputs.version }}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::$tag already exists — releases are immutable and never deleted or recreated"
+            exit 1
+          fi
+          if gh api "repos/${{ github.repository }}/releases/tags/$tag" --silent 2>/dev/null; then
+            echo "::error::a GitHub release for $tag already exists — refusing to recreate it"
+            exit 1
+          fi
+          echo "no tag or release named $tag — safe to proceed"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Install with lockfile enforcement
+        run: bun install --frozen-lockfile
+
+      - name: Build artifacts (chrome+firefox zips, web, AMO source archive)
+        run: bun run build
+
+      - name: Verify artifacts and re-run release gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node ./scripts/verify-artifacts.mjs --release-tag "v${{ inputs.version }}"
+
+      - name: Checksums
+        run: |
+          cd apps/extension/.output
+          sha256sum "d-op-${{ inputs.version }}-chrome.zip" \
+                    "d-op-${{ inputs.version }}-firefox.zip" \
+                    "d-op-${{ inputs.version }}-sources.zip" \
+                    > "d-op-${{ inputs.version }}-SHA256SUMS.txt"
+          cat "d-op-${{ inputs.version }}-SHA256SUMS.txt"
+
+      - name: Create immutable GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="v${{ inputs.version }}"
+          gh release create "$tag" \
+            --target "${{ github.sha }}" \
+            --title "d-OP ${{ inputs.version }}" \
+            --generate-notes \
+            "apps/extension/.output/d-op-${{ inputs.version }}-chrome.zip#Chrome MV3 (Web Store upload)" \
+            "apps/extension/.output/d-op-${{ inputs.version }}-firefox.zip#Firefox MV3 (AMO upload)" \
+            "apps/extension/.output/d-op-${{ inputs.version }}-sources.zip#AMO source archive (reproducible build)" \
+            "apps/extension/.output/d-op-${{ inputs.version }}-SHA256SUMS.txt#SHA-256 checksums"
+
+      - name: Post-release manual steps reminder
+        run: |
+          echo "Store submission is MANUAL (docs/release.md):"
+          echo "  1. Chrome Web Store dashboard: upload d-op-${{ inputs.version }}-chrome.zip"
+          echo "  2. AMO: upload d-op-${{ inputs.version }}-firefox.zip + attach d-op-${{ inputs.version }}-sources.zip as source"
+          echo "  3. Optional self-distribution CRX: node scripts/pack-crx.mjs --key <release.pem> --expect-id <listing id>"

@@ -35,19 +35,26 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 
 #### Chrome
 
-1. このリポジトリをクローン または [Releases](https://github.com/sas-news/d-op/releases) から最新の ZIP をダウンロード・解凍
+1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-chrome.zip` をダウンロード・解凍（またはソースから `bun run build` で `apps/extension/.output/chrome-mv3/` を生成）
 2. Chrome で `chrome://extensions` を開く
 3. 右上の「デベロッパーモード」を ON
-4. 「パッケージ化されていない拡張機能を読み込む」→ 解凍したフォルダを選択
+4. 「パッケージ化されていない拡張機能を読み込む」→ 解凍したフォルダ（または `.output/chrome-mv3/`）を選択
 
 #### Firefox
 
-1. このリポジトリをクローン または [Releases](https://github.com/sas-news/d-op/releases) から最新の Firefox 用 XPI をダウンロード
-2. クローンした場合は、`manifest.firefox.json` を `manifest.json` にリネーム（Chrome 用 `manifest.json` はバックアップ）
-3. Firefox で `about:debugging` を開く
-4. 「この Firefox」→「一時的なアドオンを読み込む」→ 解凍したフォルダの `manifest.json` を選択
+1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-firefox.zip` をダウンロード・解凍（または `bun run build` で `apps/extension/.output/firefox-mv3/` を生成）
+2. Firefox で `about:debugging` を開く
+3. 「この Firefox」→「一時的なアドオンを読み込む」→ 解凍したフォルダの `manifest.json`（または `.output/firefox-mv3/manifest.json`）を選択
 
-> **Chrome と Firefox のマニフェスト違い**: Chrome MV3 は `background.service_worker` 必須、Firefox MV3 は非対応で `background.scripts` 必須。このためマニフェストファイルが2つに分かれています。コード本体は共通です。
+> **Chrome と Firefox のマニフェスト違い**: Chrome MV3 は `background.service_worker` 必須、Firefox MV3 は `background.scripts` + `browser_specific_settings.gecko` が必要。このため WXT がブラウザ別に `chrome-mv3/` と `firefox-mv3/` を生成します。コード本体は共通です。
+
+#### ソースからビルドする場合
+
+```sh
+bun install --frozen-lockfile
+bun run build        # apps/extension/.output/ に chrome-mv3・firefox-mv3 と両 ZIP を生成
+bun run verify:artifacts   # 生成物の同一性・権限・必須ファイルを検査
+```
 
 ## 使い方
 
@@ -61,21 +68,20 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 
 ## ファイル構成
 
+v2 は WXT + TypeScript のモノレポ構成です。ブラウザに読み込ませる生成物は
+`apps/extension/.output/chrome-mv3/` と `apps/extension/.output/firefox-mv3/` に出力されます。
 
-| ファイル                  | 役割                                                    |
+| パス | 役割 |
 | --------------------- | ----------------------------------------------------- |
-| `manifest.json`       | MV3 マニフェスト（Chrome 用）。`background.service_worker` を使用          |
-| `manifest.firefox.json` | MV3 マニフェスト（Firefox 用）。`background.scripts` を使用。コード本体は共通        |
-| `background.js`       | バックグラウンド（Chrome は Service Worker、Firefox はイベントページ）。ウィンドウ管理、初回オンボーディング             |
-| `browser-polyfill.js` | WebExtension API ポリフィル。Chrome/Firefox 両対応の `browser.*` API を提供      |
-| `injected.js`         | メインワールドで実行。dアニメのプレイヤーオブジェクトにアクセスし、SEEK/PLAY/PAUSE を提供 |
-| `content.js`          | プレイヤーページ用コンテンツスクリプト。OP/ED 強制、プレイリスト再生、UI 制御           |
-| `content-store.js`    | 作品一覧ページ用コンテンツスクリプト。OP/ED ボタンの追加                       |
-| `common.js`           | 共通ストレージ層。プレイリスト CRUD、設定管理                             |
-| `popup.*`             | ツールバーポップアップ                                           |
-| `options.*`           | 設定・プレイリスト管理ページ                                        |
-| `styles.css`          | プレイヤーページ用スタイル                                         |
-| `styles-store.css`    | 作品一覧ページ用スタイル                                          |
+| `apps/extension/wxt.config.ts` | ブラウザ別 MV3 マニフェスト生成（権限・gecko ID・アイコン） |
+| `apps/extension/entrypoints/background.ts` | バックグラウンド（Chrome は Service Worker、Firefox はイベントページ）。ストレージ単一書き込み・ウィンドウ管理・Share API |
+| `apps/extension/entrypoints/danime-*.ts` | dアニメ用コンテンツスクリプト（プレイヤー OP/ED 強制・作品一覧メニュー・メインワールドブリッジ） |
+| `apps/extension/entrypoints/popup/` `options/` `import/` | ツールバーポップアップ・設定/プレイリスト管理・取り込み確認画面 |
+| `apps/extension/src/` | アダプタ・プレイヤー・ストレージ・Share・UI ロジック（TypeScript） |
+| `apps/web/` | 共有サイト（Astro + Cloudflare Workers/D1、`d-op.sasnews.dev`） |
+| `packages/shared/` | 拡張機能と Web で共有する Zod スキーマ・ドメインロジック |
+
+> 旧 v1（ルートの素 JS ランタイム）は task 25 で削除されました。履歴ソースは git タグ `v1.0.0`（ベースライン `fc9d7fd`）を参照してください。
 
 
 ## ロードマップ
