@@ -172,6 +172,20 @@ const EXP_IDS: string[] = [] // five expired-cursor fixtures
 test.beforeAll(() => {
   test.setTimeout(180_000)
   d1Migrate()
+  // The shared local-D1 file persists across runs: prior phases leave import
+  // rows that break phase 0's global "no import events" premise, and random
+  // shareIds make stale e2e*-titled fixtures accumulate. This suite owns all
+  // import-derived state (no other spec reads counters) — wipe it and the
+  // stale fixtures before seeding. playlist_tags has no enforced cascade in
+  // local D1, so delete its rows explicitly.
+  d1Execute([
+    "DELETE FROM discovery_snapshots",
+    "DELETE FROM import_receipts",
+    "DELETE FROM import_daily",
+    "DELETE FROM playlist_tags WHERE share_id IN (SELECT share_id FROM playlists WHERE title LIKE 'e2e%')",
+    "DELETE FROM playlists WHERE title LIKE 'e2e%'",
+    "UPDATE playlists SET import_count = 0",
+  ])
   const statements: string[] = []
   for (let i = 0; i < 5; i += 1) {
     MAIN_IDS.push(
