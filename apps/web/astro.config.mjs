@@ -10,4 +10,9 @@ export default defineConfig({
     platformProxy: { enabled: true },
   }),
   session: false,
+  build: {
+    // CSP is style-src 'self' with no unsafe-inline: page styles must ship as
+    // external same-origin stylesheets, never inlined <style> blocks.
+    inlineStylesheets: "never",
+  },
 })

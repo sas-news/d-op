@@ -128,7 +128,12 @@ export async function readPublication(
   }
 }
 
-async function parentIsPublic(
+/**
+ * Whether the derivedFrom parent is currently readable as a public source.
+ * Shared by the API GET and the /p/ page so a hidden/deleted/unlisted parent
+ * is redacted identically on every surface.
+ */
+export async function parentIsPublic(
   db: D1Database,
   derivedFrom: DerivedFrom | undefined,
 ): Promise<boolean> {

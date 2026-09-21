@@ -1,0 +1,81 @@
+---
+// Save/install shell for /p/:shareId (task 16). This panel explains how to
+// open the shared playlist in the d-OP extension — the actual extension
+// handshake is task-17 scope and is intentionally NOT faked here: the open
+// button stays disabled, and share-page.js only swaps the guidance copy when
+// the extension advertises itself (data-dop-extension on <html>).
+---
+
+<section class="section" aria-labelledby="save-title" data-testid="save-panel">
+  <div class="section-heading">
+    <div>
+      <p class="section-eyebrow">Save</p>
+      <h2 id="save-title">d-OP で保存する</h2>
+    </div>
+    <p>プレイリストはブラウザのローカルストレージに保存されます。</p>
+  </div>
+  <div class="save-card">
+    <p class="save-lead">
+      この共有プレイリストは、d-OP
+      拡張機能をインストールしたブラウザで開いて保存できます。アカウントやログインは不要です。
+    </p>
+    <div class="button-row">
+      <button
+        type="button"
+        class="button button-primary"
+        disabled
+        aria-disabled="true"
+        data-share-save
+        data-testid="save-open-button"
+      >
+        d-OP で開く
+      </button>
+      <a
+        class="button button-secondary"
+        href="https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc"
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid="save-chrome-link"
+      >
+        Chrome 版を入手
+      </a>
+      <a
+        class="button button-secondary"
+        href="https://addons.mozilla.org/ja/firefox/addon/d-op/"
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid="save-firefox-link"
+      >
+        Firefox 版を入手
+      </a>
+    </div>
+    <p class="save-status" role="status" data-share-save-status data-testid="save-status">
+      d-OP
+      拡張機能が見つかりません。インストールすると、このページから直接プレイリストを保存できるようになります。
+    </p>
+  </div>
+</section>
+
+<style>
+  .save-card {
+    min-width: 0;
+    padding: var(--space-5);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--color-accent-soft), var(--color-surface));
+    box-shadow: var(--shadow-soft);
+  }
+
+  .save-lead {
+    max-inline-size: 40rem;
+    color: var(--color-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .save-status {
+    margin-top: var(--space-4);
+    color: var(--color-subtle);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+  }
+</style>

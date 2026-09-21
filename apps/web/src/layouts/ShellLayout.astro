@@ -18,6 +18,9 @@ const { title, description } = Astro.props
     <meta name="theme-color" content="#0a0a0c" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>{title}</title>
+    {/* Page-scoped head entries (canonical, robots, OGP). Values placed in
+        attributes/text by pages are escaped by Astro — no set:html here. */}
+    <slot name="head" />
   </head>
   <body>
     <a class="skip-link" href="#main-content" data-testid="skip-link">メインコンテンツへスキップ</a>

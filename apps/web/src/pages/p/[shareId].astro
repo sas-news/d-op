@@ -1,0 +1,270 @@
+---
+import ErrorShell from "../../components/ErrorShell.astro"
+import ShareItems from "../../components/ShareItems.astro"
+import ShareSavePanel from "../../components/ShareSavePanel.astro"
+import ShellLayout from "../../layouts/ShellLayout.astro"
+import { newRequestId } from "../../server/services/respond"
+import { loadSharePage, SHARE_OG_IMAGE_URL } from "../../server/services/share-page"
+
+// GET /p/:shareId — the public snapshot page (task 16). Fully server-rendered:
+// every state (found / notfound / unavailable) is decided here and works with
+// JavaScript disabled. Unknown, pending, blocked, deleted and malformed ids
+// all render the SAME nonrevealing 404 view — no existence oracle. Manage
+// secrets, capability URLs and admin controls never reach this markup.
+
+const result = await loadSharePage(Astro.params["shareId"], Astro.request, newRequestId())
+
+if (result.kind === "notfound") {
+  Astro.response.status = 404
+} else if (result.kind === "unavailable") {
+  Astro.response.status = result.status
+  if (result.retryAfter !== null) {
+    Astro.response.headers.set("retry-after", result.retryAfter)
+  }
+}
+
+const NOT_FOUND_TITLE = "共有プレイリストが見つかりません"
+const NOT_FOUND_MESSAGE =
+  "この共有プレイリストは存在しないか、公開されていません。URLを確認してください。"
+
+const title =
+  result.kind === "ready" ? `${result.view.title} | d-OP Share` : `${NOT_FOUND_TITLE} | d-OP Share`
+const description =
+  result.kind === "ready" ? result.view.ogDescription : "共有プレイリストは見つかりませんでした。"
+---
+
+<ShellLayout title={title} description={description}>
+  <Fragment slot="head">
+    {result.kind === "ready" ? (
+      <>
+        <link rel="canonical" href={result.view.canonicalUrl} />
+        {result.view.visibility === "unlisted" && (
+          <meta name="robots" content="noindex" />
+        )}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="d-OP Share" />
+        <meta property="og:title" content={result.view.ogTitle} />
+        <meta property="og:description" content={result.view.ogDescription} />
+        <meta property="og:url" content={result.view.canonicalUrl} />
+        <meta property="og:image" content={SHARE_OG_IMAGE_URL} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={result.view.ogTitle} />
+        <meta name="twitter:description" content={result.view.ogDescription} />
+      </>
+    ) : (
+      <meta name="robots" content="noindex" />
+    )}
+  </Fragment>
+
+  {result.kind === "ready" ? (
+    <>
+      <section class="share-hero" aria-labelledby="share-title">
+        <p class="hero-eyebrow" data-testid="share-visibility">
+          {result.view.visibility === "public" ? "公開プレイリスト" : "限定公開プレイリスト"}
+        </p>
+        <h1 id="share-title" class="share-title" data-testid="share-title">
+          {result.view.title}
+        </h1>
+        {result.view.author !== "" && (
+          <p class="share-author" data-testid="share-author">
+            {result.view.author}
+          </p>
+        )}
+        {result.view.description !== "" && (
+          <p class="share-description" data-testid="share-description">
+            {result.view.description}
+          </p>
+        )}
+        <dl class="share-stats" data-testid="share-stats">
+          <div class="share-stat">
+            <dt>クリップ数</dt>
+            <dd data-testid="share-clip-count">{result.view.clipCount}</dd>
+          </div>
+          <div class="share-stat">
+            <dt>合計時間</dt>
+            <dd data-testid="share-total-duration">{result.view.totalDurationLabel}</dd>
+          </div>
+          <div class="share-stat">
+            <dt>公開日</dt>
+            <dd>{result.view.publishedAtLabel}</dd>
+          </div>
+          <div class="share-stat">
+            <dt>更新日</dt>
+            <dd>{result.view.updatedAtLabel}</dd>
+          </div>
+          <div class="share-stat">
+            <dt>保存された回数</dt>
+            <dd>{result.view.importCount}</dd>
+          </div>
+        </dl>
+        {result.view.tags.length > 0 && (
+          <ul class="share-tags" data-testid="share-tags" aria-label="タグ">
+            {result.view.tags.map((tag) => <li class="share-tag">{tag}</li>)}
+          </ul>
+        )}
+        {result.view.sourceUrl !== null && (
+          <p class="share-source" data-testid="share-source">
+            このプレイリストは
+            <a href={result.view.sourceUrl}>公開プレイリスト</a>
+            の Remix です。
+          </p>
+        )}
+        <div class="button-row share-actions">
+          <button
+            type="button"
+            class="button button-primary"
+            data-share-copy
+            data-copy-url={result.view.canonicalUrl}
+            data-testid="copy-url-button"
+          >
+            URLをコピー
+          </button>
+          <a
+            class="button button-secondary"
+            href={result.view.xIntentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="share-x-link"
+          >
+            Xで共有
+          </a>
+        </div>
+        <p class="share-copy-status" role="status" aria-live="polite" data-share-copy-status data-testid="copy-status"></p>
+        <p class="share-url-wrap">
+          <code class="share-url" data-testid="share-url">{result.view.canonicalUrl}</code>
+        </p>
+      </section>
+
+      <ShareSavePanel />
+      <ShareItems items={result.view.items} />
+      <script is:inline src="/share-page.js" defer></script>
+    </>
+  ) : result.kind === "unavailable" ? (
+    <ErrorShell
+      eyebrow={result.status === 429 ? "429 / BUSY" : "503 / UNAVAILABLE"}
+      title="一時的に利用できません"
+      message="しばらくしてからもう一度お試しください。"
+    />
+  ) : (
+    <ErrorShell title={NOT_FOUND_TITLE} message={NOT_FOUND_MESSAGE} />
+  )}
+</ShellLayout>
+
+<style>
+  .share-hero {
+    padding-block: var(--space-9) var(--space-8);
+  }
+
+  .share-title {
+    max-inline-size: 100%;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    letter-spacing: -0.03em;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+
+  .share-author {
+    margin-top: var(--space-3);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+  }
+
+  .share-author::before {
+    content: "by ";
+    color: var(--color-subtle);
+  }
+
+  .share-description {
+    max-inline-size: 42rem;
+    margin-top: var(--space-5);
+    color: var(--color-muted);
+    font-size: var(--text-lg);
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+  }
+
+  .share-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    margin: var(--space-6) 0 0;
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  .share-stat dt {
+    color: var(--color-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+  }
+
+  .share-stat dd {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-lg);
+    font-weight: 700;
+  }
+
+  .share-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: var(--space-5) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .share-tag {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-full);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .share-source {
+    margin-top: var(--space-4);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+  }
+
+  .share-source a {
+    color: var(--color-info);
+  }
+
+  .share-actions {
+    margin-top: var(--space-6);
+  }
+
+  .share-copy-status {
+    min-height: 1.5em;
+    margin-top: var(--space-3);
+    color: var(--color-success);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+  }
+
+  .share-url-wrap {
+    margin-top: var(--space-2);
+  }
+
+  .share-url {
+    display: inline-block;
+    max-width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+</style>

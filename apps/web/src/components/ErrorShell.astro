@@ -4,14 +4,16 @@ import Button from "./Button.astro"
 interface Props {
   title: string
   message: string
+  /** Small label above the heading; fixed copy per status, never user data. */
+  eyebrow?: string
 }
 
-const { title, message } = Astro.props
+const { title, message, eyebrow = "404 / NOT FOUND" } = Astro.props
 ---
 
 <section class="section" aria-labelledby="error-title">
   <div class="notice notice-error" role="alert" data-testid="error-notice">
-    <p class="eyebrow">404 / NOT FOUND</p>
+    <p class="eyebrow">{eyebrow}</p>
     <h1 id="error-title">{title}</h1>
     <p class="lead">{message}</p>
     <div class="button-row">
