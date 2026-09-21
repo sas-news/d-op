@@ -22,13 +22,13 @@ export default defineConfig({
     {
       name: "web-chromium",
       testMatch:
-        /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts|csp\.spec\.ts|share-page\.spec\.ts/,
+        /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts|csp\.spec\.ts|share-page\.spec\.ts|landing\.spec\.ts|discover\.spec\.ts/,
       use: { browserName: "chromium" },
     },
     {
       name: "web-firefox",
       testMatch:
-        /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts|share-page\.spec\.ts/,
+        /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts|share-page\.spec\.ts|landing\.spec\.ts/,
       use: { browserName: "firefox" },
     },
     {
