@@ -26,7 +26,7 @@
     "rehearse:source-build": "node ./scripts/rehearse-source-build.mjs",
     "verify:artifacts": "node ./scripts/verify-artifacts.mjs",
     "verify:upgrade": "bun -e \"console.error('task-26 owns verify:upgrade (migration rehearsal): not implemented');process.exit(1)\"",
-    "verify:staging": "bun -e \"console.error('task-28 owns verify:staging (remote staging proof): not implemented');process.exit(1)\"",
+    "verify:staging": "node ./scripts/verify-staging.mjs",
     "verify:cutover": "bun -e \"console.error('task-29 owns verify:cutover (production cutover proof): not implemented');process.exit(1)\""
   },
   "devDependencies": {

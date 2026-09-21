@@ -1,0 +1,104 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // STAGING deployment for the d-OP Share service (task 28). Fully isolated
+  // from production: own Worker name, own D1 database, own rate-limit
+  // namespaces and own secrets. Deploy only synthetic data here.
+  //
+  // Unlike wrangler.jsonc (whose `main` is the adapter's virtual
+  // `@astrojs/cloudflare/entrypoints/server`, resolvable only inside the
+  // @cloudflare/vite-plugin build), this file deploys the GENERATED current
+  // worker directly: `main` is the bundled SSR entry produced by
+  // `bunx astro build` and `assets.directory` is the client bundle — the same
+  // pair the plugin writes into dist/server/wrangler.json. Deploy sequence:
+  //   bunx astro build && bunx wrangler deploy --config wrangler.staging.jsonc
+  "name": "d-op-share-staging",
+  "main": "./dist/server/entry.mjs",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "binding": "ASSETS",
+    // dist/client only — serving ./dist would publish server chunks/source
+    // maps. Matches the generated dist/server/wrangler.json deploy config.
+    "directory": "./dist/client"
+  },
+  "observability": {
+    // Identical privacy posture to production wrangler.jsonc — these flags are
+    // the monitoring contract and must not be "loosened for debugging":
+    // Workers Logs stays enabled for the redacted api_request console records
+    // (server/services/request-log.ts emits ONLY {event, requestId, route
+    // template, status, durationMs}). Automatic invocation logs — which
+    // record raw request URLs and would expose unlisted shareIds — stay OFF,
+    // query strings are redacted, and Workers traces stay OFF entirely.
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": false
+    }
+  },
+  "vars": {
+    // Same fail-closed posture as production: a missing rate-limit binding
+    // fails closed with 503 — protection can never degrade to silent
+    // unlimited mutation access. Also exercises the QA failure path
+    // ("disabled limiter -> explicit failure") on staging.
+    "DOP_RATE_LIMIT_REQUIRED": "true",
+    // Non-secret staging marker so dashboards/`wrangler deployments list`
+    // output and any future env introspection can never confuse this worker
+    // with the production deployment. The worker code does not read it.
+    "DOP_DEPLOYMENT_LABEL": "staging"
+  },
+  // TTL pruning note (task-28 finding): every API read/write already runs
+  // expirePendingProvisionals lazily, and server/services/maintenance.ts
+  // exports runScheduledCleanup covering pending provisionals + expired
+  // mutation/import receipts + discovery snapshots + 90-day day buckets.
+  // There is intentionally NO `triggers.crons` block here: the generated
+  // worker entry exports only `fetch` — no `scheduled` handler exists yet,
+  // so a cron trigger would fire into nothing. Recorded as a wiring gap in
+  // task-28 evidence; add `triggers` only after a scheduled export ships.
+  "ratelimits": [
+    // Route-class bindings (Workers rate-limit binding, period 60s; limits are
+    // approximate per-PoP). Binding NAMES must match
+    // server/security/rate-limit.ts; NAMESPACE ids are staging-only so
+    // staging traffic can never consume production budgets.
+    {
+      "name": "RATE_LIMIT_API",
+      "namespace_id": "dop-staging-api",
+      "simple": { "limit": 600, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_CREATE",
+      "namespace_id": "dop-staging-create",
+      "simple": { "limit": 5, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_MUTATION",
+      "namespace_id": "dop-staging-mutation",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_IMPORT",
+      "namespace_id": "dop-staging-import",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_READ",
+      "namespace_id": "dop-staging-read",
+      "simple": { "limit": 120, "period": 60 }
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dop_share_staging",
+      // PLACEHOLDER — never a real id. Replace with the id printed by
+      // `bunx wrangler d1 create dop_share_staging` during provisioning
+      // (docs/staging.md step 2). Same all-zero convention as wrangler.jsonc;
+      // real database ids are authorized provisioning output, never guessed.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}
