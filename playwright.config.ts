@@ -21,7 +21,7 @@ export default defineConfig({
   projects: [
     {
       name: "web-chromium",
-      testMatch: /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts/,
+      testMatch: /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts|csp\.spec\.ts/,
       use: { browserName: "chromium" },
     },
     {
