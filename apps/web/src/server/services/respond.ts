@@ -64,6 +64,21 @@ export function unauthorized(requestId: string): Response {
   })
 }
 
+/** 429 with Retry-After for refused rate-limit outcomes (task 14). */
+export function rateLimited(requestId: string): Response {
+  const body = JSON.stringify({
+    error: {
+      code: "RATE_LIMITED" satisfies ApiErrorCode,
+      message: "rate limit exceeded; retry after the window resets",
+      requestId,
+    },
+  })
+  return new Response(body, {
+    status: 429,
+    headers: { ...JSON_HEADERS, "retry-after": "60" },
+  })
+}
+
 /** 405 for methods outside a route's contract surface, with Allow. */
 export function methodNotAllowed(allow: readonly string[], requestId: string): Response {
   const body = JSON.stringify({

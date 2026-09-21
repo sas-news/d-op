@@ -13,8 +13,9 @@ import { getActiveSnapshot } from "../repositories/snapshots/read"
 import type { ConflictCode } from "../repositories/types"
 import { generateManageSecret, generateShareId, manageSecretHash } from "../security/capability"
 import { parseShareIdParam, readIdempotencyKey, readJsonBody } from "../security/http"
+import { checkAdmission } from "./admission"
 import { expirePendingProvisionals } from "./maintenance"
-import { dataResponse, errorResponse, newRequestId, notFound, transientFailure } from "./respond"
+import { dataResponse, errorResponse, notFound, transientFailure } from "./respond"
 
 // POST /api/v1/playlists and GET /api/v1/playlists/:shareId service policy.
 // Route files stay thin: all validation, capability handling and repository
@@ -27,9 +28,10 @@ import { dataResponse, errorResponse, newRequestId, notFound, transientFailure }
  * returns the plaintext secret exactly once (201). A replayed create receipt
  * can never return the lost secret — it maps to 409 CREATE_RECEIPT_UNAVAILABLE.
  */
-export async function createPublication(request: Request): Promise<Response> {
-  const requestId = newRequestId()
+export async function createPublication(request: Request, requestId: string): Promise<Response> {
   try {
+    const denied = await checkAdmission({ env, request, requestId, cls: "create", mutation: true })
+    if (denied !== null) return denied
     const key = readIdempotencyKey(request)
     if (!key.ok) return errorResponse({ ...key.failure, requestId })
     const body = await readJsonBody(request)
@@ -82,9 +84,14 @@ export async function createPublication(request: Request): Promise<Response> {
  * merely hidden. `source` is projected only while the parent stays active and
  * public (derivedFrom is redacted from the playlist payload otherwise).
  */
-export async function readPublication(shareIdParam: string | undefined): Promise<Response> {
-  const requestId = newRequestId()
+export async function readPublication(
+  shareIdParam: string | undefined,
+  request: Request,
+  requestId: string,
+): Promise<Response> {
   try {
+    const denied = await checkAdmission({ env, request, requestId, cls: "read", mutation: false })
+    if (denied !== null) return denied
     const shareId = parseShareIdParam(shareIdParam)
     if (shareId === null) return notFound(requestId)
     const db = requireDb(env)

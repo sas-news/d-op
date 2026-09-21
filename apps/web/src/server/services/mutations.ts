@@ -12,12 +12,12 @@ import { deleteSnapshot } from "../repositories/snapshots/delete"
 import { replaceSnapshot } from "../repositories/snapshots/replace"
 import { extractBearerSecret, manageSecretHash } from "../security/capability"
 import { parseShareIdParam, readIdempotencyKey, readJsonBody } from "../security/http"
+import { checkAdmission } from "./admission"
 import { expirePendingProvisionals } from "./maintenance"
 import { mutationConflict, patchAck } from "./mutation-conflicts"
 import { fieldPaths } from "./publication"
 import {
   errorResponse,
-  newRequestId,
   noContentResponse,
   notFound,
   transientFailure,
@@ -35,8 +35,8 @@ import {
 export async function patchPublication(
   shareIdParam: string | undefined,
   request: Request,
+  requestId: string,
 ): Promise<Response> {
-  const requestId = newRequestId()
   try {
     const intake = await mutationIntake(shareIdParam, request, requestId)
     if (!intake.ok) return intake.response
@@ -80,8 +80,8 @@ export async function patchPublication(
 export async function deletePublication(
   shareIdParam: string | undefined,
   request: Request,
+  requestId: string,
 ): Promise<Response> {
-  const requestId = newRequestId()
   try {
     const intake = await mutationIntake(shareIdParam, request, requestId)
     if (!intake.ok) return intake.response
@@ -137,6 +137,15 @@ async function mutationIntake(
 ): Promise<MutationIntake> {
   const shareId = parseShareIdParam(shareIdParam)
   if (shareId === null) return { ok: false, response: notFound(requestId) }
+  const denied = await checkAdmission({
+    env,
+    request,
+    requestId,
+    cls: "mutation",
+    shareId,
+    mutation: true,
+  })
+  if (denied !== null) return { ok: false, response: denied }
   const secret = extractBearerSecret(request)
   if (secret === null) return { ok: false, response: unauthorized(requestId) }
   const key = readIdempotencyKey(request)

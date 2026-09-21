@@ -5,6 +5,7 @@ import m0003 from "../../../migrations/0003_tags.sql?raw"
 import m0004 from "../../../migrations/0004_publication_operations.sql?raw"
 import m0005 from "../../../migrations/0005_imports.sql?raw"
 import m0006 from "../../../migrations/0006_discovery_snapshots.sql?raw"
+import m0007 from "../../../migrations/0007_operator_takedowns.sql?raw"
 import { SnapshotRepositoryError } from "./errors"
 
 // Ordered D1 migration manifest. Files live in apps/web/migrations/ following
@@ -24,6 +25,7 @@ export const MIGRATIONS: readonly MigrationFile[] = [
   { name: "0004_publication_operations", sql: m0004 },
   { name: "0005_imports", sql: m0005 },
   { name: "0006_discovery_snapshots", sql: m0006 },
+  { name: "0007_operator_takedowns", sql: m0007 },
 ]
 
 /**

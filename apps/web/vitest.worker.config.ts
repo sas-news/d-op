@@ -12,6 +12,13 @@ export default defineConfig({
         compatibilityDate: "2026-09-01",
         compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
         d1Databases: ["DB"],
+        // Real rate-limit binding for the security suite: no route consults
+        // RATE_LIMIT_PROBE directly — tests pass it to consultLimiter() to
+        // prove the binding wiring against real Miniflare, and inject fakes
+        // into env for the failure paths.
+        ratelimits: {
+          RATE_LIMIT_PROBE: { namespace_id: "dop-test-probe", simple: { limit: 1, period: 60 } },
+        },
       },
     }),
   ],
@@ -21,6 +28,7 @@ export default defineConfig({
       "tests/worker/**/*.test.ts",
       "tests/repository/**/*.test.ts",
       "tests/publication-api/**/*.test.ts",
+      "tests/security/**/*.test.ts",
     ],
     reporters: ["default"],
     passWithNoTests: false,

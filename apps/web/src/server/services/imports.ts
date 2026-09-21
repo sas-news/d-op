@@ -4,9 +4,10 @@ import { requireDb } from "../env"
 import { sha256Hex } from "../repositories/hashing"
 import { recordImportEvent } from "../repositories/imports"
 import { readJsonBody } from "../security/http"
+import { checkAdmission } from "./admission"
 import { expirePendingProvisionals } from "./maintenance"
 import { fieldPaths } from "./publication"
-import { errorResponse, newRequestId, noContentResponse, transientFailure } from "./respond"
+import { errorResponse, noContentResponse, transientFailure } from "./respond"
 
 // POST /api/v1/playlists/:shareId/import (task 13): best-effort aggregate
 // accounting. Every well-formed request returns the identical 204 — counted,
@@ -20,9 +21,11 @@ import { errorResponse, newRequestId, noContentResponse, transientFailure } from
 export async function notifyImport(
   shareIdParam: string | undefined,
   request: Request,
+  requestId: string,
 ): Promise<Response> {
-  const requestId = newRequestId()
   try {
+    const denied = await checkAdmission({ env, request, requestId, cls: "import", mutation: true })
+    if (denied !== null) return denied
     const body = await readJsonBody(request)
     if (!body.ok) return errorResponse({ ...body.failure, requestId })
     const parsed = ImportNotifyBodySchema.safeParse(body.value)

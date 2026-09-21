@@ -14,6 +14,7 @@
   },
   "include": [
     "src",
+    "scripts",
     "tests",
     "vitest.worker.config.ts",
     "astro.config.mjs",

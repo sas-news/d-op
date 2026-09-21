@@ -9,8 +9,59 @@
     "directory": "./dist"
   },
   "observability": {
-    "enabled": true
+    // Workers Logs stays enabled for the redacted api_request console records
+    // (server/services/request-log.ts). Automatic invocation logs — which
+    // record raw request URLs and would expose unlisted shareIds — are
+    // disabled, query strings are redacted, and Workers traces are off
+    // entirely: the privacy contract forbids raw URLs/identifiers in logs
+    // and traces.
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": false
+    }
   },
+  "vars": {
+    // Production posture: every API request MUST consult a real rate-limit
+    // binding. When this is "true", a missing limiter binding fails closed
+    // with 503 — protection can never degrade to silent unlimited mutation
+    // access. Dev/test workers that omit this var run in explicit non-required
+    // mode so Miniflare suites can inject fake bindings.
+    "DOP_RATE_LIMIT_REQUIRED": "true"
+  },
+  "ratelimits": [
+    // Route-class bindings (Workers rate-limit binding, period 60s; limits are
+    // approximate per-PoP). Names must match server/security/rate-limit.ts.
+    {
+      "name": "RATE_LIMIT_API",
+      "namespace_id": "dop-api",
+      "simple": { "limit": 600, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_CREATE",
+      "namespace_id": "dop-create",
+      "simple": { "limit": 5, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_MUTATION",
+      "namespace_id": "dop-mutation",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_IMPORT",
+      "namespace_id": "dop-import",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_READ",
+      "namespace_id": "dop-read",
+      "simple": { "limit": 120, "period": 60 }
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

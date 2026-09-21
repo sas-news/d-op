@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "check": "astro check && wrangler types"
+    "check": "astro check && wrangler types",
+    "takedown": "bun ./scripts/takedown.ts"
   },
   "dependencies": {
     "@astrojs/cloudflare": "14.3.2",
