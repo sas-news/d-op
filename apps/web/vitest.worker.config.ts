@@ -38,6 +38,7 @@ export default defineConfig({
       "tests/remix/**/*.test.ts",
       "tests/import-counts/**/*.test.ts",
       "tests/discovery/**/*.test.ts",
+      "tests/adversarial/**/*.test.ts",
     ],
     reporters: ["default"],
     passWithNoTests: false,
