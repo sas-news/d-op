@@ -120,6 +120,26 @@ function d1Execute(statements: readonly string[]): void {
   })
 }
 
+// Parallel specs share one local-D1 file; concurrent wrangler processes can
+// crash miniflare with a transient "internal error". Migrations are idempotent
+// (wrangler tracks applied ids), so bounded retries are safe — unlike
+// d1Execute, whose ON CONFLICT increments must never replay.
+function d1Migrate(): void {
+  const maxAttempts = 4
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      execSync("bunx wrangler d1 migrations apply dop_share --local", {
+        cwd: WEB_CWD,
+        stdio: "pipe",
+        env: { ...process.env, CI: "true" },
+      })
+      return
+    } catch (error) {
+      if (attempt + 1 >= maxAttempts) throw error
+    }
+  }
+}
+
 type ListData = {
   readonly items: { readonly shareId: string; readonly playlist: { readonly title: string } }[]
   readonly nextCursor?: string
@@ -151,11 +171,7 @@ const EXP_IDS: string[] = [] // five expired-cursor fixtures
 
 test.beforeAll(() => {
   test.setTimeout(180_000)
-  execSync("bunx wrangler d1 migrations apply dop_share --local", {
-    cwd: WEB_CWD,
-    stdio: "pipe",
-    env: { ...process.env, CI: "true" },
-  })
+  d1Migrate()
   const statements: string[] = []
   for (let i = 0; i < 5; i += 1) {
     MAIN_IDS.push(

@@ -2,6 +2,10 @@ import { BackgroundRequestSchema, StorageRequestSchema } from "../../../packages
 import { createPlayerWindowManager, dispatchLifecycleRequest } from "../src/player/window-manager"
 import { createShareImportHandler, type ShareImportSender } from "../src/share/import-handler"
 import {
+  createShareManagementHandler,
+  type ShareManageSender,
+} from "../src/share/management-handler"
+import {
   createBrowserStorageDriver,
   createLocalRepository,
   handleStorageMessage,
@@ -54,10 +58,21 @@ export default defineBackground(() => {
     },
   })
 
+  // Share publication management (task 15): the options page sends intent
+  // messages; the handler re-verifies the privileged sender surface, owns all
+  // Share API traffic (fixed origin, credentials omitted) and writes vault
+  // records through the repository. Content scripts and pages get `forbidden`.
+  const shareManage = createShareManagementHandler({
+    repository,
+    extensionId: browser.runtime.id,
+    extensionOrigin: new URL(browser.runtime.getURL("/")).origin,
+  })
+
   // Single message router: storage envelopes go to the repository (the only
   // persistent writer); share-import envelopes go to the import handler;
-  // lifecycle envelopes go to the window manager. Anything else returns
-  // undefined so other listeners are not broken.
+  // share-manage envelopes go to the management handler; lifecycle envelopes
+  // go to the window manager. Anything else returns undefined so other
+  // listeners are not broken.
   browser.runtime.onMessage.addListener((message: unknown, sender) => {
     if (StorageRequestSchema.safeParse(message).success) {
       return handleStorageMessage(message, sender, {
@@ -68,6 +83,8 @@ export default defineBackground(() => {
     }
     const importReply = shareImport(message, sender as ShareImportSender)
     if (importReply !== undefined) return importReply
+    const manageReply = shareManage(message, sender as ShareManageSender)
+    if (manageReply !== undefined) return manageReply
     const lifecycle = BackgroundRequestSchema.safeParse(message)
     if (lifecycle.success) return dispatchLifecycleRequest(lifecycle.data, windows)
     return undefined

@@ -141,6 +141,15 @@ async function launchImporter(
         return route.abort()
     }
   })
+  // Aggregate import notification (task 18): POST .../playlists/<id>/import.
+  // The single-segment `*` above does NOT cross `/`, so without this route the
+  // notification hits the catch-all abort and apiWrites never records it.
+  await context.route(`${ORIGIN}/api/v1/playlists/*/import`, (route) => {
+    const request = route.request()
+    apiCalls.push(`${request.method()} ${request.url()}`)
+    if (request.method() !== "GET") apiWrites.push(request.method())
+    return route.fulfill({ status: 204 })
+  })
   await context.route(`${ORIGIN}/share-page.js`, (route) =>
     route.fulfill({
       status: 200,

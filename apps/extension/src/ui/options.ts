@@ -11,11 +11,14 @@ import type { TransientPlayback } from "../../../../packages/shared/src/local-mo
 import { createModalHost } from "../player/modal"
 import { mutateTransientState, withPlayback } from "../player/transient-session"
 import { buildPlaylistItemUrl } from "../player/url-params"
+import { publicationDirty } from "../share/dirty-state"
+import { createShareManageClient } from "../share/management-protocol"
 import { formatSec, isSystemPlaylist, itemPlaybackUrl } from "./format"
 import { createShareManagement } from "./management"
 import { createDragController } from "./options-drag"
 import { createImportExport } from "./options-io"
 import { buildItemRow } from "./options-items"
+import { createShareDialog } from "./share-dialog"
 import { runMutation, type UiStorageClient } from "./storage-client"
 
 export type OptionsDeps = {
@@ -28,6 +31,7 @@ export type OptionsDeps = {
   readonly schedule: (callback: () => void, ms: number) => unknown
   readonly cancelTimer: (timer: unknown) => void
   readonly subscribe: (listener: () => void) => () => void
+  readonly copyText?: (text: string) => Promise<boolean>
   readonly log?: (label: string, data?: unknown) => void
 }
 
@@ -132,11 +136,28 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     showStatus,
     render: () => render(),
   })
+  // Task 15: share management lives on the privileged options surface only.
+  // The manage client forwards typed intents to the background worker, which
+  // alone performs Share API calls; this page never fetches the share origin.
+  const manage = createShareManageClient(deps.sendMessage)
+  const shareDialog = createShareDialog({
+    doc,
+    modal,
+    storage: deps.storage,
+    manage,
+    newId: deps.newId,
+    copyText: deps.copyText ?? (async () => false),
+    showStatus,
+    subscribe: deps.subscribe,
+    log: deps.log,
+    onChanged: () => render(),
+  })
   // Local data step 7: the detached '共有管理 / ローカル削除済み' list renders
   // alongside playlists on every render cycle.
   const management = createShareManagement({
     doc,
     storage: deps.storage,
+    manage,
     newId: deps.newId,
     modal,
     showStatus,
@@ -148,6 +169,15 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     const container = el("playlistsContainer")
     if (container === null) return
     const state = await deps.storage.readPublic()
+    // Vault read feeds the per-card share state badge; a privileged-read
+    // failure degrades to plain "共有" buttons rather than breaking render.
+    const publications = await deps.storage
+      .readVault()
+      .then((vault) => vault.publications)
+      .catch((error: unknown) => {
+        deps.log?.("vault-read-failed", error)
+        return []
+      })
     if (disposed) return
     const playlists = state.playlists.filter((playlist) => !isSystemPlaylist(playlist))
     const collapsed = state.preferences.collapsedPlaylists
@@ -214,6 +244,19 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
       playBtn.textContent = "▶ 再生"
       playBtn.className = "btn-text"
       playBtn.addEventListener("click", () => void startPlaylistPlayback(playlist.id))
+      const shareBtn = doc.createElement("button")
+      shareBtn.type = "button"
+      shareBtn.className = "btn-text share-open"
+      const record = publications.find((entry) => entry.localPlaylistId === playlist.id)
+      if (record === undefined) {
+        shareBtn.textContent = "共有"
+      } else if (record.state === "pending") {
+        shareBtn.textContent = "共有 (手続き中)"
+      } else {
+        const dirty = await publicationDirty(record, playlist)
+        shareBtn.textContent = dirty.kind === "clean" ? "共有中" : "共有 (変更あり)"
+      }
+      shareBtn.addEventListener("click", () => void shareDialog.open(playlist.id))
       const deleteBtn = doc.createElement("button")
       deleteBtn.type = "button"
       deleteBtn.textContent = "削除"
@@ -231,7 +274,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
           render()
         })()
       })
-      actions.append(playBtn, deleteBtn)
+      actions.append(playBtn, shareBtn, deleteBtn)
       header.append(toggleGroup, nameInput, actions)
       card.appendChild(header)
 

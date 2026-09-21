@@ -14,6 +14,11 @@ const controller = createOptionsController({
   schedule: (callback, ms) => window.setTimeout(callback, ms),
   cancelTimer: (timer) => window.clearTimeout(timer as number),
   subscribe: (listener) => subscribePublicState(browser.storage.onChanged, listener),
+  copyText: (text) =>
+    navigator.clipboard.writeText(text).then(
+      () => true,
+      () => false,
+    ),
   log: (label, data) => console.warn("[d-op options]", label, data ?? ""),
 })
 controller.start()

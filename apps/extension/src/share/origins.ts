@@ -23,6 +23,11 @@ export function shareContentScriptMatches(): string[] {
   return allowedShareOrigins().map((origin) => `${origin}${SHARE_PAGE_PATH_PREFIX}*`)
 }
 
+/** Public snapshot page URL for a shareId — shareable link, never carries keys. */
+export function sharePageUrl(shareId: string, origin: string = SHARE_ORIGIN): string {
+  return `${origin}${SHARE_PAGE_PATH_PREFIX}${shareId}`
+}
+
 /**
  * Parse `url` as a share page (`<origin>/p/<shareId>`). Returns the embedded
  * shareId when the origin is exactly an allowed share origin and the path is

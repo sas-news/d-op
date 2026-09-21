@@ -14,15 +14,22 @@ import type {
   UnpublishableReason,
 } from "./share-model"
 import { SharedPlaylistSchema, ShareItemSchema, UnpublishablePlaylistError } from "./share-model"
+// `| undefined` on every optional field keeps LocalItem assignable under
+// exactOptionalPropertyTypes — a local item with absent optional fields IS
+// the publishable input; the projection drops undefineds itself.
 export type PublishableLocalItem = {
   readonly id: string
   readonly partId: string
-  readonly workId?: string
+  readonly workId?: string | undefined
   readonly title: string
   readonly episodeTitle: string
-  readonly episodeNumber?: string
-  readonly url?: string
-  readonly range: { readonly start: number; readonly end: number; readonly name?: string } | null
+  readonly episodeNumber?: string | undefined
+  readonly url?: string | undefined
+  readonly range: {
+    readonly start: number
+    readonly end: number
+    readonly name?: string | undefined
+  } | null
 }
 export type PublishableLocalPlaylist = {
   readonly id: string

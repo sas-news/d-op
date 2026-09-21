@@ -3,17 +3,20 @@
 // DETACHES the linked publication record (localPlaylistId=null,
 // state="local-deleted") instead of dropping it; this module renders those
 // records ('共有管理 / ローカル削除済み'), explains that the remote public
-// copy remains, and offers the explicit destructive '管理情報を破棄' action —
-// a distinct discard-publication-management command behind a key-loss
-// warning. Key export is intentionally NOT implemented; manageSecret and the
+// copy remains, and keeps them manageable: remote status check and remote
+// delete go through the background ShareManageClient, and the explicit
+// destructive '管理情報を破棄' action stays behind a key-loss warning.
+// Key export is intentionally NOT implemented; manageSecret and the
 // snapshot/hash fields are never rendered.
 import type { PublicationRecord } from "../../../../packages/shared/src/local-model"
 import type { ModalHost } from "../player/modal"
+import type { ShareManageClient, ShareManageReply } from "../share/management-protocol"
 import { runMutation, type UiStorageClient, type VaultReply } from "./storage-client"
 
 export type ShareManagementDeps = {
   readonly doc: Document
   readonly storage: Pick<UiStorageClient, "readPublic" | "readVault" | "dispatch">
+  readonly manage: ShareManageClient
   readonly newId: () => string
   readonly modal: ModalHost
   readonly showStatus: (text: string, type?: "success" | "error") => void
@@ -28,6 +31,10 @@ export type ShareManagement = {
 
 export function createShareManagement(deps: ShareManagementDeps): ShareManagement {
   const { doc } = deps
+  // After a revision conflict the row's next delete retries against the
+  // remote revision the server disclosed — an explicit user re-click, never
+  // an automatic overwrite.
+  const forceRevisions = new Map<string, number>()
 
   async function destroy(record: PublicationRecord): Promise<void> {
     const value = await deps.modal.show({
@@ -52,6 +59,82 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
     }
   }
 
+  function rowStatus(element: HTMLElement, text: string): void {
+    let status = element.querySelector<HTMLElement>(".management-remote")
+    if (status === null) {
+      status = doc.createElement("span")
+      status.className = "management-remote"
+      element.appendChild(status)
+    }
+    status.textContent = text
+  }
+
+  function describeRemote(reply: ShareManageReply): string {
+    if (reply.status !== "inspect") return "確認できませんでした。"
+    switch (reply.remote) {
+      case "active":
+        return `リモート: 公開中（revision ${reply.remoteRevision ?? "?"}）${
+          reply.diverged === true ? " — 管理情報と異なります" : ""
+        }`
+      case "absent":
+        return "リモートに公開版が見つかりません（削除済み・期限切れ）。"
+      default:
+        return "リモートの状態を確認できませんでした（オフラインまたは一時的な障害）。"
+    }
+  }
+
+  async function inspect(record: PublicationRecord, element: HTMLElement): Promise<void> {
+    rowStatus(element, "確認中…")
+    const reply = await deps.manage.inspect({ shareId: record.shareId })
+    rowStatus(element, describeRemote(reply))
+  }
+
+  async function deleteRemote(record: PublicationRecord, element: HTMLElement): Promise<void> {
+    const value = await deps.modal.show({
+      title: "公開版の削除",
+      body: `共有 ${record.shareId} のリモート公開版を削除します。ローカルのプレイリストはすでに削除済みです。削除が確認できたら管理情報も破棄します。`,
+      buttons: [
+        { label: "キャンセル", value: "cancel" },
+        { label: "公開版を削除", value: "delete", primary: true },
+      ],
+    })
+    if (value !== "delete") return
+    rowStatus(element, "削除中…")
+    const force = forceRevisions.get(record.shareId)
+    const reply = await deps.manage.deleteRemote({
+      shareId: record.shareId,
+      operationId: deps.newId(),
+      ...(force === undefined ? {} : { expectedRevision: force }),
+    })
+    switch (reply.status) {
+      case "deleted":
+        deps.showStatus("公開版を削除しました。")
+        forceRevisions.delete(record.shareId)
+        deps.onChanged?.()
+        return
+      case "already-absent":
+        deps.showStatus("リモートの公開版は既にありませんでした。管理情報を破棄しました。")
+        forceRevisions.delete(record.shareId)
+        deps.onChanged?.()
+        return
+      case "conflict":
+        if (reply.remoteRevision !== undefined) {
+          forceRevisions.set(record.shareId, reply.remoteRevision)
+        }
+        rowStatus(
+          element,
+          `リモートが変更されています（revision ${reply.remoteRevision ?? "?"}）。再試行すると上書き削除します。`,
+        )
+        return
+      case "offline":
+        rowStatus(element, "ネットワークエラー。削除は実行されていません。")
+        return
+      default:
+        rowStatus(element, "公開版の削除に失敗しました。ローカルの管理情報は保持されています。")
+        return
+    }
+  }
+
   function row(record: PublicationRecord): HTMLElement {
     const element = doc.createElement("div")
     element.className = "management-row"
@@ -65,12 +148,22 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
     const updated = doc.createElement("span")
     updated.className = "management-updated"
     updated.textContent = `最終更新: ${record.updatedAt}`
-    const button = doc.createElement("button")
-    button.type = "button"
-    button.className = "btn-danger-text management-destroy"
-    button.textContent = "管理情報を破棄"
-    button.addEventListener("click", () => void destroy(record))
-    element.append(id, visibility, updated, button)
+    const inspectButton = doc.createElement("button")
+    inspectButton.type = "button"
+    inspectButton.className = "btn-text management-inspect"
+    inspectButton.textContent = "状態を確認"
+    inspectButton.addEventListener("click", () => void inspect(record, element))
+    const deleteButton = doc.createElement("button")
+    deleteButton.type = "button"
+    deleteButton.className = "btn-danger-text management-delete-remote"
+    deleteButton.textContent = "公開版を削除"
+    deleteButton.addEventListener("click", () => void deleteRemote(record, element))
+    const destroyButton = doc.createElement("button")
+    destroyButton.type = "button"
+    destroyButton.className = "btn-danger-text management-destroy"
+    destroyButton.textContent = "管理情報を破棄"
+    destroyButton.addEventListener("click", () => void destroy(record))
+    element.append(id, visibility, updated, inspectButton, deleteButton, destroyButton)
     return element
   }
 

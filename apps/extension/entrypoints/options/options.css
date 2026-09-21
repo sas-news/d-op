@@ -753,3 +753,129 @@ button:disabled {
   opacity: 0.45;
   cursor: default;
 }
+
+/* Task 15 share-management dialog (options page). */
+.share-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dop-space-3);
+  min-width: 320px;
+}
+
+.share-state {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dop-text-primary);
+  margin: 0;
+}
+
+.share-dirty {
+  font-size: 12px;
+  color: var(--dop-text-secondary);
+  margin: 0;
+}
+
+.share-dirty-dirty,
+.share-dirty-unpublishable,
+.share-dirty-snapshot-invalid {
+  color: var(--dop-danger);
+}
+
+.share-url-row {
+  display: flex;
+  align-items: center;
+  gap: var(--dop-space-3);
+}
+
+.share-url {
+  font-family: var(--dop-font-mono);
+  font-size: 12px;
+  color: var(--dop-accent);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.share-updated,
+.share-remote,
+.share-preview,
+.share-confirm-text,
+.share-busy {
+  font-size: 12px;
+  color: var(--dop-text-secondary);
+  margin: 0;
+}
+
+.share-visibility {
+  border: 1px solid var(--dop-border);
+  border-radius: var(--dop-radius-md);
+  padding: var(--dop-space-3) var(--dop-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dop-space-2);
+}
+
+.share-visibility legend {
+  font-size: 12px;
+  color: var(--dop-text-tertiary);
+  padding: 0 var(--dop-space-2);
+}
+
+.share-visibility label {
+  font-size: 13px;
+  color: var(--dop-text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--dop-space-2);
+  cursor: pointer;
+}
+
+.share-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dop-space-1);
+  font-size: 12px;
+  color: var(--dop-text-tertiary);
+}
+
+.share-field input,
+.share-field textarea {
+  font-family: var(--dop-font);
+  font-size: 13px;
+  color: var(--dop-text-primary);
+  background: var(--dop-bg-base);
+  border: 1px solid var(--dop-border);
+  border-radius: var(--dop-radius-md);
+  padding: var(--dop-space-2) var(--dop-space-3);
+}
+
+.share-field textarea {
+  min-height: 56px;
+  resize: vertical;
+}
+
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dop-space-3);
+  align-items: center;
+}
+
+.share-result {
+  font-size: 12px;
+  margin: 0;
+  min-height: 16px;
+}
+
+.share-result.error {
+  color: var(--dop-danger);
+}
+
+.share-result.success {
+  color: var(--dop-success);
+}
+
+.management-remote {
+  font-size: 12px;
+  color: var(--dop-text-secondary);
+  flex-basis: 100%;
+}
