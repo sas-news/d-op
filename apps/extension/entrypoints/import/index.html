@@ -13,6 +13,25 @@
       このプレイリストの<strong>コピー</strong>がこのブラウザのローカルストレージに保存されます。
       保存後の編集・削除は元の公開版に影響しません。自動再生は行われません。
     </p>
+    <!-- Task 22: shown instead of the preview until the user makes the
+         explicit Share-consent choice. No network has run at this point. -->
+    <section id="import-consent" class="consent" data-testid="import-consent" hidden>
+      <p>
+        共有プレイリストの取得には共有機能の同意が必要です。有効にすると
+        d-op.sasnews.dev からこの共有のプレイリスト内容（タイトル・各クリップの情報）を
+        取得します。通常利用では外部通信は行われません。詳しくは
+        <a href="https://d-op.sasnews.dev/privacy" target="_blank" rel="noopener">プライバシーポリシー</a>
+        をご覧ください。
+      </p>
+      <div class="actions">
+        <button id="import-consent-grant" type="button" class="primary" data-testid="import-consent-grant">
+          有効にして続行
+        </button>
+        <button id="import-consent-decline" type="button" data-testid="import-consent-decline">
+          利用しない
+        </button>
+      </div>
+    </section>
     <section id="import-preview" class="preview" data-testid="import-preview" hidden>
       <h2 id="import-title" class="preview-title" data-testid="import-title"></h2>
       <dl class="preview-stats">

@@ -1,5 +1,6 @@
 import path from "node:path"
 import { chromium, expect, test } from "@playwright/test"
+import { browserLaunchTarget } from "./browser-target"
 
 const EXTENSION_PATH = path.resolve("apps/extension/.output/chrome-mv3")
 const LEGACY_LIBRARY = [
@@ -24,7 +25,7 @@ test("persists and replays the canonical envelope in real Chromium storage", asy
 }, testInfo) => {
   // Given: the actual unpacked WXT extension and legacy browser.storage.local data.
   const context = await chromium.launchPersistentContext(testInfo.outputPath("profile"), {
-    channel: "chromium",
+    ...browserLaunchTarget(),
     headless: true,
     args: [`--disable-extensions-except=${EXTENSION_PATH}`, `--load-extension=${EXTENSION_PATH}`],
   })

@@ -6,6 +6,7 @@ import {
   type MigrationRecovery,
   type PendingCreate,
   type PublicationRecord,
+  type ShareConsent,
 } from "../../../../packages/shared/src/local-model"
 import type { StorageDriver } from "./driver"
 import { loadOrMigrateState } from "./migration"
@@ -32,6 +33,8 @@ export type PublicationVault = {
   readonly publications: readonly PublicationRecord[]
   readonly pendingCreates: readonly PendingCreate[]
   readonly migrationRecovery?: MigrationRecovery
+  /** Task 22: persisted Share consent decision; absent while undecided. */
+  readonly shareConsent?: ShareConsent
 }
 
 export type LocalRepository = {
@@ -62,9 +65,13 @@ function vaultState(state: LocalV2State): PublicationVault {
     publications: state.publications,
     pendingCreates: state.pendingCreates,
   }
-  return state.migrationRecovery === undefined
-    ? core
-    : { ...core, migrationRecovery: state.migrationRecovery }
+  const withRecovery =
+    state.migrationRecovery === undefined
+      ? core
+      : { ...core, migrationRecovery: state.migrationRecovery }
+  return state.shareConsent === undefined
+    ? withRecovery
+    : { ...withRecovery, shareConsent: state.shareConsent }
 }
 
 async function requestHash(command: LocalCommand): Promise<string> {

@@ -9,6 +9,8 @@ import type { GetPlaylistResponse } from "../../../../packages/shared/src/api"
 import type { StorageDriver } from "../storage/driver"
 import type { LocalRepository } from "../storage/repository"
 import { type FetchLike, fetchSharedPlaylist, type ShareFetchResult } from "./api-client"
+import { type DataPermissions, effectiveShareConsent } from "./consent"
+import { createVaultCommitter } from "./flow-helpers"
 import { commitImport } from "./import-commit"
 import { notifyImportCommitted } from "./import-notify"
 import {
@@ -22,6 +24,7 @@ import {
   type ShareImportBeginReply,
   type ShareImportBeginStatus,
   type ShareImportConfirmReply,
+  type ShareImportConsentRequest,
   type ShareImportDetailsReply,
   type ShareImportPreview,
   type ShareImportRelayRequest,
@@ -44,6 +47,11 @@ export type ShareImportHandlerDeps = {
   readonly openConfirmation: (token: string) => Promise<void>
   readonly apiOrigin?: string
   readonly allowedOrigins?: readonly string[]
+  /**
+   * Task 22: Firefox ≥140 built-in data-consent probe (browser.permissions).
+   * Absent → the persisted in-extension decision alone gates Share traffic.
+   */
+  readonly dataPermissions?: DataPermissions
   readonly fetchImpl?: FetchLike
   /**
    * Test hook replacing the fire-and-forget import notification (task 18).
@@ -89,6 +97,9 @@ export function createShareImportHandler(deps: ShareImportHandlerDeps) {
 
   const newId = deps.newId ?? (() => crypto.randomUUID())
   const now = deps.now ?? (() => new Date().toISOString())
+  const vault = createVaultCommitter(deps.repository, newId)
+  const consent = (): Promise<"granted" | "declined" | "undecided"> =>
+    effectiveShareConsent(deps.repository, deps.dataPermissions)
   const notifyImport =
     deps.importNotifier ??
     ((shareId: string) =>
@@ -145,6 +156,16 @@ export function createShareImportHandler(deps: ShareImportHandlerDeps) {
     if (!isRelaySender(sender, message.shareId)) {
       return { kind: "share-import-begin", status: "rejected" }
     }
+    // Task 22 consent gate, enforced BEFORE any network or window work:
+    // a persisted "declined" rejects the relay outright — no token, no
+    // confirmation window, zero Share traffic. "undecided" admits the
+    // request and opens the privileged import page, which prompts for the
+    // explicit choice first; the snapshot prefetch stays skipped until
+    // consent is granted so not even the preview GET can leak out.
+    const state = await consent()
+    if (state === "declined") {
+      return { kind: "share-import-begin", status: "rejected" }
+    }
     const admitted = requests.admit({
       shareId: message.shareId,
       requestId: message.requestId,
@@ -158,7 +179,9 @@ export function createShareImportHandler(deps: ShareImportHandlerDeps) {
           : "rejected"
     if (admitted.kind !== "accepted") return { kind: "share-import-begin", status }
     const entry = requests.get(admitted.token)
-    if (entry !== undefined) void ensureSnapshot(admitted.token, entry)
+    if (entry !== undefined && state === "granted") {
+      void ensureSnapshot(admitted.token, entry)
+    }
     try {
       await deps.openConfirmation(admitted.token)
     } catch {
@@ -179,7 +202,52 @@ export function createShareImportHandler(deps: ShareImportHandlerDeps) {
     if (entry === undefined || entry.state !== "awaiting-confirm") {
       return { kind: "share-import-error", reason: "expired" }
     }
+    // No preview fetch before explicit consent — the page renders its own
+    // consent prompt for "consent-required" instead of preview data.
+    if ((await consent()) !== "granted") {
+      return { kind: "share-import-error", reason: "consent-required" }
+    }
     const result = await ensureSnapshot(token, entry)
+    if (result.kind === "error") {
+      return { kind: "share-import-error", reason: DETAIL_ERRORS[result.reason] }
+    }
+    return { kind: "share-import-preview", preview: previewOf(result.response) }
+  }
+
+  /**
+   * Task 22: the privileged import page reports the user's consent decision.
+   * The background persists it through the single-writer repository — the
+   * page never touches storage — then either settles the request cancelled
+   * (declined: no fetch ever ran, nothing transmits) or continues into the
+   * preview fetch exactly as `details` does (granted).
+   */
+  const onConsent = async (
+    request: ShareImportConsentRequest,
+    sender: ShareImportSender | undefined,
+  ): Promise<ShareImportDetailsReply> => {
+    if (!isExtensionPageSender(sender)) {
+      return { kind: "share-import-error", reason: "forbidden" }
+    }
+    const entry = requests.get(request.token)
+    if (entry === undefined || entry.state !== "awaiting-confirm") {
+      return { kind: "share-import-error", reason: "expired" }
+    }
+    const written = await vault.try(newId(), () => ({
+      kind: "set-share-consent",
+      choice: request.decision,
+      decidedAt: now(),
+    }))
+    if (!written) return { kind: "share-import-error", reason: "unavailable" }
+    if (request.decision === "declined") {
+      requests.settle(request.token, "cancelled")
+      return { kind: "share-import-error", reason: "consent-declined" }
+    }
+    // The grant must also hold on the native layer (Firefox ≥140 can revoke
+    // via about:addons at any time) before any fetch is allowed.
+    if ((await consent()) !== "granted") {
+      return { kind: "share-import-error", reason: "consent-required" }
+    }
+    const result = await ensureSnapshot(request.token, entry)
     if (result.kind === "error") {
       return { kind: "share-import-error", reason: DETAIL_ERRORS[result.reason] }
     }
@@ -197,6 +265,9 @@ export function createShareImportHandler(deps: ShareImportHandlerDeps) {
     if (entry === undefined || entry.state !== "awaiting-confirm") {
       return { kind: "share-import-result", status: "failed", reason: "expired" }
     }
+    if ((await consent()) !== "granted") {
+      return { kind: "share-import-result", status: "failed", reason: "consent-required" }
+    }
     const result = await ensureSnapshot(token, entry)
     if (result.kind === "error") {
       return { kind: "share-import-result", status: "failed", reason: DETAIL_ERRORS[result.reason] }
@@ -213,7 +284,12 @@ export function createShareImportHandler(deps: ShareImportHandlerDeps) {
       requests.settle(token, "committed")
       // Task 18: fire-and-forget aggregate notification AFTER the local commit
       // only. It must never block the reply or undo the saved playlist.
-      void Promise.resolve(notifyImport(entry.shareId)).catch(() => undefined)
+      // Task 22: re-check consent first — a revocation raced in during the
+      // commit must stop even this anonymous POST.
+      void (async () => {
+        if ((await consent()) !== "granted") return
+        await notifyImport(entry.shareId)
+      })().catch(() => undefined)
       return {
         kind: "share-import-result",
         status: "committed",
@@ -251,6 +327,8 @@ export function createShareImportHandler(deps: ShareImportHandlerDeps) {
         return confirm(parsed.token, sender)
       case "share-import-cancel":
         return cancel(parsed.token, sender)
+      case "share-import-consent":
+        return onConsent(parsed, sender)
     }
   }
 }

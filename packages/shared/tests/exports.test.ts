@@ -105,6 +105,8 @@ const EXPECTED_EXPORTS = [
   "SHARE_TITLE_MIN",
   "SUPPORTED_ORIGINS",
   "SafeExportEnvelopeSchema",
+  "ShareConsentChoiceSchema",
+  "ShareConsentSchema",
   "ShareIdSchema",
   "ShareItemSchema",
   "ShareRangeSchema",

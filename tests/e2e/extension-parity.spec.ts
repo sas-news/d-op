@@ -8,6 +8,7 @@ import {
   test,
   type Worker,
 } from "@playwright/test"
+import { browserLaunchTarget } from "./browser-target"
 
 // Task-10 extension/UI parity acceptance: the real unpacked WXT build
 // (chrome-mv3) against synthetic player/work fixtures served through route
@@ -165,7 +166,7 @@ type Launched = {
 
 async function launchExtension(testInfo: TestInfo): Promise<Launched> {
   const context = await chromium.launchPersistentContext(testInfo.outputPath("profile"), {
-    channel: "chromium",
+    ...browserLaunchTarget(),
     headless: true,
     ignoreHTTPSErrors: true,
     args: [
@@ -328,7 +329,7 @@ test("options page: list, collapse persistence, create/rename/delete, edit, copy
 
 // biome-ignore lint/correctness/noEmptyPattern: playwright requires object destructuring for fixtures
 test("popup: constrained width, playlist picker, item start, now-playing controls", async ({}, testInfo) => {
-  const { context, worker, extensionId } = await launchExtension(testInfo)
+  const { context, extensionId } = await launchExtension(testInfo)
   try {
     const page = await context.newPage()
     await page.goto(`chrome-extension://${extensionId}/popup.html`)
@@ -346,6 +347,9 @@ test("popup: constrained width, playlist picker, item start, now-playing control
     // REQUEST_PLAYER open (a real tab is created — its document load bypasses
     // interception and stays inert under the catch-all abort). Keep it open:
     // the window manager owns it now, and closing it would clear playback.
+    // The transient read goes through the still-open popup page: on real
+    // Chrome binaries the service worker can be suspended mid-test, leaving
+    // the Playwright worker handle stale — a page-context read is immune.
     await page.locator(".playlist-card-header").first().click()
     const opened = context.waitForEvent("page", { timeout: 15_000 })
     await page.locator(".playlist-card-item").nth(1).click()
@@ -353,10 +357,12 @@ test("popup: constrained width, playlist picker, item start, now-playing control
     await expect.poll(() => playerTab.url()).toContain("dopPlaylistId=pl-1")
     await expect.poll(() => playerTab.url()).toContain("dopIndex=1")
     await expect
-      .poll(async () =>
-        worker.evaluate(
-          `chrome.storage.local.get("dop_v2_transient").then((r) => r.dop_v2_transient?.playback?.index)`,
-        ),
+      .poll(
+        async () =>
+          page.evaluate(
+            `chrome.storage.local.get("dop_v2_transient").then((r) => r.dop_v2_transient?.playback?.index)`,
+          ),
+        { timeout: 15_000 },
       )
       .toBe(1)
 
@@ -373,10 +379,12 @@ test("popup: constrained width, playlist picker, item start, now-playing control
     await page.locator("#nextBtn").click()
     await page.locator("#stopBtn").click()
     await expect
-      .poll(async () =>
-        worker.evaluate(
-          `chrome.storage.local.get("dop_v2_transient").then((r) => r.dop_v2_transient?.playback)`,
-        ),
+      .poll(
+        async () =>
+          page.evaluate(
+            `chrome.storage.local.get("dop_v2_transient").then((r) => r.dop_v2_transient?.playback)`,
+          ),
+        { timeout: 15_000 },
       )
       .toBeUndefined()
     await expect.poll(() => playerTab.isClosed()).toBe(true)
@@ -388,6 +396,10 @@ test("popup: constrained width, playlist picker, item start, now-playing control
 
 // biome-ignore lint/correctness/noEmptyPattern: playwright requires object destructuring for fixtures
 test("player: ♪ add menu multi-add, custom range bar, markers, modal Escape, mutation storm", async ({}, testInfo) => {
+  // Longest UI flow in the suite; real Chrome binaries under parallel load
+  // need headroom past the file-level 90 s (observed 90 s timeout on CfT 152
+  // at 6-way parallelism — same steps pass in ~3 s isolated).
+  test.setTimeout(180_000)
   const { context, worker } = await launchExtension(testInfo)
   try {
     const page = await context.newPage()

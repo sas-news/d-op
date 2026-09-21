@@ -67,6 +67,18 @@ export const LocalPreferencesSchema = z.strictObject({
   collapsedPlaylists: z.record(z.string(), z.boolean()),
 })
 export type LocalPreferences = z.infer<typeof LocalPreferencesSchema>
+
+// Task 22: explicit, persisted Share consent. `shareConsent` is ABSENT until
+// the user makes a choice on a privileged extension surface — undecided is
+// not a grant. "declined" is equally persistent and equally revocable; it
+// only gates Share network traffic, never local playlists or playback.
+export const ShareConsentChoiceSchema = z.enum(["granted", "declined"])
+export type ShareConsentChoice = z.infer<typeof ShareConsentChoiceSchema>
+export const ShareConsentSchema = z.strictObject({
+  choice: ShareConsentChoiceSchema,
+  decidedAt: IsoDateTimeSchema,
+})
+export type ShareConsent = z.infer<typeof ShareConsentSchema>
 export const OperationReceiptSchema = z.strictObject({
   operationId: z.uuid(),
   expectedRevision: z.number().int().min(0),
@@ -105,6 +117,7 @@ export const LocalV2StateSchema = z.strictObject({
   preferences: LocalPreferencesSchema,
   appliedOperations: z.array(OperationReceiptSchema).max(256),
   migrationRecovery: MigrationRecoverySchema.optional(),
+  shareConsent: ShareConsentSchema.optional(),
 })
 export type LocalV2State = z.infer<typeof LocalV2StateSchema>
 
@@ -203,6 +216,14 @@ export const LocalCommandSchema = z.discriminatedUnion("kind", [
     ...LocalCommandBase,
     kind: z.literal("remove-pending-create"),
     pendingOperationId: z.uuid(),
+  }),
+  // Task 22: records the user's explicit Share consent decision. Vault-level
+  // access — only extension pages may write it (see requiredAccess).
+  z.strictObject({
+    ...LocalCommandBase,
+    kind: z.literal("set-share-consent"),
+    choice: ShareConsentChoiceSchema,
+    decidedAt: IsoDateTimeSchema,
   }),
 ])
 export type LocalCommand = z.infer<typeof LocalCommandSchema>

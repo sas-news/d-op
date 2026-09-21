@@ -9,6 +9,7 @@ import {
   test,
   type Worker,
 } from "@playwright/test"
+import { browserLaunchTarget } from "./browser-target"
 
 // Task-15 publication management acceptance against the real unpacked WXT
 // build (chrome-mv3). Modelled on extension-portable.spec.ts: a synthetic
@@ -81,6 +82,9 @@ function v2State(seed: {
     pendingCreates: [],
     preferences: { windowMode: "tab", collapsedPlaylists: {} },
     appliedOperations: [],
+    // Task 22: these specs exercise the Share flows — seed the explicit
+    // consent grant the management/import gates now require.
+    shareConsent: { choice: "granted", decidedAt: NOW },
   }
 }
 
@@ -270,7 +274,7 @@ async function launchExtension(
   seed: Parameters<typeof v2State>[0],
 ): Promise<Launched> {
   const context = await chromium.launchPersistentContext(testInfo.outputPath("profile"), {
-    channel: "chromium",
+    ...browserLaunchTarget(),
     headless: true,
     ignoreHTTPSErrors: true,
     args: [

@@ -10,6 +10,7 @@ import type { LocalRepository } from "../../src/storage/repository"
 import { createLocalRepository } from "../../src/storage/repository"
 import {
   ALLOWED_ORIGINS,
+  consentState,
   fetchJson,
   SHARE_ID,
   SHARE_ORIGIN,
@@ -46,7 +47,9 @@ function setup(
     readonly repository?: LocalRepository
   } = {},
 ) {
-  const driver = new InMemoryStorageDriver()
+  // Task 22: confirm is consent-gated — seed the explicit grant so these
+  // tests exercise the notification wiring, not the consent prompt.
+  const driver = new InMemoryStorageDriver({ dop_v2_state: consentState("granted") })
   const repository =
     options.repository ??
     createLocalRepository({
@@ -92,7 +95,9 @@ describe("import completion notification hook", () => {
     })
     const reply = (await beginAndConfirm(handler, opened)) as { status: string }
     expect(reply.status).toBe("committed")
-    expect(notified).toEqual([SHARE_ID])
+    // Task 22: the fire-and-forget notify re-checks consent first, so the
+    // notifier runs a microtask later — poll instead of asserting sync.
+    await vi.waitFor(() => expect(notified).toEqual([SHARE_ID]))
   })
 
   it("sends nothing when the flow is cancelled or the commit fails", async () => {
@@ -114,7 +119,7 @@ describe("import completion notification hook", () => {
     expect(notified).toHaveLength(0)
 
     // Commit rejected by the repository -> failed reply, no notification.
-    const driver = new InMemoryStorageDriver()
+    const driver = new InMemoryStorageDriver({ dop_v2_state: consentState("granted") })
     const base = createLocalRepository({
       driver,
       now: () => "2026-09-21T12:00:00.000Z",

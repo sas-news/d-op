@@ -17,7 +17,14 @@ function reply(status: string, extra: Record<string, unknown> = {}): ShareManage
   return { kind: "share-manage-result", status, ...extra } as ShareManageReply
 }
 
-function storageStub(playlists: LocalPlaylist[], publications: PublicationRecord[]) {
+function storageStub(
+  playlists: LocalPlaylist[],
+  publications: PublicationRecord[],
+  shareConsent: { choice: "granted" | "declined"; decidedAt: string } | null = {
+    choice: "granted",
+    decidedAt: "2026-09-20T00:00:00.000Z",
+  },
+) {
   return {
     readPublic: async () => ({
       schemaVersion: 2 as const,
@@ -25,7 +32,14 @@ function storageStub(playlists: LocalPlaylist[], publications: PublicationRecord
       playlists,
       preferences: { windowMode: "window" as const, collapsedPlaylists: {} },
     }),
-    readVault: async () => ({ revision: 0, publications, pendingCreates: [] }),
+    // Task 22: default the dialog tests to a granted consent so they exercise
+    // the management surface; pass null/declined for the consent-panel tests.
+    readVault: async () => ({
+      revision: 0,
+      publications,
+      pendingCreates: [],
+      ...(shareConsent === null ? {} : { shareConsent }),
+    }),
     dispatch: async () => ({ kind: "committed" as const, operationId: "op", revision: 1 }),
   }
 }
@@ -62,10 +76,14 @@ function rig(
   playlists: LocalPlaylist[],
   publications: PublicationRecord[],
   manage: ShareManageClient = manageStub(),
+  shareConsent?: { choice: "granted" | "declined"; decidedAt: string } | null,
 ): Rig {
   const listeners: (() => void)[] = []
   const statuses: string[] = []
-  const storage = storageStub(playlists, publications)
+  const storage =
+    shareConsent === undefined
+      ? storageStub(playlists, publications)
+      : storageStub(playlists, publications, shareConsent)
   const dialog = createShareDialog({
     doc: document,
     modal: createModalHost(document),

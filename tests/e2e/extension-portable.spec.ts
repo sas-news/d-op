@@ -8,6 +8,7 @@ import {
   test,
   type Worker,
 } from "@playwright/test"
+import { browserLaunchTarget } from "./browser-target"
 
 // Task-11 portable-data + management-detach acceptance against the real
 // unpacked WXT build (chrome-mv3). Modelled on extension-parity.spec.ts:
@@ -98,7 +99,7 @@ type Launched = {
 
 async function launchExtension(testInfo: TestInfo, seed: SeedState): Promise<Launched> {
   const context = await chromium.launchPersistentContext(testInfo.outputPath("profile"), {
-    channel: "chromium",
+    ...browserLaunchTarget(),
     headless: true,
     ignoreHTTPSErrors: true,
     args: [

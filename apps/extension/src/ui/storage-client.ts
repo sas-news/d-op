@@ -42,6 +42,7 @@ const VaultReplySchema = LocalV2StateSchema.pick({
   publications: true,
   pendingCreates: true,
   migrationRecovery: true,
+  shareConsent: true,
 })
 export type VaultReply = ReturnType<typeof VaultReplySchema.parse>
 

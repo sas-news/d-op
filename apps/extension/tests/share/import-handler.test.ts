@@ -4,7 +4,14 @@ import type { FetchLike } from "../../src/share/api-client"
 import { createShareImportHandler, type ShareImportSender } from "../../src/share/import-handler"
 import { InMemoryStorageDriver } from "../../src/storage/driver"
 import { createLocalRepository } from "../../src/storage/repository"
-import { ALLOWED_ORIGINS, fetchJson, SHARE_ID, SHARE_ORIGIN, shareResponse } from "./fixtures"
+import {
+  ALLOWED_ORIGINS,
+  consentState,
+  fetchJson,
+  SHARE_ID,
+  SHARE_ORIGIN,
+  shareResponse,
+} from "./fixtures"
 
 const EXT_ID = "test-extension-id"
 const EXT_ORIGIN = "chrome-extension://test-extension-id"
@@ -28,7 +35,11 @@ const pageSender: ShareImportSender = {
 }
 
 function setup(options: { fetchImpl?: FetchLike; seed?: LocalV2State } = {}) {
-  const driver = new InMemoryStorageDriver()
+  // Task 22: Share traffic requires the persisted consent record — default
+  // the seed to granted so these tests exercise the import flow itself.
+  const driver = new InMemoryStorageDriver({
+    dop_v2_state: options.seed ?? consentState("granted"),
+  })
   const repository = createLocalRepository({
     driver,
     now: () => "2026-09-21T12:00:00.000Z",

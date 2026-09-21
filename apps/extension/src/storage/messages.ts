@@ -24,6 +24,7 @@ function requiredAccess(request: StorageRequest): "public" | "vault" {
         case "discard-publication-management":
         case "put-pending-create":
         case "remove-pending-create":
+        case "set-share-consent":
           return "vault"
         case "create-playlist":
         case "rename-playlist":

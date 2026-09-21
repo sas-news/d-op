@@ -38,6 +38,19 @@ export default defineBackground(() => {
     newOwnerToken: () => crypto.randomUUID(),
   })
 
+  // Task 22: Firefox ≥140 surfaces the built-in data-collection consent layer
+  // through browser.permissions (getAll().data_collection /
+  // request({data_collection})). Chrome and older Firefox lack the key — the
+  // persisted in-extension decision then gates Share traffic alone.
+  const dataPermissions = {
+    getAll: () =>
+      browser.permissions.getAll() as Promise<{
+        data_collection?: readonly string[]
+      }>,
+    request: (permissions: { readonly data_collection: readonly string[] }) =>
+      browser.permissions.request(permissions as Parameters<typeof browser.permissions.request>[0]),
+  }
+
   // Share import (task 17): the share-site content-script relay forwards only
   // {shareId, requestId}; this handler re-validates sender origin/frame/tab,
   // debounces repeats, opens the extension-owned confirmation window, fetches
@@ -47,6 +60,7 @@ export default defineBackground(() => {
     driver,
     extensionId: browser.runtime.id,
     extensionOrigin: new URL(browser.runtime.getURL("/")).origin,
+    dataPermissions,
     openConfirmation: async (token) => {
       const url = browser.runtime.getURL(`/import.html?t=${token}`)
       try {
@@ -67,6 +81,7 @@ export default defineBackground(() => {
     driver,
     extensionId: browser.runtime.id,
     extensionOrigin: new URL(browser.runtime.getURL("/")).origin,
+    dataPermissions,
   })
 
   // Single message router: storage envelopes go to the repository (the only

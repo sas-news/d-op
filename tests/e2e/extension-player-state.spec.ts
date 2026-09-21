@@ -8,6 +8,7 @@ import {
   test,
   type Worker,
 } from "@playwright/test"
+import { browserLaunchTarget } from "./browser-target"
 
 // Task-9 player orchestration acceptance: drives the REAL unpacked WXT build
 // (chrome-mv3) against a synthetic player page. The page is served through
@@ -140,7 +141,7 @@ type Launched = {
 
 async function launchExtension(testInfo: TestInfo): Promise<Launched> {
   const context = await chromium.launchPersistentContext(testInfo.outputPath("profile"), {
-    channel: "chromium",
+    ...browserLaunchTarget(),
     headless: true,
     ignoreHTTPSErrors: true,
     args: [
@@ -353,6 +354,19 @@ test("window lifecycle: REQUEST_PLAYER creates, reuses, and close clears transie
         ),
       )
       .not.toBeUndefined()
+
+    // The created tab's document request bypassed interception and was
+    // aborted; until the failed navigation settles, chrome.tabs.get reports
+    // a blank/pending URL and validate() would reject the singleton. Wait
+    // for the committed tab URL to match what validate() requires before
+    // the second request — otherwise it races and returns "created".
+    await expect
+      .poll(async () =>
+        host.evaluate(
+          `chrome.tabs.query({}).then((tabs) => tabs.some((t) => (t.url ?? "").includes("dopPlaylistId=pl-1&dopIndex=0")))`,
+        ),
+      )
+      .toBe(true)
 
     // A second REQUEST_PLAYER reuses the same tab: now attached, its
     // navigation IS intercepted — the fixture loads and the playlist resumes

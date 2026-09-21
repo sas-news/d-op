@@ -20,7 +20,14 @@ async function handlerFor(overrides: Partial<LocalV2State> = {}, api: FakeApi = 
   const local = playlist("p1", ["a"])
   const record = await linkedRecord(local)
   const driver = new InMemoryStorageDriver({
-    [STATE_KEY]: v2State({ playlists: [local], publications: [record], ...overrides }),
+    // Task 22: management calls are consent-gated — default the seed to an
+    // explicit grant; tests may override with declined/omitted consent.
+    [STATE_KEY]: v2State({
+      playlists: [local],
+      publications: [record],
+      shareConsent: { choice: "granted", decidedAt: NOW },
+      ...overrides,
+    }),
   })
   const repository = createLocalRepository({
     driver,

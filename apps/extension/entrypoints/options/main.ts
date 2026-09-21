@@ -9,6 +9,17 @@ const controller = createOptionsController({
   storage,
   sendMessage: (message) => browser.runtime.sendMessage(message),
   version: browser.runtime.getManifest().version,
+  // Task 22: Firefox ≥140 native data-consent prompt surface. Chrome/older
+  // Firefox return a getAll() without `data_collection` — the in-extension
+  // decision alone then gates Share traffic.
+  dataPermissions: {
+    getAll: () =>
+      browser.permissions.getAll() as Promise<{
+        data_collection?: readonly string[]
+      }>,
+    request: (permissions: { readonly data_collection: readonly string[] }) =>
+      browser.permissions.request(permissions as Parameters<typeof browser.permissions.request>[0]),
+  },
   now: () => Date.now(),
   newId: () => crypto.randomUUID(),
   schedule: (callback, ms) => window.setTimeout(callback, ms),

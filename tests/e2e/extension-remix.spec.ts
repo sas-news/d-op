@@ -5,12 +5,13 @@ import {
   type BrowserContext,
   chromium,
   expect,
-  type Page,
   type Route,
   type TestInfo,
   test,
   type Worker,
 } from "@playwright/test"
+import { browserLaunchTarget } from "./browser-target"
+import { waitForContextPage } from "./context-pages"
 
 // Task-20 Remix provenance acceptance against the real unpacked WXT build
 // (chrome-mv3). A synthetic Share API is served via route interception — the
@@ -250,6 +251,8 @@ function v2State(): Record<string, unknown> {
     pendingCreates: [],
     preferences: { windowMode: "tab", collapsedPlaylists: {} },
     appliedOperations: [],
+    // Task 22: Share flows are consent-gated — the remix specs exercise them.
+    shareConsent: { choice: "granted", decidedAt: "2026-09-20T00:00:00.000Z" },
   }
 }
 
@@ -272,7 +275,7 @@ async function launch(
   apiLog: ApiCall[],
 ): Promise<Rig> {
   const context = await chromium.launchPersistentContext(testInfo.outputPath(`profile-${name}`), {
-    channel: "chromium",
+    ...browserLaunchTarget(),
     headless: true,
     ignoreHTTPSErrors: true,
     args: [
@@ -368,11 +371,11 @@ test("import → edit → republish mints a fresh share+key and links the source
     await sharePage.goto(`${ORIGIN}/p/${PARENT_ID}`)
     const saveButton = sharePage.locator("[data-testid='save-open-button']")
     await expect(saveButton).toBeEnabled({ timeout: 15_000 })
-    const popupPromise = rig.context.waitForEvent("page", {
-      predicate: (page: Page) =>
-        page.url().startsWith(`chrome-extension://${rig.extensionId}/import.html`),
-      timeout: 15_000,
-    })
+    const popupPromise = waitForContextPage(
+      rig.context,
+      `chrome-extension://${rig.extensionId}/import.html`,
+      15_000,
+    )
     await saveButton.click()
     const popup = await popupPromise
     await expect(popup.locator("[data-testid='import-title']")).toHaveText(PARENT_TITLE)

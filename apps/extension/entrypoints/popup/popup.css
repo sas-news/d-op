@@ -505,6 +505,18 @@ p.empty {
   margin-top: var(--dop-space-5);
 }
 
+.popup-footer a {
+  display: block;
+  font-size: 10px;
+  color: var(--dop-text-tertiary);
+  text-decoration: none;
+  margin-bottom: var(--dop-space-1);
+}
+
+.popup-footer a:hover {
+  text-decoration: underline;
+}
+
 .popup-version {
   font-size: 10px;
   color: var(--dop-text-tertiary);

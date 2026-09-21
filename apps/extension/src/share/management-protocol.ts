@@ -216,6 +216,7 @@ export type ShareManageStatus =
   | "offline"
   | "invalid-state"
   | "forbidden"
+  | "consent-required"
   | "failed"
   | "inspect"
   | "source"
@@ -236,6 +237,7 @@ export const SHARE_MANAGE_STATUSES: readonly ShareManageStatus[] = [
   "offline",
   "invalid-state",
   "forbidden",
+  "consent-required",
   "failed",
   "inspect",
   "source",

@@ -8,6 +8,8 @@ import {
   test,
   type Worker,
 } from "@playwright/test"
+import { browserLaunchTarget } from "./browser-target"
+import { waitForContextPage } from "./context-pages"
 
 // Task-17 web→extension import acceptance against the real unpacked WXT
 // build (chrome-mv3). The canonical share origin is fully synthetic here:
@@ -95,7 +97,7 @@ async function launchImporter(
   seed?: Record<string, unknown>,
 ): Promise<Rig> {
   const context = await chromium.launchPersistentContext(testInfo.outputPath(`profile-${name}`), {
-    channel: "chromium",
+    ...browserLaunchTarget(),
     headless: true,
     ignoreHTTPSErrors: true,
     args: [`--disable-extensions-except=${EXTENSION_PATH}`, `--load-extension=${EXTENSION_PATH}`],
@@ -170,6 +172,22 @@ async function launchImporter(
   const extensionId = new URL(worker.url()).hostname
   if (seed !== undefined) {
     await worker.evaluate(`chrome.storage.local.set(${JSON.stringify(seed)})`)
+  } else {
+    // Task 22: the web→ext import flow is consent-gated — these specs
+    // exercise the flow itself, so seed the explicit grant. The dedicated
+    // privacy-consent spec covers undecided/declined/revoked behaviour.
+    await worker.evaluate(`chrome.storage.local.set({
+      dop_v2_state: {
+        schemaVersion: 2,
+        revision: 0,
+        playlists: [],
+        publications: [],
+        pendingCreates: [],
+        preferences: { windowMode: "tab", collapsedPlaylists: {} },
+        appliedOperations: [],
+        shareConsent: { choice: "granted", decidedAt: "2026-09-20T00:00:00.000Z" },
+      },
+    })`)
   }
   return {
     context,
@@ -196,10 +214,14 @@ async function openSharePage(rig: Rig, shareId = SHARE_ID): Promise<Page> {
 }
 
 async function waitForImportWindow(rig: Rig): Promise<Page> {
-  return await rig.context.waitForEvent("page", {
-    predicate: (page) => page.url().startsWith(`chrome-extension://${rig.extensionId}/import.html`),
-    timeout: 10_000,
-  })
+  // Poll pages() rather than waitForEvent+predicate: on real Chrome the page
+  // event can fire before the popup's URL commits, which permanently misses
+  // the predicate; bundled headless shell commits earlier so it passed there.
+  return await waitForContextPage(
+    rig.context,
+    `chrome-extension://${rig.extensionId}/import.html`,
+    10_000,
+  )
 }
 
 // biome-ignore lint/correctness/noEmptyPattern: playwright requires object destructuring for fixtures
@@ -477,7 +499,7 @@ test("closed share page cannot undo a completed save; imported copy edits indepe
 })
 
 test("missing extension: save button stays disabled, no postMessage listener", async () => {
-  const browser = await chromium.launch({ channel: "chromium", headless: true })
+  const browser = await chromium.launch({ ...browserLaunchTarget(), headless: true })
   try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true })
     let posted = false

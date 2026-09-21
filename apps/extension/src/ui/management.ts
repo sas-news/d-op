@@ -70,6 +70,9 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
   }
 
   function describeRemote(reply: ShareManageReply): string {
+    if (reply.status === "consent-required") {
+      return "共有機能が無効です（上の「共有機能」セクションで有効化できます）。"
+    }
     if (reply.status !== "inspect") return "確認できませんでした。"
     switch (reply.remote) {
       case "active":
@@ -128,6 +131,9 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
         return
       case "offline":
         rowStatus(element, "ネットワークエラー。削除は実行されていません。")
+        return
+      case "consent-required":
+        rowStatus(element, "共有機能が無効です。削除は実行されていません。")
         return
       default:
         rowStatus(element, "公開版の削除に失敗しました。ローカルの管理情報は保持されています。")

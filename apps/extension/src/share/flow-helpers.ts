@@ -7,6 +7,7 @@ import type {
   LocalCommand,
   PendingCreate,
   PublicationRecord,
+  ShareConsentChoice,
 } from "../../../../packages/shared/src/local-model"
 import type { UnpublishableReason } from "../../../../packages/shared/src/share-model"
 import type { CommandReply, LocalRepository, PublicationVault } from "../storage/repository"
@@ -18,6 +19,11 @@ export type VaultCommandBody =
   | { readonly kind: "discard-publication-management"; readonly shareId: string }
   | { readonly kind: "put-pending-create"; readonly pendingCreate: PendingCreate }
   | { readonly kind: "remove-pending-create"; readonly pendingOperationId: string }
+  | {
+      readonly kind: "set-share-consent"
+      readonly choice: ShareConsentChoice
+      readonly decidedAt: string
+    }
 
 const VAULT_MAX_ATTEMPTS = 4
 

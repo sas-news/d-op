@@ -9,6 +9,7 @@
 // Pure DOM/text builders live in share-dialog-views.ts.
 import type { LocalPlaylist, PublicationRecord } from "../../../../packages/shared/src/local-model"
 import type { ModalHost } from "../player/modal"
+import { type DataPermissions, SHARE_PRIVACY_URL, writeShareConsent } from "../share/consent"
 import { type PublicationDirty, publicationDirty, snapshotMetadata } from "../share/dirty-state"
 import type {
   ShareManageClient,
@@ -37,6 +38,8 @@ export type ShareDialogDeps = {
   readonly storage: Pick<UiStorageClient, "readPublic" | "readVault" | "dispatch">
   readonly manage: ShareManageClient
   readonly newId: () => string
+  /** Task 22: Firefox ≥140 native data-consent prompt surface. */
+  readonly dataPermissions?: DataPermissions | undefined
   readonly copyText: (text: string) => Promise<boolean>
   readonly showStatus: (text: string, type?: "success" | "error") => void
   /** Re-render the status line when canonical state changes (local edits). */
@@ -72,6 +75,11 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
     let deleteOpId: string | undefined
     // Draft survives re-renders after failed actions.
     let draft: ShareManageMetadata = {}
+    // Task 22: the dialog replaces the management actions with an explicit
+    // consent prompt while Share consent is not granted — the background
+    // gate rejects every management call with `consent-required` anyway, so
+    // this is the UX surface, not the enforcement.
+    let consentRequired = false
     let closeModal: (value: string | null) => void = () => undefined
 
     const container = doc.createElement("div")
@@ -86,6 +94,7 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       record = vault.publications.find(
         (entry) => entry.localPlaylistId === playlistId && entry.state !== "local-deleted",
       )
+      consentRequired = vault.shareConsent?.choice !== "granted"
       dirty = undefined
       if (record !== undefined && playlist !== undefined) {
         dirty = await publicationDirty(record, playlist)
@@ -130,6 +139,12 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
         case "source":
           // Inspect/source render into their own lines only — no result text.
           return
+        case "consent-required":
+          // Firefox ≥140 can revoke the native data consent independently of
+          // the stored record — surface the prompt even when the vault still
+          // reads "granted".
+          consentRequired = true
+          break
         case "conflict":
           updateOpId = undefined
           deleteOpId = undefined
@@ -165,6 +180,88 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       }
       busy = false
       render()
+    }
+
+    /**
+     * Task 22 consent prompt inside the dialog. Grant runs the Firefox ≥140
+     * native data-consent prompt first (where it exists) and persists the
+     * choice through the repository single writer; decline records the
+     * explicit "declined" decision and closes — every local feature keeps
+     * working and nothing has been transmitted either way.
+     */
+    async function decideConsent(choice: "granted" | "declined"): Promise<void> {
+      busy = true
+      resultText = ""
+      render()
+      try {
+        const result = await writeShareConsent(
+          deps.storage,
+          deps.dataPermissions,
+          choice,
+          deps.newId,
+        )
+        if (result === "written") {
+          if (choice === "declined") {
+            deps.showStatus("共有機能は無効です。ローカルの機能はそのまま利用できます。")
+            closeModal("close")
+            return
+          }
+          deps.showStatus("共有機能を有効にしました。")
+          deps.onChanged?.()
+        } else if (result === "native-denied") {
+          resultText = "ブラウザのデータ収集設定で許可されませんでした。共有機能は無効のままです。"
+          resultError = true
+        } else {
+          resultText = "設定の保存に失敗しました。"
+          resultError = true
+        }
+        await reload()
+      } catch (error) {
+        deps.log?.("share-consent-failed", error)
+        resultText = "設定の保存に失敗しました。"
+        resultError = true
+      }
+      busy = false
+      render()
+    }
+
+    /** Consent prompt sub-view shown in place of the management actions. */
+    function consentPanel(): HTMLElement[] {
+      const text = line(
+        doc,
+        "share-consent-text",
+        "共有機能は現在無効です。共有プレイリストの公開・更新・削除・状態確認を行うには、" +
+          "d-op.sasnews.dev との通信を許可する必要があります。送信されるのは公開用の" +
+          "スナップショットのみで、自動同期は行いません。",
+      )
+      const privacy = doc.createElement("p")
+      privacy.className = "share-consent-privacy"
+      const link = doc.createElement("a")
+      link.href = SHARE_PRIVACY_URL
+      link.target = "_blank"
+      link.rel = "noopener"
+      link.dataset["testid"] = "share-consent-privacy"
+      link.textContent = "プライバシーポリシー"
+      privacy.append("送信内容の詳細は ", link, " をご覧ください。")
+      const row = doc.createElement("div")
+      row.className = "share-actions"
+      row.append(
+        actionButton(
+          doc,
+          "共有機能を有効にする",
+          "btn-primary-text share-consent-grant",
+          () => void decideConsent("granted"),
+          busy,
+        ),
+        actionButton(
+          doc,
+          "利用しない",
+          "btn-text share-consent-decline",
+          () => void decideConsent("declined"),
+          busy,
+        ),
+      )
+      return [text, privacy, row]
     }
 
     async function doInspect(): Promise<void> {
@@ -352,7 +449,9 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       } else if (record === undefined && sourceText !== "") {
         container.appendChild(line(doc, "share-source-line", sourceText))
       }
-      if (record === undefined || record.state === "active") {
+      if (consentRequired) {
+        container.append(...consentPanel())
+      } else if (record === undefined || record.state === "active") {
         container.append(
           ...metadataSection(
             doc,
@@ -370,7 +469,7 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
         )
       }
       if (busy) container.appendChild(line(doc, "share-busy", "通信中…"))
-      container.appendChild(actions())
+      if (!consentRequired) container.appendChild(actions())
       const result = line(doc, `share-result ${resultError ? "error" : "success"}`, resultText)
       result.dataset["testid"] = "share-result"
       container.appendChild(result)
@@ -420,10 +519,15 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       },
     })
 
-    // Opening management reconciles remote state once (explicit action only).
-    if (record !== undefined && record.state === "active") void doInspect()
-    // First publish: surface the private import-provenance preview (task 20).
-    if (record === undefined) void doSource()
+    // Opening management reconciles remote state once (explicit action only)
+    // — skipped entirely until consent is granted: the background would gate
+    // the call anyway, and not issuing it keeps the zero-traffic guarantee
+    // literal.
+    if (!consentRequired) {
+      if (record !== undefined && record.state === "active") void doInspect()
+      // First publish: surface the private import-provenance preview (task 20).
+      if (record === undefined) void doSource()
+    }
 
     await modalPromise
     unsubscribe?.()

@@ -11,8 +11,10 @@ import type { TransientPlayback } from "../../../../packages/shared/src/local-mo
 import { createModalHost } from "../player/modal"
 import { mutateTransientState, withPlayback } from "../player/transient-session"
 import { buildPlaylistItemUrl } from "../player/url-params"
+import type { DataPermissions } from "../share/consent"
 import { publicationDirty } from "../share/dirty-state"
 import { createShareManageClient } from "../share/management-protocol"
+import { createShareConsentSection } from "./consent-section"
 import { formatSec, isSystemPlaylist, itemPlaybackUrl } from "./format"
 import { createShareManagement } from "./management"
 import { createDragController } from "./options-drag"
@@ -26,6 +28,11 @@ export type OptionsDeps = {
   readonly storage: UiStorageClient
   readonly sendMessage: (message: unknown) => Promise<unknown>
   readonly version: string
+  /**
+   * Task 22: Firefox ≥140 native data-consent surface (browser.permissions).
+   * Absent → the persisted in-extension decision alone gates Share traffic.
+   */
+  readonly dataPermissions?: DataPermissions
   readonly now: () => number
   readonly newId: () => string
   readonly schedule: (callback: () => void, ms: number) => unknown
@@ -146,6 +153,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     storage: deps.storage,
     manage,
     newId: deps.newId,
+    dataPermissions: deps.dataPermissions,
     copyText: deps.copyText ?? (async () => false),
     showStatus,
     subscribe: deps.subscribe,
@@ -160,6 +168,17 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     manage,
     newId: deps.newId,
     modal,
+    showStatus,
+    log: deps.log,
+    onChanged: () => render(),
+  })
+  // Task 22: explicit Share consent section — renders the persisted decision
+  // (undecided/granted/declined) and writes choices through the repository.
+  const consentSection = createShareConsentSection({
+    doc,
+    storage: deps.storage,
+    dataPermissions: deps.dataPermissions,
+    newId: deps.newId,
     showStatus,
     log: deps.log,
     onChanged: () => render(),
@@ -348,6 +367,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
         do {
           renderQueued = false
           await renderPlaylists()
+          await consentSection.render(el("shareConsentBox"))
           await management.render(el("managementList"))
         } while (renderQueued && !disposed)
       } catch (error) {

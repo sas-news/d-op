@@ -92,6 +92,8 @@ export function describeShareReply(reply: ShareManageReply): string {
       return "ネットワークエラーまたはタイムアウトです。同じ操作として再試行できます。"
     case "invalid-state":
       return reply.message ?? "その状態では実行できません。"
+    case "consent-required":
+      return "共有機能が無効です。有効にすると共有サーバーとの通信を許可します。"
     default:
       return reply.message ?? "失敗しました。"
   }

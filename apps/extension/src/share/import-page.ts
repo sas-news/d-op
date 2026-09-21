@@ -32,14 +32,7 @@ export type DetailsResult =
   | { readonly kind: "preview"; readonly preview: ShareImportPreview }
   | { readonly kind: "error"; readonly reason: string }
 
-export async function requestImportDetails(
-  send: ImportPageSend,
-  token: string,
-): Promise<DetailsResult> {
-  const reply: ShareImportDetailsReply | unknown = await send({
-    kind: "share-import-details",
-    token,
-  })
+function toDetailsResult(reply: unknown): DetailsResult {
   if (isRecord(reply) && reply["kind"] === "share-import-preview" && isPreview(reply["preview"])) {
     return { kind: "preview", preview: reply["preview"] }
   }
@@ -51,6 +44,32 @@ export async function requestImportDetails(
     return { kind: "error", reason: reply["reason"] }
   }
   return { kind: "error", reason: "unavailable" }
+}
+
+export async function requestImportDetails(
+  send: ImportPageSend,
+  token: string,
+): Promise<DetailsResult> {
+  const reply: ShareImportDetailsReply | unknown = await send({
+    kind: "share-import-details",
+    token,
+  })
+  return toDetailsResult(reply)
+}
+
+/**
+ * Task 22: report the user's explicit Share-consent decision to the
+ * background (which persists it through the repository and replies with the
+ * preview on grant, or `consent-declined` on decline). The page itself never
+ * writes storage.
+ */
+export async function requestImportConsent(
+  send: ImportPageSend,
+  token: string,
+  decision: "granted" | "declined",
+): Promise<DetailsResult> {
+  const reply: unknown = await send({ kind: "share-import-consent", token, decision })
+  return toDetailsResult(reply)
 }
 
 export type ConfirmResult =

@@ -94,7 +94,22 @@ export type ShareImportPageRequest = {
   readonly token: string
 }
 
-export type ShareImportMessage = ShareImportRelayRequest | ShareImportPageRequest
+/**
+ * Task 22: the import confirmation page doubles as the consent surface for
+ * the web→ext flow. The page reports the user's explicit decision; the
+ * background persists it through the repository (single writer) — the page
+ * never writes storage itself.
+ */
+export type ShareImportConsentRequest = {
+  readonly kind: "share-import-consent"
+  readonly token: string
+  readonly decision: "granted" | "declined"
+}
+
+export type ShareImportMessage =
+  | ShareImportRelayRequest
+  | ShareImportPageRequest
+  | ShareImportConsentRequest
 
 export function parseShareImportMessage(input: unknown): ShareImportMessage | undefined {
   if (!isRecord(input)) return undefined
@@ -116,6 +131,17 @@ export function parseShareImportMessage(input: unknown): ShareImportMessage | un
   ) {
     if (!hasOnlyKeys(input, ["kind", "token"]) || !isUuid(input["token"])) return undefined
     return input as unknown as ShareImportPageRequest
+  }
+  if (kind === "share-import-consent") {
+    const decision = input["decision"]
+    if (
+      !hasOnlyKeys(input, ["kind", "token", "decision"]) ||
+      !isUuid(input["token"]) ||
+      (decision !== "granted" && decision !== "declined")
+    ) {
+      return undefined
+    }
+    return input as unknown as ShareImportConsentRequest
   }
   return undefined
 }

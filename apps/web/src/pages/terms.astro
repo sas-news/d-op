@@ -1,0 +1,126 @@
+---
+import ShellLayout from "../layouts/ShellLayout.astro"
+import { SHARE_SITE_ORIGIN } from "../server/services/share-page"
+
+// Task 22: plain terms for the Share service. Scope is deliberately narrow —
+// this is a personal, unofficial project with no accounts and no paid tier, so
+// the terms cover acceptable use, capability ownership (the management secret),
+// takedown/abuse contact and a no-warranty/no-SLA disclaimer. Nothing here
+// promises availability or response-time commitments the owner has not approved.
+const CANONICAL_URL = `${SHARE_SITE_ORIGIN}/terms`
+---
+
+<ShellLayout title="利用規約 | d-OP" description="d-OP 共有サービスの利用条件について。">
+  <Fragment slot="head">
+    <link rel="canonical" href={CANONICAL_URL} />
+    <meta name="color-scheme" content="dark" />
+  </Fragment>
+
+  <article class="section terms" aria-labelledby="terms-title">
+    <p class="section-eyebrow">Terms of Use</p>
+    <h1 id="terms-title">利用規約</h1>
+    <p class="lead">
+      この規約は、d-OP 共有サービス（このサイトの共有プレイリスト公開・閲覧・取り込み機能、以下「本サービス」）の利用条件を定めるものです。
+    </p>
+
+    <section class="terms-block" aria-labelledby="terms-service">
+      <h2 id="terms-service">本サービスについて</h2>
+      <p>
+        本サービスは、d-OP 拡張機能のユーザーが明示的に公開操作を行ったプレイリストのスナップショットを
+        ホスティングし、共有URLによる閲覧と拡張機能への取り込みを提供するものです。
+        アカウント機能はなく、自動同期・バックアップ機能もありません。
+      </p>
+      <p>
+        d-OP は dアニメストアの非公式拡張機能です。dアニメストアおよび株式会社NTTドコモとは一切関係ありません。
+      </p>
+    </section>
+
+    <section class="terms-block" aria-labelledby="terms-publish">
+      <h2 id="terms-publish">公開されるコンテンツについて</h2>
+      <p>
+        公開されるプレイリストは、タイトル・説明・公開者名・タグと各クリップの作品ID・話数・
+        再生区間で構成されるスナップショットです。動画そのものは含まれず、
+        公開内容は公開したユーザー本人が入力・選択したものです。
+      </p>
+      <p>
+        「公開」に設定した共有は Explore ページや検索から誰でも見つけられる状態になります。
+        「限定公開」に設定した共有は一覧には掲載されませんが、共有URLを知っている人は誰でも閲覧・取り込みできます。
+      </p>
+      <p>
+        公開の管理（有効化・更新・削除）は、公開時に発行される管理用秘密情報を持つ本人のみが行えます。
+        この秘密情報は拡張機能内にのみ保存され、再発行・復旧はできません。
+        紛失した場合、その共有を管理できる手段はなくなります。
+      </p>
+    </section>
+
+    <section class="terms-block" aria-labelledby="terms-takedown">
+      <h2 id="terms-takedown">削除・報告について</h2>
+      <p>
+        公開者本人は、拡張機能の共有管理画面からいつでも共有を削除できます。
+      </p>
+      <p>
+        権利侵害や不適切なコンテンツの報告は
+        <a href="https://github.com/sas-news/d-op/issues" rel="noopener" target="_blank">GitHub Issues</a>
+        または <a href="mailto:contact@sasnews.dev">contact@sasnews.dev</a>
+        までお願いします。運営者は確認のうえ、必要と判断した場合に対象の共有を削除することがあります。
+        対応時期や削除を保証するものではありません。
+      </p>
+    </section>
+
+    <section class="terms-block" aria-labelledby="terms-disclaimer">
+      <h2 id="terms-disclaimer">免責事項</h2>
+      <p>
+        本サービスは現状のまま提供され、動作・継続的な提供・データの保持について一切の保証を行いません。
+        公開された共有は予告なく削除される場合があります。本サービスの利用により生じた損害について、
+        運営者は法律上認められる範囲で責任を負いません。
+      </p>
+    </section>
+
+    <section class="terms-block" aria-labelledby="terms-changes">
+      <h2 id="terms-changes">規約の変更</h2>
+      <p>
+        この規約は予告なく変更されることがあります。変更後の内容はこのページに掲載した時点で適用されます。
+      </p>
+      <p class="terms-updated">最終更新日: 2026-09-22</p>
+    </section>
+  </article>
+</ShellLayout>
+
+<style>
+  .terms {
+    max-inline-size: 44rem;
+  }
+
+  .terms .lead {
+    margin-top: var(--space-4);
+  }
+
+  .terms-block {
+    margin-top: var(--space-6);
+  }
+
+  .terms-block h2 {
+    margin-bottom: var(--space-3);
+    font-size: var(--text-lg);
+  }
+
+  .terms-block p {
+    color: var(--color-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .terms-block p + p {
+    margin-top: var(--space-3);
+  }
+
+  .terms-block a {
+    color: var(--color-info);
+    overflow-wrap: anywhere;
+  }
+
+  .terms-updated {
+    margin-top: var(--space-4);
+    color: var(--color-subtle);
+    font-size: var(--text-sm);
+  }
+</style>

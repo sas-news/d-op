@@ -1,4 +1,5 @@
 import type { GetPlaylistResponse } from "../../../../packages/shared/src/api"
+import type { LocalV2State } from "../../../../packages/shared/src/local-model"
 
 export const SHARE_ID = "abcdefghijklmnopqrstuv" as const
 export const OTHER_SHARE_ID = "ABCDEFGHIJKLMNOPQRSTUV" as const
@@ -7,6 +8,24 @@ export const DEV_ORIGIN = "http://localhost:4321" as const
 export const ALLOWED_ORIGINS = [SHARE_ORIGIN, DEV_ORIGIN] as const
 export const NOW = "2026-09-21T12:00:00.000Z" as const
 export const HASH = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const
+
+/** Task 22: canonical state carrying an explicit Share consent decision. */
+export function consentState(
+  choice: "granted" | "declined",
+  overrides: Partial<LocalV2State> = {},
+): LocalV2State {
+  return {
+    schemaVersion: 2,
+    revision: 0,
+    playlists: [],
+    publications: [],
+    pendingCreates: [],
+    preferences: { windowMode: "tab", collapsedPlaylists: {} },
+    appliedOperations: [],
+    shareConsent: { choice, decidedAt: NOW },
+    ...overrides,
+  }
+}
 
 export function shareResponse(overrides: Partial<GetPlaylistResponse> = {}): GetPlaylistResponse {
   return {

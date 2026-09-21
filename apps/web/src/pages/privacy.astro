@@ -40,6 +40,12 @@ const CANONICAL_URL = `${SHARE_SITE_ORIGIN}/privacy`
     <section class="privacy-block" aria-labelledby="privacy-share">
       <h2 id="privacy-share">共有プレイリスト機能について</h2>
       <p>
+        共有機能はオプトインです。拡張機能のオプションページまたは共有プレイリストの
+        取り込み画面で「有効にする」を選択するまで、共有関連の通信は一切発生しません。
+        「利用しない」を選んでもローカルの機能はすべてそのまま利用でき、
+        同意はいつでも取り消せます（取り消しても公開済みの共有は自動では削除されません）。
+      </p>
+      <p>
         プレイリストの共有は、拡張機能内で明示的に公開操作を行った場合にのみ実行されます。
         公開されたプレイリストのスナップショット（タイトル・説明・クリップ範囲・タグ・公開者名）だけが
         このサイトのサーバーに保存され、共有URLを知っている人が閲覧・保存できます。
@@ -47,6 +53,11 @@ const CANONICAL_URL = `${SHARE_SITE_ORIGIN}/privacy`
       <p>
         保存回数は匿名の合計値としてのみ集計され、保存した人を特定する情報は記録しません。
         公開操作を行わない限り、ローカルのプレイリストがサーバーへ送信されることはありません。
+      </p>
+      <p>
+        サーバー側では公開スナップショットのほか、操作の冪等レシート（約24時間）、
+        取り込み通知のイベントハッシュ（約48時間）と日次件数（約90日間）、
+        ランキング用の一時スナップショット（約15分）、運営者による削除の監査記録を保持します。
       </p>
     </section>
 
@@ -57,6 +68,7 @@ const CANONICAL_URL = `${SHARE_SITE_ORIGIN}/privacy`
         <a href="https://github.com/sas-news/d-op/blob/main/PRIVACY.md" rel="noopener" target="_blank">PRIVACY.md</a>
         を参照してください。プレイリストや設定はブラウザのローカルストレージにのみ保存され、
         明示的な共有操作を除いて外部サーバーへの送信は行われません。
+        利用条件は<a href="/terms">利用規約</a>をご覧ください。
       </p>
     </section>
 
@@ -69,7 +81,7 @@ const CANONICAL_URL = `${SHARE_SITE_ORIGIN}/privacy`
         </li>
         <li>メール: <a href="mailto:contact@sasnews.dev">contact@sasnews.dev</a></li>
       </ul>
-      <p class="privacy-updated">最終更新日: 2026-09-21</p>
+      <p class="privacy-updated">最終更新日: 2026-09-22</p>
     </section>
   </article>
 </ShellLayout>

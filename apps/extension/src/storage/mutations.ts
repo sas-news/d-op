@@ -12,7 +12,7 @@ import {
 
 type StoredCollections = Pick<
   LocalV2State,
-  "playlists" | "publications" | "pendingCreates" | "preferences"
+  "playlists" | "publications" | "pendingCreates" | "preferences" | "shareConsent"
 >
 export type StorageMutationResult =
   | { readonly kind: "updated"; readonly collections: StoredCollections }
@@ -66,6 +66,7 @@ function playlistMutation(
     case "discard-publication-management":
     case "put-pending-create":
     case "remove-pending-create":
+    case "set-share-consent":
       return { kind: "updated", playlists: state.playlists }
     default:
       return assertNever(command)
@@ -84,6 +85,7 @@ export function applyStorageMutation(
   let publications = state.publications
   let pendingCreates = state.pendingCreates
   let preferences = state.preferences
+  let shareConsent = state.shareConsent
   switch (command.kind) {
     case "delete-playlist":
     case "replace-library": {
@@ -120,6 +122,11 @@ export function applyStorageMutation(
         (record) => record.operationId !== command.pendingOperationId,
       )
       break
+    case "set-share-consent":
+      // Consent is a fresh decision record each time — grant and decline are
+      // both explicit user choices with their own timestamp.
+      shareConsent = { choice: command.choice, decidedAt: command.decidedAt }
+      break
     case "create-playlist":
     case "rename-playlist":
     case "add-item":
@@ -128,5 +135,8 @@ export function applyStorageMutation(
     default:
       return assertNever(command)
   }
-  return { kind: "updated", collections: { playlists, publications, pendingCreates, preferences } }
+  return {
+    kind: "updated",
+    collections: { playlists, publications, pendingCreates, preferences, shareConsent },
+  }
 }

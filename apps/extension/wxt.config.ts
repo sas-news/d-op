@@ -28,7 +28,26 @@ export default defineConfig({
           browser_specific_settings: {
             gecko: {
               id: "d-op@sasnews.dev",
-              data_collection_permissions: { required: ["none"] },
+              // Task 22: ordinary use is local-only, so NOTHING is required —
+              // "none" stays accurate because Share is an optional feature.
+              // The optional categories mirror the actual Share payload and
+              // are only granted after the explicit in-extension consent
+              // (Firefox ≥140 shows the native prompt; src/share/consent.ts
+              // keeps this list in sync with SHARE_DATA_COLLECTION_PERMISSIONS):
+              //  - websiteContent — published snapshots carry titles/episode
+              //    titles/ids of d-Anime pages the user curated.
+              //  - personallyIdentifyingInfo — author/description are
+              //    free-text fields that may carry a self-provided name.
+              //  - technicalAndInteraction — the anonymous aggregate import
+              //    notification ({eventId} only) signals extension usage.
+              data_collection_permissions: {
+                required: ["none"],
+                optional: [
+                  "websiteContent",
+                  "personallyIdentifyingInfo",
+                  "technicalAndInteraction",
+                ],
+              },
             },
           },
         }
