@@ -13,6 +13,8 @@ export type FetchInit = {
   readonly redirect?: RequestRedirect
   readonly cache?: RequestCache
   readonly signal?: AbortSignal
+  readonly headers?: HeadersInit
+  readonly body?: BodyInit | null
 }
 
 export type FetchResponse = {
@@ -51,7 +53,7 @@ export type FetchSharedOptions = {
 
 const ResponseEnvelopeSchema = apiSuccessSchema(GetPlaylistResponseSchema)
 
-async function readBoundedBody(
+export async function readBoundedBody(
   response: FetchResponse,
   maxBytes: number,
 ): Promise<{ readonly kind: "ok"; readonly text: string } | { readonly kind: "too-large" }> {

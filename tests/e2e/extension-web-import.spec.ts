@@ -234,8 +234,10 @@ test("happy path: marker enables save, preview shows name/items/total, confirm c
     expect(imports.records).toHaveLength(1)
     expect(imports.records[0]).toMatchObject({ shareId: SHARE_ID, playlistId: playlist?.id })
     expect(JSON.stringify(imports)).not.toContain("manageSecret")
-    // The API was only ever READ — nothing wrote to the remote.
-    expect(rig.apiWrites).toEqual([])
+    // The only remote write is the task-18 aggregate import POST {eventId} —
+    // fired AFTER the local commit (fire-and-forget, so poll for it). No
+    // snapshot data or keys ever leave.
+    await expect.poll(() => rig.apiWrites, { timeout: 5_000 }).toEqual(["POST"])
     // The page received only a status ack — no library data crosses.
     expect(await page.locator("[data-testid='save-status']").textContent()).not.toContain(
       "part_alpha",
@@ -297,7 +299,9 @@ test("publisher/importer isolation: import never touches the publisher's record 
     }
     expect(publisherState.playlists).toHaveLength(1)
     expect(publisherState.publications).toHaveLength(1)
-    expect(importer.apiWrites).toEqual([])
+    // Importer's only write is the task-18 aggregate import POST (poll — it
+    // is fire-and-forget); the publisher's profile never talks to the API.
+    await expect.poll(() => importer.apiWrites, { timeout: 5_000 }).toEqual(["POST"])
     expect(publisher.apiCalls).toEqual([])
   } finally {
     await publisher.context.close()
@@ -445,7 +449,9 @@ test("closed share page cannot undo a completed save; imported copy edits indepe
       return { name: state.playlists[0].name, itemCount: state.playlists[0].items.length }
     })()`)
     expect(after).toMatchObject({ name: "ローカル改名", itemCount: 2 })
-    expect(rig.apiWrites).toEqual([])
+    // The earlier commit already fired the task-18 aggregate POST — the local
+    // rename itself issues no further API traffic.
+    await expect.poll(() => rig.apiWrites, { timeout: 5_000 }).toEqual(["POST"])
 
     // Close BOTH the share page and the confirmation — the commit stands.
     await page.close()

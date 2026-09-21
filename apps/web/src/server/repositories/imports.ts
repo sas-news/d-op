@@ -7,12 +7,16 @@ import type { ImportRecordResult } from "./types"
 
 // Import accounting (atomic exactly-once within the 48 h receipt window).
 //
-// Statement 1 inserts the event receipt only for an eligible share (active +
-// public + not blocked) and only when the event hash is unseen; statements 2-3
-// increment the daily bucket and lifetime counter but ONLY when the receipt row
-// carries THIS attempt's nonce. A losing concurrent duplicate or a replay finds
-// the receipt with a foreign nonce and its increments no-op — there is no
-// SELECT-then-increment anywhere, so counts move exactly once.
+// Statement 1 clears an EXPIRED receipt for the same event hash — the
+// expiry check at ingestion, so a post-TTL resend behaves identically whether
+// or not the scheduled sweep has already run (the receipt window is the only
+// dedupe horizon). Statement 2 inserts the event receipt only for an eligible
+// share (active + public + not blocked) and only when the event hash is
+// unseen; statements 3-4 increment the daily bucket and lifetime counter but
+// ONLY when the receipt row carries THIS attempt's nonce. A losing concurrent
+// duplicate or an in-window replay finds the receipt with a foreign nonce and
+// its increments no-op — there is no SELECT-then-increment anywhere, so counts
+// move exactly once per 48 h window.
 
 export type ImportEventInput = {
   readonly shareId: string
@@ -63,7 +67,13 @@ function buildStatements(
   expiresAt: string,
 ): readonly D1PreparedStatement[] {
   return [
-    // 1. Receipt insert: yields a row only for an eligible share with an unseen
+    // 1. Ingestion expiry check: drop a receipt for this event hash whose TTL
+    //    has already passed so the dedupe window is exactly 48 h regardless of
+    //    when the scheduled prune last ran. Live receipts are untouched.
+    db
+      .prepare(`DELETE FROM import_receipts WHERE event_hash = ?1 AND expires_at <= ?2`)
+      .bind(input.eventHash, nowIso),
+    // 2. Receipt insert: yields a row only for an eligible share with an unseen
     //    event hash. ON CONFLICT keeps a concurrent duplicate at zero rows.
     db
       .prepare(
@@ -76,7 +86,7 @@ function buildStatements(
        ON CONFLICT (event_hash) DO NOTHING`,
       )
       .bind(input.eventHash, input.shareId, nonce, nowIso, expiresAt),
-    // 2. Daily bucket upsert — both the insert and the conflict-update branch
+    // 3. Daily bucket upsert — both the insert and the conflict-update branch
     //    require the receipt to carry this attempt's nonce.
     db
       .prepare(
@@ -91,7 +101,7 @@ function buildStatements(
          WHERE r.event_hash = ?3 AND r.attempt_nonce = ?4)`,
       )
       .bind(input.shareId, day, input.eventHash, nonce),
-    // 3. Lifetime counter on the playlist row, same nonce gate.
+    // 4. Lifetime counter on the playlist row, same nonce gate.
     db
       .prepare(
         `UPDATE playlists SET import_count = import_count + 1

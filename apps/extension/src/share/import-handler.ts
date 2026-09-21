@@ -10,6 +10,7 @@ import type { StorageDriver } from "../storage/driver"
 import type { LocalRepository } from "../storage/repository"
 import { type FetchLike, fetchSharedPlaylist, type ShareFetchResult } from "./api-client"
 import { commitImport } from "./import-commit"
+import { notifyImportCommitted } from "./import-notify"
 import {
   createImportRequestBook,
   type ImportRequestBook,
@@ -44,6 +45,11 @@ export type ShareImportHandlerDeps = {
   readonly apiOrigin?: string
   readonly allowedOrigins?: readonly string[]
   readonly fetchImpl?: FetchLike
+  /**
+   * Test hook replacing the fire-and-forget import notification (task 18).
+   * Default: notifyImportCommitted bound to apiOrigin/fetchImpl/newId.
+   */
+  readonly importNotifier?: (shareId: string) => Promise<unknown>
   readonly now?: () => string
   readonly newId?: () => string
   readonly requests?: ImportRequestBook
@@ -83,6 +89,15 @@ export function createShareImportHandler(deps: ShareImportHandlerDeps) {
 
   const newId = deps.newId ?? (() => crypto.randomUUID())
   const now = deps.now ?? (() => new Date().toISOString())
+  const notifyImport =
+    deps.importNotifier ??
+    ((shareId: string) =>
+      notifyImportCommitted({
+        apiOrigin,
+        shareId,
+        newId,
+        ...(deps.fetchImpl === undefined ? {} : { fetchImpl: deps.fetchImpl }),
+      }))
 
   /** Sender of the page relay must be our CS in a TOP frame on the share page. */
   const isRelaySender = (sender: ShareImportSender | undefined, shareId: string): boolean => {
@@ -196,6 +211,9 @@ export function createShareImportHandler(deps: ShareImportHandlerDeps) {
     })
     if (committed.kind === "committed") {
       requests.settle(token, "committed")
+      // Task 18: fire-and-forget aggregate notification AFTER the local commit
+      // only. It must never block the reply or undo the saved playlist.
+      void Promise.resolve(notifyImport(entry.shareId)).catch(() => undefined)
       return {
         kind: "share-import-result",
         status: "committed",
