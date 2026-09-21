@@ -27,7 +27,7 @@
     "verify:artifacts": "node ./scripts/verify-artifacts.mjs",
     "verify:upgrade": "bun -e \"console.error('task-26 owns verify:upgrade (migration rehearsal): not implemented');process.exit(1)\"",
     "verify:staging": "node ./scripts/verify-staging.mjs",
-    "verify:cutover": "bun -e \"console.error('task-29 owns verify:cutover (production cutover proof): not implemented');process.exit(1)\""
+    "verify:cutover": "node ./scripts/verify-cutover.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
