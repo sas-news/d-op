@@ -50,3 +50,20 @@ Unit-side, `apps/extension/tests/share/consent.test.ts` covers the gate semantic
 ## Firefox native consent smoke
 
 `bun run test:browser:firefox` is owned by tasks 5/23 and is currently a stub that exits non-zero. When implemented it must load the real Firefox build and exercise the `data_collection_permissions` path. Do not substitute Playwright's page-only Firefox.
+
+## Installed-profile upgrade rehearsal (task 26)
+
+```text
+bun run verify:upgrade -- --browser=chromium
+bun run verify:upgrade -- --browser=firefox
+```
+
+`tests/browser/upgrade/` rehearse the real v1.0.0 → v2 migration on disposable profiles only (`tools/browser-cache/upgrade/<browser>/`, never a real user profile). Each leg extracts the tagged v1 extension from git, seeds all legacy keys through v1's own write helpers, swaps the extension files in place under the same unpacked-path identity, verifies the full migration (playlist/order/name/clip preservation, typed-range fan-out, duplicate/missing id repair, preferences, quarantine with original bytes, byte-identical legacy snapshot), restarts the browser, exercises detached Share management keys across a replace import, safe-export/wipe/re-import round-trip, quota/future-schema/interrupted-persistence fault legs, and rollback to v1.
+
+Machine-readable results land in `.omo/evidence/task-26-d-op-v2-share/upgrade-<browser>.json` plus before/after storage snapshots and the two safe-export files.
+
+Browser-specific notes:
+
+- Chromium uses Chrome for Testing (`tools/browser-cache/chrome-153`) via Playwright; the unpacked id (`kopmhdpbgncfmjjbocejkenkkbkiefnb`) derives from the extension path, not the Web Store listing.
+- Firefox uses the installed Firefox binary + geckodriver (`WebDriverClient`, never Playwright's Firefox); identity is the gecko id `d-op@sasnews.dev` with a pinned `extensions.webextensions.uuids` entry so `storage.local` survives restarts. The Firefox leg records `quota/browser-level quota injection` as NOT RUN: its storage.local did not reject after 3400 items / ~18.8 MB, so fail-closed quota coverage comes from the Vitest fault leg plus the chromium browser leg.
+- Neither leg exercises signed/store update continuity — the store-signed identities (Chrome `mcjkaoagedekadnimbcbkhdkgpbnnodc`, Firefox `d-op@sasnews.dev`) are distinct from unpacked-path installs, and signing credentials are not part of the rehearsal.
