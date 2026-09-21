@@ -132,6 +132,7 @@ export {
   ShareIdSchema,
   SUPPORTED_ORIGINS,
   sortCanonicalTags,
+  TRANSIENT_STATE_KEY,
 } from "./limits"
 export type {
   LegacyImportResult,
@@ -148,6 +149,7 @@ export type {
   PublicationState,
   QuarantineEntry,
   SafeExportEnvelope,
+  StorageRequest,
   TransientOpEdMode,
   TransientPlayback,
   TransientPlayerWindow,
@@ -174,6 +176,7 @@ export {
   QuarantineEntrySchema,
   repairMissingId,
   SafeExportEnvelopeSchema,
+  StorageRequestSchema,
   TransientOpEdModeSchema,
   TransientPlaybackSchema,
   TransientPlayerWindowSchema,

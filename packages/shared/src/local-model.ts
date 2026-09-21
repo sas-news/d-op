@@ -72,6 +72,12 @@ export const OperationReceiptSchema = z.strictObject({
   expectedRevision: z.number().int().min(0),
   resultingRevision: z.number().int().min(0),
   kind: z.string().min(1).max(64),
+  requestHash: ContentHashSchema,
+  result: z.strictObject({
+    kind: z.literal("committed"),
+    operationId: z.uuid(),
+    revision: z.number().int().min(1),
+  }),
   createdAt: IsoDateTimeSchema,
 })
 export type OperationReceipt = z.infer<typeof OperationReceiptSchema>
@@ -107,7 +113,8 @@ export const TransientPlaybackSchema = z.strictObject({
   index: z.number().int().min(0),
   shuffledIndices: z.array(z.number().int().min(0)).optional(),
   updatedAt: z.number().int().min(0),
-  windowId: z.number().int().optional(),
+  ownerToken: z.uuid(),
+  ownerGeneration: z.number().int().min(1),
 })
 export type TransientPlayback = z.infer<typeof TransientPlaybackSchema>
 export const TransientOpEdModeSchema = z.strictObject({
@@ -117,6 +124,8 @@ export const TransientOpEdModeSchema = z.strictObject({
 export type TransientOpEdMode = z.infer<typeof TransientOpEdModeSchema>
 export const TransientPlayerWindowSchema = z.strictObject({
   windowId: z.number().int(),
+  ownerToken: z.uuid(),
+  ownerGeneration: z.number().int().min(1),
   left: z.number().int().optional(),
   top: z.number().int().optional(),
   width: z.number().int().min(1).optional(),
@@ -124,6 +133,8 @@ export const TransientPlayerWindowSchema = z.strictObject({
 })
 export type TransientPlayerWindow = z.infer<typeof TransientPlayerWindowSchema>
 export const TransientStateSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  generation: z.number().int().min(0),
   playback: TransientPlaybackSchema.optional(),
   opedMode: TransientOpEdModeSchema.optional(),
   playerWindow: TransientPlayerWindowSchema.optional(),
@@ -168,8 +179,42 @@ export const LocalCommandSchema = z.discriminatedUnion("kind", [
     kind: z.literal("replace-library"),
     playlists: z.array(LocalPlaylistSchema),
   }),
+  z.strictObject({
+    ...LocalCommandBase,
+    kind: z.literal("set-preferences"),
+    preferences: LocalPreferencesSchema,
+  }),
+  z.strictObject({
+    ...LocalCommandBase,
+    kind: z.literal("put-publication"),
+    publication: PublicationRecordSchema,
+  }),
+  z.strictObject({
+    ...LocalCommandBase,
+    kind: z.literal("discard-publication-management"),
+    shareId: ShareIdSchema,
+  }),
+  z.strictObject({
+    ...LocalCommandBase,
+    kind: z.literal("put-pending-create"),
+    pendingCreate: PendingCreateSchema,
+  }),
+  z.strictObject({
+    ...LocalCommandBase,
+    kind: z.literal("remove-pending-create"),
+    pendingOperationId: z.uuid(),
+  }),
 ])
 export type LocalCommand = z.infer<typeof LocalCommandSchema>
+
+export const StorageRequestSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("DOP_STORAGE_READ_PUBLIC") }),
+  z.strictObject({ type: z.literal("DOP_STORAGE_READ_VAULT") }),
+  z.strictObject({ type: z.literal("DOP_STORAGE_COMMAND"), command: LocalCommandSchema }),
+  z.strictObject({ type: z.literal("DOP_STORAGE_READ_TRANSIENT") }),
+  z.strictObject({ type: z.literal("DOP_STORAGE_WRITE_TRANSIENT"), state: TransientStateSchema }),
+])
+export type StorageRequest = z.infer<typeof StorageRequestSchema>
 
 export const SafeExportEnvelopeSchema = z.strictObject({
   schemaVersion: z.literal(LOCAL_SCHEMA_VERSION),

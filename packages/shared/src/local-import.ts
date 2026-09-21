@@ -83,7 +83,7 @@ function importPlaylists(
         quarantined.push({
           playlistIndex: p,
           itemIndex: i,
-          originalJson: JSON.stringify(rawItem),
+          originalJson: JSON.stringify(rawItem).slice(0, 65536),
           issues: [`items.${i}`],
           reason: "item entry is invalid",
         })

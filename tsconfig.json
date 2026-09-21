@@ -9,6 +9,7 @@
     "vitest.unit.config.ts",
     "playwright.config.ts",
     "tests/e2e/harness.spec.ts",
+    "tests/e2e/extension-storage.spec.ts",
     "tests/e2e/web-shell.spec.ts"
   ],
   "exclude": ["**/node_modules", "**/dist", "**/.output", "**/.wxt", "**/.astro"],

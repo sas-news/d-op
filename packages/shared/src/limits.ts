@@ -13,6 +13,7 @@ export const LEGACY_MIGRATION_VERSION = 1 as const
 // --- Local storage ---------------------------------------------------------
 
 export const LOCAL_STATE_KEY = "dop_v2_state" as const
+export const TRANSIENT_STATE_KEY = "dop_v2_transient" as const
 export const LEGACY_STORAGE_KEYS = [
   "dop_playlists",
   "dop_playback",

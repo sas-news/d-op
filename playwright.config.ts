@@ -2,8 +2,7 @@ import { defineConfig } from "@playwright/test"
 
 // Task-5 Playwright harness plus task-4 Web shell coverage. web-chromium and
 // web-firefox run the synthetic fixture suite plus the Astro SSR shell spec;
-// extension-chromium is scaffolding for later extension specs (tasks 9/10) and
-// matches no files yet.
+// extension-chromium loads the real unpacked WXT output for extension acceptance.
 // Retries stay 0 so flakes surface instead of hiding; a missing browser binary
 // is an explicit launch failure, never a skip (no test.skip on browser absence).
 const FIXTURE_URL = "http://127.0.0.1:8123/harness.html"
