@@ -64,6 +64,7 @@ export default defineBackground(() => {
   // records through the repository. Content scripts and pages get `forbidden`.
   const shareManage = createShareManagementHandler({
     repository,
+    driver,
     extensionId: browser.runtime.id,
     extensionOrigin: new URL(browser.runtime.getURL("/")).origin,
   })

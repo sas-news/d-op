@@ -6,7 +6,12 @@ import {
   type SharedPlaylist,
 } from "../../../../../packages/shared/src/index"
 import { requireDb } from "../env"
-import { getActiveSnapshot } from "../repositories/snapshots/read"
+import {
+  getActiveSnapshot,
+  listPublicRemixChildren,
+  REMIX_PAGE_SIZE,
+  type RemixChildrenPage,
+} from "../repositories/snapshots/read"
 import type { StoredSnapshot } from "../repositories/types"
 import { parseShareIdParam } from "../security/http"
 import { checkAdmission } from "./admission"
@@ -36,6 +41,25 @@ export type SharePageItemView = {
   readonly durationLabel: string
 }
 
+/** One direct Remix child (task 20): title + link + counts, nothing more. */
+export type ShareRemixItemView = {
+  readonly title: string
+  readonly url: string
+  readonly clipCount: number
+  readonly publishedAtLabel: string
+}
+
+/**
+ * Bounded direct-children page — no recursion, no graph. `total` counts only
+ * children that are currently active+public+unblocked (checked at read time).
+ */
+export type ShareRemixView = {
+  readonly items: readonly ShareRemixItemView[]
+  readonly total: number
+  readonly page: number
+  readonly nextUrl: string | null
+}
+
 export type SharePageView = {
   readonly shareId: string
   readonly canonicalUrl: string
@@ -56,6 +80,7 @@ export type SharePageView = {
   readonly ogTitle: string
   readonly ogDescription: string
   readonly xIntentUrl: string
+  readonly remix: ShareRemixView
 }
 
 export type SharePageResult =
@@ -109,13 +134,27 @@ export async function loadSharePage(
       playlist: snapshot.snapshot,
       parentPublic: await parentIsPublic(db, snapshot.snapshot.derivedFrom),
     })
+    const remix = await listPublicRemixChildren(db, shareId, remixPage(request))
     return {
       kind: "ready",
-      view: buildView(snapshot, projection.playlist, projection.source, publishedAt),
+      view: buildView(snapshot, projection.playlist, projection.source, publishedAt, remix),
     }
   } catch {
     return { kind: "unavailable", status: 503, retryAfter: null }
   }
+}
+
+/**
+ * `?remix=<n>` page selector for the direct-children list. Out-of-range or
+ * malformed values fold back to page 1 — a page param never becomes an error
+ * surface on a public read.
+ */
+function remixPage(request: Request): number {
+  const raw = new URL(request.url).searchParams.get("remix")
+  if (raw === null) return 1
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed < 1) return 1
+  return parsed
 }
 
 function buildView(
@@ -123,6 +162,7 @@ function buildView(
   playlist: SharedPlaylist,
   source: DerivedFrom | null,
   publishedAt: string,
+  remix: RemixChildrenPage,
 ): SharePageView {
   const canonicalUrl = `${SHARE_SITE_ORIGIN}/p/${snapshot.shareId}`
   const items = playlist.items.map((item, index) => {
@@ -143,9 +183,17 @@ function buildView(
   )
   const totalDurationLabel = formatDurationJa(totalDurationMs)
   const ogTitle = playlist.title
-  const ogDescription = `${items.length}クリップ・合計${totalDurationLabel}の共有プレイリスト${excerptSuffix(
-    playlist.description,
-  )}`
+  // The Remix marker is projected with the source link: a hidden/deleted
+  // parent removes the marker from OGP too, never leaving stale lineage.
+  const ogDescription = `${items.length}クリップ・合計${totalDurationLabel}の共有プレイリスト${
+    source === null ? "" : "（Remix）"
+  }${excerptSuffix(playlist.description)}`
+  const remixItems: ShareRemixItemView[] = remix.items.map((child) => ({
+    title: child.title,
+    url: `/p/${child.shareId}`,
+    clipCount: child.itemCount,
+    publishedAtLabel: formatDateJa(child.firstPublishedAt ?? child.createdAt),
+  }))
   const intent = new URL("https://x.com/intent/post")
   intent.searchParams.set("url", canonicalUrl)
   intent.searchParams.set("text", `${playlist.title} | d-OP Share`)
@@ -168,6 +216,15 @@ function buildView(
     ogTitle,
     ogDescription,
     xIntentUrl: intent.toString(),
+    remix: {
+      items: remixItems,
+      total: remix.total,
+      page: remix.page,
+      nextUrl:
+        remix.page * REMIX_PAGE_SIZE < remix.total
+          ? `/p/${snapshot.shareId}?remix=${remix.page + 1}`
+          : null,
+    },
   }
 }
 

@@ -21,6 +21,7 @@ import {
   confirmRow,
   describeRemoteReply,
   describeShareReply,
+  describeSourceState,
   line,
   metadataSection,
   readShareForm,
@@ -63,6 +64,8 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
     let resultText = ""
     let resultError = false
     let remoteText = ""
+    // Task 20: first-publish provenance preview line (async, advisory).
+    let sourceText = ""
     let forceRevision: number | undefined
     let publishOpId = deps.newId()
     let updateOpId: string | undefined
@@ -124,7 +127,8 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
           closeModal("close")
           return
         case "inspect":
-          // Inspect renders into the remote line only — no result text.
+        case "source":
+          // Inspect/source render into their own lines only — no result text.
           return
         case "conflict":
           updateOpId = undefined
@@ -174,6 +178,19 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
         }
         return reply
       })
+    }
+
+    /**
+     * First-publish provenance preview (task 20): one advisory background
+     * call, result rendered as a status line only while the playlist is still
+     * unpublished. The publish flow re-resolves authoritively — this text
+     * never decides the payload.
+     */
+    async function doSource(): Promise<void> {
+      const reply = await deps.manage.source({ playlistId })
+      if (reply.status !== "source") return
+      sourceText = describeSourceState(reply)
+      if (record === undefined) render()
     }
 
     function discardConfirmed(shareId: string): void {
@@ -320,6 +337,21 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
           )
         }),
       )
+      // Provenance honesty line: an acknowledged snapshot that carries
+      // derivedFrom shows its (public-or-redacted) source link; a first
+      // publish shows the async preview text once it resolves.
+      const acknowledged = record === undefined ? undefined : snapshotMetadata(record)
+      if (acknowledged?.derivedFrom !== undefined) {
+        container.appendChild(
+          line(
+            doc,
+            "share-source-line",
+            `Remix元: ${sharePageUrl(acknowledged.derivedFrom.shareId)}`,
+          ),
+        )
+      } else if (record === undefined && sourceText !== "") {
+        container.appendChild(line(doc, "share-source-line", sourceText))
+      }
       if (record === undefined || record.state === "active") {
         container.append(
           ...metadataSection(
@@ -390,6 +422,8 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
 
     // Opening management reconciles remote state once (explicit action only).
     if (record !== undefined && record.state === "active") void doInspect()
+    // First publish: surface the private import-provenance preview (task 20).
+    if (record === undefined) void doSource()
 
     await modalPromise
     unsubscribe?.()

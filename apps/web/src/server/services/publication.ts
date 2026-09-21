@@ -50,6 +50,23 @@ export async function createPublication(request: Request, requestId: string): Pr
     const now = new Date()
     await expirePendingProvisionals(db, now)
     const shareId = generateShareId()
+    // Task 20: a derivedFrom claim is a first-publication-only link to an
+    // existing OLDER public source. Anything else — missing, pending,
+    // unlisted, blocked, deleted, self, a future/unknown revision, or a
+    // parent not yet published before this create — is rejected as a schema
+    // error so a forged lineage can never be stored.
+    if (
+      parsed.data.derivedFrom !== undefined &&
+      !(await derivedFromAcceptable(db, parsed.data.derivedFrom, shareId, now))
+    ) {
+      return errorResponse({
+        status: 422,
+        code: "SCHEMA_INVALID",
+        message: "derivedFrom must reference an existing older public share",
+        requestId,
+        details: ["derivedFrom"],
+      })
+    }
     const manageSecret = generateManageSecret()
     const result = await createPendingSnapshot(db, {
       shareId,
@@ -140,6 +157,28 @@ export async function parentIsPublic(
   if (derivedFrom === undefined) return false
   const parent = await getActiveSnapshot(db, derivedFrom.shareId)
   return parent !== null && parent.visibility === "public" && !parent.blocked
+}
+
+/**
+ * Create-time lineage gate (task 20): the claimed parent must exist as an
+ * active, public, unblocked row, the referenced revision must not exceed the
+ * parent's current revision, and the parent must already have been published
+ * strictly before this request — which makes cycles (child-as-parent) and
+ * self-reference impossible to accept. The check runs at create only;
+ * replace can never change the stored link.
+ */
+async function derivedFromAcceptable(
+  db: D1Database,
+  derivedFrom: DerivedFrom,
+  shareId: string,
+  now: Date,
+): Promise<boolean> {
+  if (derivedFrom.shareId === shareId) return false
+  const parent = await getActiveSnapshot(db, derivedFrom.shareId)
+  if (parent === null || parent.visibility !== "public" || parent.blocked) return false
+  if (derivedFrom.revision > parent.revision) return false
+  if (parent.firstPublishedAt === null) return false
+  return Date.parse(parent.firstPublishedAt) < now.getTime()
 }
 
 /** Field paths for `details` — validated issue paths only, root becomes "body". */

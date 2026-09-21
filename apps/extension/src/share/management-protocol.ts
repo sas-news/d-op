@@ -75,12 +75,23 @@ export type ShareManageInspectRequest = {
   readonly shareId: string
 }
 
+/**
+ * Task 20: read-only provenance preview for the first-publish dialog — does
+ * this playlist carry an imported-from record, and would the source link be
+ * attached right now? Answers intent only; no playlist data crosses.
+ */
+export type ShareManageSourceRequest = {
+  readonly kind: "share-manage-source"
+  readonly playlistId: string
+}
+
 export type ShareManageRequest =
   | ShareManagePublishRequest
   | ShareManageActivateRequest
   | ShareManageUpdateRequest
   | ShareManageDeleteRequest
   | ShareManageInspectRequest
+  | ShareManageSourceRequest
 
 function parseMetadata(input: unknown): ShareManageMetadata | undefined {
   if (!isRecord(input)) return undefined
@@ -160,6 +171,15 @@ export function parseShareManageMessage(input: unknown): ShareManageRequest | un
     case "share-manage-inspect":
       if (!isShareId(input["shareId"])) return undefined
       return input as unknown as ShareManageInspectRequest
+    case "share-manage-source":
+      if (
+        typeof input["playlistId"] !== "string" ||
+        input["playlistId"].length === 0 ||
+        input["playlistId"].length > 256
+      ) {
+        return undefined
+      }
+      return input as unknown as ShareManageSourceRequest
     default:
       return undefined
   }
@@ -168,6 +188,17 @@ export function parseShareManageMessage(input: unknown): ShareManageRequest | un
 // --- background → options page -------------------------------------------------
 
 export type ShareManageRemoteState = "active" | "absent" | "unknown"
+
+/**
+ * Task-20 provenance outcome for a first publish:
+ *  - "none": no import record for this playlist.
+ *  - "linked": the public payload will carry derivedFrom (parent is public).
+ *  - "withheld": the parent is unlisted/deleted — the link stays PRIVATE in
+ *    local provenance and is omitted from the public payload and hash.
+ *  - "unknown": the parent's current state could not be checked (transient);
+ *    publish aborts retryably rather than silently dropping the link.
+ */
+export type ShareManageSourceState = "none" | "linked" | "withheld" | "unknown"
 
 export type ShareManageStatus =
   | "published"
@@ -187,6 +218,7 @@ export type ShareManageStatus =
   | "forbidden"
   | "failed"
   | "inspect"
+  | "source"
 
 export const SHARE_MANAGE_STATUSES: readonly ShareManageStatus[] = [
   "published",
@@ -206,6 +238,7 @@ export const SHARE_MANAGE_STATUSES: readonly ShareManageStatus[] = [
   "forbidden",
   "failed",
   "inspect",
+  "source",
 ]
 
 export type ShareManageReason = { readonly path: string; readonly message: string }
@@ -222,6 +255,10 @@ export type ShareManageReply = {
   readonly remoteUpdatedAt?: string
   /** Remote snapshot differs from the acknowledged hash (inspect only). */
   readonly diverged?: boolean
+  /** Provenance outcome — "source" replies and "published" acknowledgements. */
+  readonly sourceState?: ShareManageSourceState
+  /** Local import-record title (private; never a remote lookup result). */
+  readonly sourceTitle?: string
   readonly reasons?: readonly ShareManageReason[]
   readonly message?: string
 }
@@ -246,6 +283,7 @@ export type ShareManageClient = {
     request: Omit<ShareManageDeleteRequest, "kind">,
   ) => Promise<ShareManageReply>
   readonly inspect: (request: Omit<ShareManageInspectRequest, "kind">) => Promise<ShareManageReply>
+  readonly source: (request: Omit<ShareManageSourceRequest, "kind">) => Promise<ShareManageReply>
 }
 
 const MALFORMED: ShareManageReply = { kind: "share-manage-result", status: "failed" }
@@ -269,5 +307,6 @@ export function createShareManageClient(sendMessage: SendMessage): ShareManageCl
     update: (request) => call(sendMessage, { kind: "share-manage-update", ...request }),
     deleteRemote: (request) => call(sendMessage, { kind: "share-manage-delete", ...request }),
     inspect: (request) => call(sendMessage, { kind: "share-manage-inspect", ...request }),
+    source: (request) => call(sendMessage, { kind: "share-manage-source", ...request }),
   }
 }

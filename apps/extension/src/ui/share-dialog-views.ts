@@ -61,6 +61,12 @@ export function shareDirtyText(dirty: PublicationDirty | undefined): string {
 export function describeShareReply(reply: ShareManageReply): string {
   switch (reply.status) {
     case "published":
+      if (reply.sourceState === "linked") {
+        return "公開しました。元の公開プレイリストへのリンクを記録しました。"
+      }
+      if (reply.sourceState === "withheld") {
+        return "公開しました。元の公開プレイリストは現在公開されていないため、ソースリンクは記録されませんでした。"
+      }
       return "公開しました。"
     case "activated":
       return "公開が有効化されました。"
@@ -88,6 +94,27 @@ export function describeShareReply(reply: ShareManageReply): string {
       return reply.message ?? "その状態では実行できません。"
     default:
       return reply.message ?? "失敗しました。"
+  }
+}
+
+/**
+ * First-publish provenance preview line (task 20). The source title comes
+ * from the LOCAL import record — private data, shown only to its owner.
+ * "unknown" means the check could not complete; publish then aborts
+ * retryably rather than dropping the link silently.
+ */
+export function describeSourceState(reply: ShareManageReply): string {
+  const title = reply.sourceTitle
+  const prefix = title === undefined || title === "" ? "インポート元" : `インポート元「${title}」`
+  switch (reply.sourceState) {
+    case "linked":
+      return `${prefix}: 公開すると元の公開プレイリストへのリンクが記録されます。`
+    case "withheld":
+      return `${prefix}: 元の公開プレイリストは現在公開されていないため、リンクは記録されません。`
+    case "unknown":
+      return `${prefix}: 元の公開プレイリストの状態を確認できませんでした。`
+    default:
+      return ""
   }
 }
 

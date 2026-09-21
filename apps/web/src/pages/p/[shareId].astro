@@ -38,7 +38,7 @@ const description =
     {result.kind === "ready" ? (
       <>
         <link rel="canonical" href={result.view.canonicalUrl} />
-        {result.view.visibility === "unlisted" && (
+        {(result.view.visibility === "unlisted" || result.view.remix.page > 1) && (
           <meta name="robots" content="noindex" />
         )}
         <meta property="og:type" content="website" />
@@ -137,6 +137,30 @@ const description =
 
       <ShareSavePanel shareId={result.view.shareId} />
       <ShareItems items={result.view.items} />
+      {result.view.remix.total > 0 && (
+        <section class="share-remix" aria-labelledby="share-remix-title" data-testid="share-remix">
+          <h2 id="share-remix-title" class="share-remix-title">
+            このプレイリストの Remix（{result.view.remix.total}件）
+          </h2>
+          <ul class="share-remix-list">
+            {result.view.remix.items.map((item) => (
+              <li class="share-remix-item" data-testid="share-remix-item">
+                <a href={item.url}>{item.title}</a>
+                <span class="share-remix-meta">
+                  {item.clipCount}クリップ・{item.publishedAtLabel}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {result.view.remix.nextUrl !== null && (
+            <p class="share-remix-more">
+              <a href={result.view.remix.nextUrl} data-testid="share-remix-next">
+                次のページ
+              </a>
+            </p>
+          )}
+        </section>
+      )}
       <script is:inline src="/share-page.js" defer></script>
     </>
   ) : result.kind === "unavailable" ? (
@@ -266,5 +290,56 @@ const description =
     font-size: var(--text-xs);
     overflow-wrap: anywhere;
     user-select: all;
+  }
+
+  .share-remix {
+    padding-block: 0 var(--space-8);
+  }
+
+  .share-remix-title {
+    font-size: var(--text-lg);
+    letter-spacing: -0.01em;
+  }
+
+  .share-remix-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .share-remix-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  .share-remix-item a {
+    color: var(--color-info);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .share-remix-meta {
+    color: var(--color-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+  }
+
+  .share-remix-more {
+    margin-top: var(--space-4);
+    font-size: var(--text-sm);
+  }
+
+  .share-remix-more a {
+    color: var(--color-info);
   }
 </style>

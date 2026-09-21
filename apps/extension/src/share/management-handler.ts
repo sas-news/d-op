@@ -3,6 +3,7 @@
 // pages and other extension surfaces get `forbidden`. The handler parses the
 // typed message, delegates to the flow, and converts any internal throw into
 // a bounded `failed` reply so sendMessage never rejects into the page.
+import type { StorageDriver } from "../storage/driver"
 import type { LocalRepository } from "../storage/repository"
 import type { FetchLike } from "./api-client"
 import { createShareManagementFlow } from "./management-flow"
@@ -23,6 +24,8 @@ export type ShareManagementHandlerDeps = {
   readonly extensionOrigin: string
   /** Pathname of the privileged management surface (default /options.html). */
   readonly optionsPath?: string
+  /** Import-provenance store — enables derivedFrom resolution on publish. */
+  readonly driver?: StorageDriver
   readonly apiOrigin?: string
   readonly fetchImpl?: FetchLike
   readonly now?: () => string
@@ -70,6 +73,8 @@ export function createShareManagementHandler(deps: ShareManagementHandlerDeps) {
           return flow.deleteRemote(parsed)
         case "share-manage-inspect":
           return flow.inspect(parsed.shareId)
+        case "share-manage-source":
+          return flow.source(parsed.playlistId)
       }
     }
     return run().catch(() => FAILED)

@@ -73,6 +73,24 @@ export async function readImportRecords(driver: StorageDriver): Promise<readonly
 }
 
 /**
+ * Most recent provenance for a local playlist (task 20). Records append in
+ * order, so the LAST match wins; a playlist never imported has none. This is
+ * the only lookup publish-time code may use — the record carries the source
+ * shareId/revision but never a capability.
+ */
+export async function latestImportFor(
+  driver: StorageDriver,
+  playlistId: string,
+): Promise<ImportRecord | undefined> {
+  const records = await readImportRecords(driver)
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const record = records[index]
+    if (record !== undefined && record.playlistId === playlistId) return record
+  }
+  return undefined
+}
+
+/**
  * Append one record, pruning entries whose playlistId is absent from
  * `livePlaylistIds` (deleted local copies drop their provenance) and capping
  * the list. Non-atomic with the playlist commit by design: a missing record

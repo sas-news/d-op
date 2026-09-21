@@ -157,6 +157,10 @@ let hostileId = ""
 let pendingId = ""
 let blockedId = ""
 let deletedId = ""
+let remixParentId = ""
+let remixChildId = ""
+let remixHiddenParentId = ""
+let remixHiddenChildId = ""
 const ABSENT_ID = "A".repeat(22)
 
 test.beforeAll(() => {
@@ -260,6 +264,63 @@ test.beforeAll(() => {
   // removed/deleted state: hard delete inside the same seed file — the row
   // exists and is gone before the suite starts (identical to the API path).
   statements.push(`DELETE FROM playlists WHERE share_id = ${sqlString(deletedId)}`)
+  // Task-20 remix fixtures: a live parent+child pair, plus a child whose
+  // parent is blocked — seeded directly because post-hoc hiding is exactly
+  // the state create-time validation prevents from ever being written.
+  // NOTE: titles must NOT start with "e2e" — discover.spec.ts deletes
+  // `title LIKE 'e2e%'` in its own beforeAll and would wipe these seeds
+  // mid-run (parallel specs share the one local D1 file).
+  remixParentId = seedSql(
+    shareId(),
+    {
+      title: "Remix元リスト",
+      description: "",
+      author: "検証者",
+      tags: ["remix"],
+      visibility: "public",
+      items: EIGHT_CLIPS.slice(0, 2),
+    },
+    statements,
+  )
+  remixChildId = seedSql(
+    shareId(),
+    {
+      title: "Remix子リスト",
+      description: "",
+      author: "検証者",
+      tags: ["remix"],
+      visibility: "public",
+      items: EIGHT_CLIPS.slice(0, 2),
+      derivedFrom: { shareId: remixParentId, revision: 2 },
+    },
+    statements,
+  )
+  remixHiddenParentId = seedSql(
+    shareId(),
+    {
+      title: "隠されたRemix元",
+      description: "",
+      author: "検証者",
+      tags: ["remix-hidden"],
+      visibility: "public",
+      items: EIGHT_CLIPS.slice(0, 1),
+      blocked: true,
+    },
+    statements,
+  )
+  remixHiddenChildId = seedSql(
+    shareId(),
+    {
+      title: "Remix隠し元の子",
+      description: "",
+      author: "検証者",
+      tags: ["remix"],
+      visibility: "public",
+      items: EIGHT_CLIPS.slice(0, 1),
+      derivedFrom: { shareId: remixHiddenParentId, revision: 2 },
+    },
+    statements,
+  )
   d1Execute(statements)
 })
 
@@ -397,6 +458,41 @@ test("save/install shell offers a safe disabled state plus store links", async (
     "href",
     /addons\.mozilla\.org/,
   )
+})
+
+test("remix provenance: source link, direct-children list, and hidden-parent redaction", async ({
+  page,
+}) => {
+  // Child page: the live public parent projects a source link + OGP marker.
+  await page.goto(`${WEB_ORIGIN}/p/${remixChildId}`)
+  await expect(page.locator("[data-testid='share-source']")).toBeVisible()
+  await expect(page.locator("[data-testid='share-source'] a")).toHaveAttribute(
+    "href",
+    `/p/${remixParentId}`,
+  )
+  const ogLinked =
+    (await page.locator("meta[property='og:description']").getAttribute("content")) ?? ""
+  expect(ogLinked).toContain("Remix")
+
+  // Parent page: the bounded direct-children list shows the child.
+  await page.goto(`${WEB_ORIGIN}/p/${remixParentId}`)
+  await expect(page.locator("[data-testid='share-remix']")).toBeVisible()
+  await expect(page.locator("[data-testid='share-remix-item'] a")).toHaveText("Remix子リスト")
+  await expect(page.locator("[data-testid='share-remix-item'] a")).toHaveAttribute(
+    "href",
+    `/p/${remixChildId}`,
+  )
+
+  // Hidden parent: the child stays readable but NOTHING references it — no
+  // source link, no id anywhere in the HTML, no OGP Remix marker.
+  await page.goto(`${WEB_ORIGIN}/p/${remixHiddenChildId}`)
+  await expect(page.locator("[data-testid='share-source']")).toHaveCount(0)
+  const ogHidden =
+    (await page.locator("meta[property='og:description']").getAttribute("content")) ?? ""
+  expect(ogHidden).not.toContain("Remix")
+  const html = await page.content()
+  expect(html).not.toContain(remixHiddenParentId)
+  expect(html).not.toContain("隠されたRemix元")
 })
 
 test("long Japanese metadata wraps without horizontal overflow", async ({ page }) => {

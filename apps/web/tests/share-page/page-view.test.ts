@@ -243,12 +243,17 @@ describe("loadSharePage derivedFrom redaction", () => {
     expect(JSON.stringify(redacted.view)).not.toContain(parent.shareId)
   })
 
-  it("redacts a derivedFrom pointing at a share that does not exist", async () => {
+  it("redacts a derivedFrom left dangling after the parent row is gone", async () => {
+    // Create-time validation now refuses unknown parents, so the dangling
+    // state only arises when a formerly valid parent row disappears — seed
+    // that exact shape directly (the delete route hard-removes the row).
+    const parent = await publishPlaylist(makePlaylist({}))
     const derived = SharedPlaylistSchema.parse({
       ...makePlaylist({}),
-      derivedFrom: { shareId: "BBBBBBBBBBBBBBBBBBBBBB", revision: 1 },
+      derivedFrom: { shareId: parent.shareId, revision: 2 },
     })
     const child = await publishPlaylist(derived)
+    await db().prepare("DELETE FROM playlists WHERE share_id = ?1").bind(parent.shareId).run()
     const result = await loadSharePage(
       child.shareId,
       pageRequest(child.shareId),
@@ -257,7 +262,7 @@ describe("loadSharePage derivedFrom redaction", () => {
     expect(result.kind).toBe("ready")
     if (result.kind !== "ready") return
     expect(result.view.sourceUrl).toBeNull()
-    expect(JSON.stringify(result.view)).not.toContain("BBBBBBBBBBBBBBBBBBBBBB")
+    expect(JSON.stringify(result.view)).not.toContain(parent.shareId)
   })
 })
 

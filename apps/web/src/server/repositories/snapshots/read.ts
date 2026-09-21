@@ -1,4 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types"
+import { SnapshotRepositoryError } from "../errors"
 import { type PlaylistRow, toPlaylistRow, toStoredSnapshot } from "../rows"
 import type { StoredSnapshot } from "../types"
 
@@ -37,6 +38,72 @@ export async function getActiveSnapshot(
   const row = await readRow(db, shareId)
   if (row === null || row.state !== "active") return null
   return toStoredSnapshot(row)
+}
+
+// --- Direct Remix children (task 20) ------------------------------------------
+//
+// The public page's "Remix" section is a bounded, paginated DIRECT-children
+// view over the same eligibility rule as discovery — active + public +
+// unblocked — rechecked at read time. No graph traversal: children only,
+// never grandchildren, and hidden/deleted parents or children simply drop
+// out of the result.
+
+export const REMIX_PAGE_SIZE = 10 as const
+/** Hard cap on reachable pages so OFFSET stays bounded no matter the input. */
+export const REMIX_PAGE_MAX = 50 as const
+
+export type RemixChildRow = {
+  readonly shareId: string
+  readonly title: string
+  readonly itemCount: number
+  readonly firstPublishedAt: string | null
+  readonly createdAt: string
+}
+
+export type RemixChildrenPage = {
+  readonly items: readonly RemixChildRow[]
+  readonly total: number
+  readonly page: number
+}
+
+export async function listPublicRemixChildren(
+  db: D1Database,
+  parentShareId: string,
+  page: number,
+): Promise<RemixChildrenPage> {
+  const bounded = Math.min(Math.max(Math.trunc(page), 1), REMIX_PAGE_MAX)
+  const where = `derived_from_share_id = ?1
+     AND state = 'active' AND visibility = 'public' AND blocked = 0`
+  const counted = await db
+    .prepare(`SELECT COUNT(*) AS c FROM playlists WHERE ${where}`)
+    .bind(parentShareId)
+    .first<{ c: number }>()
+  const total = typeof counted?.c === "number" ? counted.c : 0
+  const rows = await db
+    .prepare(
+      `SELECT share_id, title, item_count, first_published_at, created_at
+       FROM playlists
+       WHERE ${where}
+       ORDER BY first_published_at DESC, share_id ASC
+       LIMIT ?2 OFFSET ?3`,
+    )
+    .bind(parentShareId, REMIX_PAGE_SIZE, (bounded - 1) * REMIX_PAGE_SIZE)
+    .all<Record<string, unknown>>()
+  const items: RemixChildRow[] = []
+  for (const row of rows.results) {
+    if (typeof row["share_id"] !== "string" || typeof row["title"] !== "string") {
+      throw new SnapshotRepositoryError("CORRUPT_ROW", "remix child row has unexpected shape")
+    }
+    items.push({
+      shareId: row["share_id"],
+      title: row["title"],
+      itemCount: typeof row["item_count"] === "number" ? row["item_count"] : 0,
+      firstPublishedAt:
+        typeof row["first_published_at"] === "string" ? row["first_published_at"] : null,
+      createdAt: typeof row["created_at"] === "string" ? row["created_at"] : "",
+    })
+  }
+  return { items, total, page: bounded }
 }
 
 /** Ordered canonical tag list via the relational join table (for verification). */

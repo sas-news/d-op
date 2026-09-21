@@ -13,6 +13,7 @@ import {
   UnpublishablePlaylistError,
 } from "../../../../packages/shared/src/share-model"
 import { toPublishProjection } from "../../../../packages/shared/src/share-projection"
+import type { StorageDriver } from "../storage/driver"
 import type { LocalRepository } from "../storage/repository"
 import { type FetchLike, fetchSharedPlaylist } from "./api-client"
 import { createVaultCommitter, networkFailure, reply, unpublishableReply } from "./flow-helpers"
@@ -21,13 +22,17 @@ import type {
   ShareManageDeleteRequest,
   ShareManagePublishRequest,
   ShareManageReply,
+  ShareManageSourceState,
   ShareManageUpdateRequest,
 } from "./management-protocol"
 import { SHARE_ORIGIN, sharePageUrl } from "./origins"
+import { type ImportRecord, latestImportFor } from "./provenance"
 import { publishPlaylist } from "./publish-flow"
 
 export type ShareManagementFlowDeps = {
   readonly repository: LocalRepository
+  /** Import-provenance store (dop_v2_imports) — powers derivedFrom resolve. */
+  readonly driver?: StorageDriver
   readonly apiOrigin?: string
   readonly fetchImpl?: FetchLike
   readonly now?: () => string
@@ -45,7 +50,49 @@ export function createShareManagementFlow(deps: ShareManagementFlowDeps) {
   const vault = createVaultCommitter(deps.repository, newId)
 
   const publish = (input: ShareManagePublishRequest): Promise<ShareManageReply> =>
-    publishPlaylist({ repository: deps.repository, vault, clientBase, now, newId }, input)
+    publishPlaylist(
+      {
+        repository: deps.repository,
+        vault,
+        clientBase,
+        ...(deps.driver === undefined ? {} : { driver: deps.driver }),
+        now,
+        newId,
+      },
+      input,
+    )
+
+  /**
+   * First-publish provenance preview (task 20): reads the private import
+   * record, then verifies whether the source is CURRENTLY public. The result
+   * is advisory text for the dialog — publish resolves it again authoritively.
+   */
+  async function source(playlistId: string): Promise<ShareManageReply> {
+    const state = async (
+      sourceState: ShareManageSourceState,
+      sourceTitle?: string,
+    ): Promise<ShareManageReply> =>
+      reply("source", {
+        sourceState,
+        ...(sourceTitle === undefined ? {} : { sourceTitle }),
+      })
+    if (deps.driver === undefined) return state("none")
+    let record: ImportRecord | undefined
+    try {
+      record = await latestImportFor(deps.driver, playlistId)
+    } catch {
+      return state("unknown")
+    }
+    if (record === undefined) return state("none")
+    const parent = await fetchSharedPlaylist({ ...clientBase, shareId: record.shareId })
+    if (parent.kind === "ok") {
+      return state(
+        parent.response.playlist.visibility === "public" ? "linked" : "withheld",
+        record.title,
+      )
+    }
+    return state(parent.reason === "not-found" ? "withheld" : "unknown", record.title)
+  }
 
   async function activate(input: {
     readonly shareId: string
@@ -212,7 +259,7 @@ export function createShareManagementFlow(deps: ShareManagementFlowDeps) {
     })
   }
 
-  return { publish, activate, update, deleteRemote, inspect }
+  return { publish, activate, update, deleteRemote, inspect, source }
 }
 
 export type ShareManagementFlow = ReturnType<typeof createShareManagementFlow>

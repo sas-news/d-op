@@ -3,12 +3,14 @@ import type { D1Database } from "@cloudflare/workers-types"
 import {
   contentHashOf,
   DeletePlaylistBodySchema,
+  type DerivedFrom,
   issuePaths,
   PatchPlaylistBodySchema,
 } from "../../../../../packages/shared/src/index"
 import { requireDb } from "../env"
 import { activateSnapshot } from "../repositories/snapshots/activate"
 import { deleteSnapshot } from "../repositories/snapshots/delete"
+import { getActiveSnapshot } from "../repositories/snapshots/read"
 import { replaceSnapshot } from "../repositories/snapshots/replace"
 import { extractBearerSecret, manageSecretHash } from "../security/capability"
 import { parseShareIdParam, readIdempotencyKey, readJsonBody } from "../security/http"
@@ -52,6 +54,26 @@ export async function patchPublication(
     }
     const { db, shareId, secretHash, operationKey, now } = intake
     const operation = parsed.data
+    // Task 20: derivedFrom is first-publication provenance and immutable.
+    // A replace that adds, removes or rewrites the stored lineage is a schema
+    // error — this also closes self-reference/cycle attempts through update.
+    // The pre-check is race-safe: every accepted replace must preserve the
+    // stored link, so it can never legitimately change while the row lives.
+    if (operation.operation === "replace") {
+      const stored = await getActiveSnapshot(db, shareId)
+      if (
+        stored !== null &&
+        !sameDerivedFrom(stored.snapshot.derivedFrom, operation.playlist.derivedFrom)
+      ) {
+        return errorResponse({
+          status: 422,
+          code: "SCHEMA_INVALID",
+          message: "derivedFrom is fixed at first publication and cannot change",
+          requestId,
+          details: ["playlist.derivedFrom"],
+        })
+      }
+    }
     const result =
       operation.operation === "activate"
         ? await activateSnapshot(db, {
@@ -114,6 +136,15 @@ export async function deletePublication(
   } catch {
     return transientFailure(requestId)
   }
+}
+
+/** Exact provenance equality — both absent, or same shareId AND revision. */
+function sameDerivedFrom(
+  stored: DerivedFrom | undefined,
+  incoming: DerivedFrom | undefined,
+): boolean {
+  if (stored === undefined || incoming === undefined) return stored === incoming
+  return stored.shareId === incoming.shareId && stored.revision === incoming.revision
 }
 
 // --- shared intake ----------------------------------------------------------

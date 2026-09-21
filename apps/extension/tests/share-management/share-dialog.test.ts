@@ -45,6 +45,7 @@ function manageStub(overrides: Partial<ShareManageClient> = {}): ShareManageClie
     inspect: vi.fn(async () =>
       reply("inspect", { shareId: SHARE_ID, remote: "active", remoteRevision: 2 }),
     ),
+    source: vi.fn(async () => reply("source", { sourceState: "none" })),
     ...overrides,
   }
 }
