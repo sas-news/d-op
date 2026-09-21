@@ -7,14 +7,22 @@ import { defineConfig } from "wxt"
 export default defineConfig({
   // Both target browsers ship MV3 (matching legacy manifest.json / manifest.firefox.json).
   manifestVersion: 3,
-  manifest: ({ browser }) => ({
+  manifest: ({ browser, mode }) => ({
     name: "d-OP",
     version: "0.1.0",
     description:
       "dアニメストアの動画からOP/EDを抽出して連続再生。劇中歌や好きなシーンのプレイリスト化にも対応しています！",
     homepage_url: "https://github.com/sas-news/d-op",
     permissions: ["tabs", "storage"],
-    host_permissions: ["https://animestore.docomo.ne.jp/*", "https://anime.dmkt-sp.jp/*"],
+    host_permissions: [
+      "https://animestore.docomo.ne.jp/*",
+      "https://anime.dmkt-sp.jp/*",
+      // Task 17: the background worker fetches the fixed Share API origin
+      // cross-origin (credentials omitted). Localhost dev origins join ONLY
+      // in non-production builds — they never enter a release manifest.
+      "https://d-op.sasnews.dev/*",
+      ...(mode === "production" ? [] : ["http://localhost:4321/*", "http://127.0.0.1:4321/*"]),
+    ],
     ...(browser === "firefox"
       ? {
           browser_specific_settings: {

@@ -1,5 +1,6 @@
 import { BackgroundRequestSchema, StorageRequestSchema } from "../../../packages/shared/src/index"
 import { createPlayerWindowManager, dispatchLifecycleRequest } from "../src/player/window-manager"
+import { createShareImportHandler, type ShareImportSender } from "../src/share/import-handler"
 import {
   createBrowserStorageDriver,
   createLocalRepository,
@@ -33,9 +34,30 @@ export default defineBackground(() => {
     newOwnerToken: () => crypto.randomUUID(),
   })
 
+  // Share import (task 17): the share-site content-script relay forwards only
+  // {shareId, requestId}; this handler re-validates sender origin/frame/tab,
+  // debounces repeats, opens the extension-owned confirmation window, fetches
+  // the fixed API origin itself, and commits fresh local ids on confirm.
+  const shareImport = createShareImportHandler({
+    repository,
+    driver,
+    extensionId: browser.runtime.id,
+    extensionOrigin: new URL(browser.runtime.getURL("/")).origin,
+    openConfirmation: async (token) => {
+      const url = browser.runtime.getURL(`/import.html?t=${token}`)
+      try {
+        await browser.windows.create({ url, type: "popup", width: 480, height: 620 })
+      } catch {
+        // Popup windows are unsupported on some surfaces — fall back to a tab.
+        await browser.tabs.create({ url, active: true })
+      }
+    },
+  })
+
   // Single message router: storage envelopes go to the repository (the only
-  // persistent writer); lifecycle envelopes go to the window manager. Anything
-  // else returns undefined so other listeners are not broken.
+  // persistent writer); share-import envelopes go to the import handler;
+  // lifecycle envelopes go to the window manager. Anything else returns
+  // undefined so other listeners are not broken.
   browser.runtime.onMessage.addListener((message: unknown, sender) => {
     if (StorageRequestSchema.safeParse(message).success) {
       return handleStorageMessage(message, sender, {
@@ -44,6 +66,8 @@ export default defineBackground(() => {
         extensionId: browser.runtime.id,
       })
     }
+    const importReply = shareImport(message, sender as ShareImportSender)
+    if (importReply !== undefined) return importReply
     const lifecycle = BackgroundRequestSchema.safeParse(message)
     if (lifecycle.success) return dispatchLifecycleRequest(lifecycle.data, windows)
     return undefined

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>共有プレイリストを保存 | d-OP</title>
+  <link rel="stylesheet" href="./import.css">
+</head>
+<body>
+  <main class="container">
+    <h1 class="title">共有プレイリストを保存</h1>
+    <p class="lead">
+      このプレイリストの<strong>コピー</strong>がこのブラウザのローカルストレージに保存されます。
+      保存後の編集・削除は元の公開版に影響しません。自動再生は行われません。
+    </p>
+    <section id="import-preview" class="preview" data-testid="import-preview" hidden>
+      <h2 id="import-title" class="preview-title" data-testid="import-title"></h2>
+      <dl class="preview-stats">
+        <div><dt>クリップ数</dt><dd id="import-count" data-testid="import-count"></dd></div>
+        <div><dt>合計時間</dt><dd id="import-duration" data-testid="import-duration"></dd></div>
+        <div><dt>公開者</dt><dd id="import-author" data-testid="import-author"></dd></div>
+      </dl>
+    </section>
+    <p id="import-status" class="status" role="status" aria-live="polite" data-testid="import-status">
+      読み込み中…
+    </p>
+    <div class="actions">
+      <button id="import-confirm" type="button" class="primary" data-testid="import-confirm" disabled>
+        保存する
+      </button>
+      <button id="import-cancel" type="button" data-testid="import-cancel">キャンセル</button>
+    </div>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

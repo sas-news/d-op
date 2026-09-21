@@ -1,0 +1,62 @@
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0c;
+  --surface: #141417;
+  --line: #2a2a30;
+  --text: #f7f8fa;
+  --muted: #a8abb3;
+  --accent: #e5484d;
+  --accent-soft: #2a1518;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+}
+.container {
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+.title { font-size: 1.25rem; margin: 0 0 0.75rem; }
+.lead { color: var(--muted); font-size: 0.85rem; line-height: 1.6; }
+.preview {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
+.preview-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.preview-stats { display: flex; gap: 1.25rem; margin: 0; }
+.preview-stats dt { color: var(--muted); font-size: 0.7rem; }
+.preview-stats dd { margin: 0.15rem 0 0; font-size: 1rem; font-weight: 700; }
+.status {
+  min-height: 2.5em;
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+button {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+button.primary {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

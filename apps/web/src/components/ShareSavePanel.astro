@@ -1,9 +1,13 @@
 ---
-// Save/install shell for /p/:shareId (task 16). This panel explains how to
-// open the shared playlist in the d-OP extension — the actual extension
-// handshake is task-17 scope and is intentionally NOT faked here: the open
-// button stays disabled, and share-page.js only swaps the guidance copy when
-// the extension advertises itself (data-dop-extension on <html>).
+// Save/install shell for /p/:shareId (tasks 16+17). The open button stays
+// disabled until share-page.js detects the extension marker
+// (data-dop-extension on <html>); when active, clicking it posts ONLY the
+// shareId + a correlation requestId to the extension relay — never playlist
+// JSON. `shareId` is the SSR-authoritative id of this snapshot.
+interface Props {
+  shareId: string
+}
+const { shareId } = Astro.props
 ---
 
 <section class="section" aria-labelledby="save-title" data-testid="save-panel">
@@ -26,6 +30,7 @@
         disabled
         aria-disabled="true"
         data-share-save
+        data-share-id={shareId}
         data-testid="save-open-button"
       >
         d-OP で開く
