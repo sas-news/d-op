@@ -65,6 +65,7 @@ These are product requirements, not implementation details — do not weaken the
 - Native browsers: `bun run test:browser:firefox -- --channel=stable|esr`, `bun run test:browser:chrome -- --channel=stable|previous` (real binaries, `tests/browser/`).
 - Release gates: `bun run verify:upgrade`, `verify:staging`, `verify:cutover` — see `docs/testing.md` + the runbooks; remote halves need real credentials.
 - Manual: `bun run dev:extension` / `dev:extension:firefox`, or load `apps/extension/.output/chrome-mv3` after `bunx wxt build`. See `docs/testing.md`.
+- Web preview: use `wrangler dev -c wrangler.staging.jsonc --port 8788` from `apps/web` (production-like workerd + local D1). Do NOT use `astro dev` for visual/CSP checks — dev mode injects inline `<style>` that the site's `style-src 'self'` CSP blocks, so pages look unstyled. On Windows, stop the wrangler preview before running `astro build` or `test:e2e` — it holds `apps/web/dist` and causes EPERM/UV_HANDLE_CLOSING failures. Restart it afterwards.
 
 ## Style and conventions
 

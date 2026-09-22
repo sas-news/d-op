@@ -429,6 +429,28 @@ test("save/install shell stays clickable and opens an install dialog", async ({ 
   await expect(dialog).not.toBeVisible()
 })
 
+test("Firefox visitors see the Firefox store prioritized in the install dialog", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0",
+  })
+  try {
+    const page = await context.newPage()
+    await page.goto(`${WEB_ORIGIN}/p/${publicId}`)
+    await page.locator("[data-testid='save-open-button']").click()
+    const dialog = page.locator("[data-testid='install-dialog']")
+    await expect(dialog).toBeVisible()
+    const links = dialog.locator(".install-dialog-stores > a")
+    await expect(links.first()).toHaveAttribute("data-share-store", "firefox")
+    await expect(links.first()).toHaveClass(/button-primary/)
+    await expect(links.nth(1)).toHaveAttribute("data-share-store", "chrome")
+    await expect(links.nth(1)).toHaveClass(/button-secondary/)
+  } finally {
+    await context.close()
+  }
+})
+
 test("remix provenance: source link, direct-children list, and hidden-parent redaction", async ({
   page,
 }) => {

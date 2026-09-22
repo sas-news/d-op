@@ -65,6 +65,30 @@
   }
 
   const storeLinks = document.querySelector("[data-share-stores]")
+
+  // Prioritize the store matching the visitor's browser: the Firefox build
+  // comes first and takes the primary style for Firefox users.
+  if (/Firefox|FxiOS/.test(navigator.userAgent)) {
+    for (const container of document.querySelectorAll(".install-dialog-stores")) {
+      const chrome = container.querySelector("[data-share-store='chrome']")
+      const firefox = container.querySelector("[data-share-store='firefox']")
+      if (chrome && firefox) {
+        container.insertBefore(firefox, chrome)
+        firefox.classList.replace("button-secondary", "button-primary")
+        chrome.classList.replace("button-primary", "button-secondary")
+      }
+    }
+    if (storeLinks instanceof HTMLElement) {
+      const chrome = storeLinks.querySelector("[data-share-store='chrome']")
+      const firefox = storeLinks.querySelector("[data-share-store='firefox']")
+      const sep = storeLinks.querySelector(".sep")
+      if (chrome && firefox && sep) {
+        storeLinks.insertBefore(firefox, chrome)
+        storeLinks.insertBefore(sep, chrome)
+      }
+    }
+  }
+
   const showStores = (visible) => {
     if (storeLinks instanceof HTMLElement) {
       storeLinks.hidden = !visible
