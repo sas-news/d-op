@@ -270,16 +270,16 @@ describe("exact duration and date formatters", () => {
   it("formats clock positions without rounding sub-second precision", () => {
     expect(formatClockMs(0)).toBe("0:00")
     expect(formatClockMs(90_000)).toBe("1:30")
-    expect(formatClockMs(90_500)).toBe("1:30.500")
+    expect(formatClockMs(90_500)).toBe("1:30")
     expect(formatClockMs(3_661_000)).toBe("1:01:01")
-    expect(formatClockMs(61_234)).toBe("1:01.234")
+    expect(formatClockMs(61_234)).toBe("1:01")
   })
 
-  it("formats total durations exactly in Japanese units", () => {
+  it("formats total durations in whole-second Japanese units", () => {
     expect(formatDurationJa(0)).toBe("0秒")
     expect(formatDurationJa(90_000)).toBe("1分30秒")
-    expect(formatDurationJa(3_661_500)).toBe("1時間1分1.500秒")
-    expect(formatDurationJa(EXPECTED_TOTAL_MS)).toBe("12分1.750秒")
+    expect(formatDurationJa(3_661_500)).toBe("1時間1分2秒")
+    expect(formatDurationJa(EXPECTED_TOTAL_MS)).toBe("12分2秒")
     expect(formatDurationJa(3_600_000)).toBe("1時間")
   })
 

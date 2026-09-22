@@ -231,32 +231,29 @@ function buildView(
 const pad = (value: number, width: number): string => String(value).padStart(width, "0")
 
 /**
- * Exact clock label `m:ss` / `h:mm:ss` with a `.mmm` suffix when the value
- * carries sub-second precision — never rounded, never padded by the player
- * tail tolerance.
+ * Clock label `m:ss` / `h:mm:ss` truncated to whole seconds — share pages
+ * never show sub-second precision.
  */
 export function formatClockMs(ms: number): string {
-  const hours = Math.floor(ms / 3_600_000)
-  const minutes = Math.floor((ms % 3_600_000) / 60_000)
-  const seconds = Math.floor((ms % 60_000) / 1000)
-  const millis = ms % 1000
-  const base =
-    hours > 0 ? `${hours}:${pad(minutes, 2)}:${pad(seconds, 2)}` : `${minutes}:${pad(seconds, 2)}`
-  return millis > 0 ? `${base}.${pad(millis, 3)}` : base
+  const totalSeconds = Math.floor(ms / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return hours > 0
+    ? `${hours}:${pad(minutes, 2)}:${pad(seconds, 2)}`
+    : `${minutes}:${pad(seconds, 2)}`
 }
 
-/** Exact Japanese duration: `1時間2分3秒`, with `.mmm` for sub-second tails. */
+/** Whole-second Japanese duration: `1時間2分3秒` (sub-second tails rounded). */
 export function formatDurationJa(ms: number): string {
-  const hours = Math.floor(ms / 3_600_000)
-  const minutes = Math.floor((ms % 3_600_000) / 60_000)
-  const seconds = Math.floor((ms % 60_000) / 1000)
-  const millis = ms % 1000
+  const totalSeconds = Math.round(ms / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
   const parts: string[] = []
   if (hours > 0) parts.push(`${hours}時間`)
   if (minutes > 0) parts.push(`${minutes}分`)
-  if (seconds > 0 || millis > 0 || parts.length === 0) {
-    parts.push(millis > 0 ? `${seconds}.${pad(millis, 3)}秒` : `${seconds}秒`)
-  }
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds}秒`)
   return parts.join("")
 }
 

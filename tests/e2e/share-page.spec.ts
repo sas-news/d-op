@@ -103,8 +103,8 @@ const EIGHT_CLIPS: readonly SeedItem[] = [
   item(6, 0, 88_000),
   item(7, 7_500, 95_250),
 ]
-// Exact sum(end-start) over the eight ranges above = 721750ms — "12分1.750秒".
-const EIGHT_CLIP_TOTAL_LABEL = "12分1.750秒"
+// Exact sum(end-start) over the eight ranges above = 721750ms — rounds to "12分2秒".
+const EIGHT_CLIP_TOTAL_LABEL = "12分2秒"
 
 const LONG_TITLE = "長いタイトル".repeat(20) // 120 chars — SHARE_TITLE_MAX
 const HOSTILE_TITLE = '<script>alert("xss")</script>'
