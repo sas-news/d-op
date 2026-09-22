@@ -18,7 +18,7 @@ import {
   type ImportRequestBook,
   type PendingImport,
 } from "./import-requests"
-import { allowedShareOrigins, SHARE_ORIGIN, shareIdFromPageUrl } from "./origins"
+import { allowedShareOrigins, shareApiOrigin, shareIdFromPageUrl } from "./origins"
 import {
   parseShareImportMessage,
   type ShareImportBeginReply,
@@ -89,7 +89,7 @@ function previewOf(response: GetPlaylistResponse): ShareImportPreview {
 
 export function createShareImportHandler(deps: ShareImportHandlerDeps) {
   const origins = deps.allowedOrigins ?? allowedShareOrigins()
-  const apiOrigin = deps.apiOrigin ?? SHARE_ORIGIN
+  const apiOrigin = deps.apiOrigin ?? shareApiOrigin()
   const requests =
     deps.requests ??
     createImportRequestBook({ newToken: deps.newId ?? (() => crypto.randomUUID()) })

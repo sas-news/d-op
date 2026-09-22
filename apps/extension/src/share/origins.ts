@@ -23,6 +23,19 @@ export function shareContentScriptMatches(): string[] {
   return allowedShareOrigins().map((origin) => `${origin}${SHARE_PAGE_PATH_PREFIX}*`)
 }
 
+/**
+ * Origin the background calls for Share API traffic. Production is fixed;
+ * development builds (`wxt dev`, `wxt build --mode development`) point at the
+ * local share site (wrangler dev / e2e webServer on :4321) so publish → /p/ →
+ * import runs fully offline. Unit tests run under MODE="test" and keep the
+ * production origin. The localhost literal stays inside the MODE guard —
+ * dead-code eliminated from release bundles.
+ */
+export function shareApiOrigin(): string {
+  if (import.meta.env.MODE === "development") return "http://127.0.0.1:4321"
+  return SHARE_ORIGIN
+}
+
 /** Public snapshot page URL for a shareId — shareable link, never carries keys. */
 export function sharePageUrl(shareId: string, origin: string = SHARE_ORIGIN): string {
   return `${origin}${SHARE_PAGE_PATH_PREFIX}${shareId}`

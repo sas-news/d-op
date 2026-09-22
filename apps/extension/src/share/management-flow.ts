@@ -25,7 +25,7 @@ import type {
   ShareManageSourceState,
   ShareManageUpdateRequest,
 } from "./management-protocol"
-import { SHARE_ORIGIN, sharePageUrl } from "./origins"
+import { shareApiOrigin, sharePageUrl } from "./origins"
 import { type ImportRecord, latestImportFor } from "./provenance"
 import { publishPlaylist } from "./publish-flow"
 
@@ -40,7 +40,7 @@ export type ShareManagementFlowDeps = {
 }
 
 export function createShareManagementFlow(deps: ShareManagementFlowDeps) {
-  const apiOrigin = deps.apiOrigin ?? SHARE_ORIGIN
+  const apiOrigin = deps.apiOrigin ?? shareApiOrigin()
   const now = deps.now ?? (() => new Date().toISOString())
   const newId = deps.newId ?? (() => crypto.randomUUID())
   const clientBase = {
