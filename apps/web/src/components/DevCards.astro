@@ -1,13 +1,17 @@
 ---
 // Developer cards ported from the legacy gh-pages developer section
 // (task 21). The legacy avatar image was served from a remote avatar proxy;
-// img-src 'self' forbids that, so the letter fallback the old site used as
-// its onerror path is rendered directly.
+// img-src 'self' forbids that, so the X brand mark is rendered directly as
+// the avatar (the old site's fallback path, upgraded to the real logo).
 ---
 
 <div class="card-grid">
   <a class="dev-card" href="https://x.com/i/user/1666355162167021568" rel="noopener" target="_blank" data-testid="dev-x-link">
-    <span class="dev-card-avatar dev-card-avatar-fallback" aria-hidden="true">X</span>
+    <span class="dev-card-avatar dev-card-avatar-fallback" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="24" height="24" focusable="false">
+        <path d="M18.244 2 H21.5 l-7.5 8.57 L23 22 h-6.828 l-5.347 -7.006 L4.7 22 H1.443 l8.04 -9.19 L1 2 h6.99 l4.83 6.39 L18.244 2 z" fill="currentColor"></path>
+      </svg>
+    </span>
     <span class="dev-card-body">
       <span class="dev-card-eyebrow">X (旧 Twitter)</span>
       <span class="dev-card-name">SAS新聞・サス</span>
@@ -106,7 +110,7 @@
     color: var(--color-muted);
     font-size: var(--text-sm);
     line-height: 1.5;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
 
   .dev-card-arrow {

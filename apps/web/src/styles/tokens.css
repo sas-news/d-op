@@ -49,7 +49,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); line-height: 1.65; scroll-behavior: smooth; }
+html { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); line-height: 1.65; scroll-behavior: smooth; scroll-padding-top: 5.5rem; }
 body { margin: 0; min-width: 0; overflow-x: hidden; background: var(--color-paper); }
 a { color: inherit; }
 img, svg { display: block; max-width: 100%; }
@@ -67,6 +67,10 @@ img, svg { display: block; max-width: 100%; }
 .site-nav { display: flex; flex-wrap: wrap; gap: var(--space-5); }
 .site-nav a { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--color-muted); font-size: var(--text-sm); text-decoration: none; transition: color var(--motion-fast); }
 .site-nav a:hover { color: var(--color-ink); }
+/* Off-page links get an ↗ affordance + a divider so in-page anchors (which
+   smooth-scroll) are visually distinct from real navigations. */
+.site-nav a[href="/explore"] { border-inline-start: 1px solid var(--color-line); padding-inline-start: var(--space-5); }
+.site-nav a[href^="/"]:not([href^="/#"])::after { margin-inline-start: var(--space-1); color: var(--color-subtle); font-size: var(--text-xs); content: "↗"; }
 
 .hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.85fr); gap: var(--space-7); align-items: center; min-height: min(42rem, 78vh); padding-block: var(--space-9); isolation: isolate; }
 .hero::before { position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 78% 34%, rgb(230 0 18 / 16%), transparent 38%), radial-gradient(ellipse at 12% 78%, rgb(10 132 255 / 8%), transparent 35%); content: ""; }
@@ -78,11 +82,11 @@ h1 { font-size: var(--text-display); letter-spacing: -0.06em; }
 .hero h1 { max-inline-size: 20ch; text-wrap: balance; }
 .hero h1 span { white-space: nowrap; }
 h2 { font-size: var(--text-xl); }
-.hero-lede, .lead { max-inline-size: 36rem; margin-top: var(--space-5); color: var(--color-muted); font-size: var(--text-lg); overflow-wrap: anywhere; }
+.hero-lede, .lead { max-inline-size: 36rem; margin-top: var(--space-5); color: var(--color-muted); font-size: var(--text-lg); overflow-wrap: break-word; text-wrap: pretty; }
 .hero-actions, .button-row { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-6); }
 .hero-note { padding: var(--space-5); border-inline-start: 0.25rem solid var(--color-accent); background: linear-gradient(135deg, rgb(255 255 255 / 6%), transparent); }
 .hero-note strong { display: block; margin-bottom: var(--space-2); font-family: var(--font-mono); font-size: var(--text-sm); letter-spacing: 0.08em; }
-.hero-note p { color: var(--color-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.hero-note p { color: var(--color-muted); font-size: var(--text-sm); overflow-wrap: break-word; }
 
 .hero-art { position: relative; min-height: 20rem; overflow: hidden; border: 1px solid var(--color-line-strong); border-radius: var(--radius-lg); background: linear-gradient(145deg, var(--color-surface-raised), var(--color-paper)); box-shadow: var(--shadow-soft); }
 .hero-art::before { position: absolute; width: 18rem; height: 18rem; top: -5rem; right: -4rem; border-radius: 50%; background: radial-gradient(circle, rgb(230 0 18 / 85%), rgb(230 0 18 / 10%) 55%, transparent 70%); filter: blur(0.1rem); content: ""; }
@@ -97,20 +101,20 @@ h2 { font-size: var(--text-xl); }
 
 .section { padding-block: var(--space-8); border-top: 1px solid var(--color-line); }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6); }
-.section-heading p, .section-desc { max-inline-size: 34rem; color: var(--color-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.section-heading p, .section-desc { max-inline-size: 34rem; color: var(--color-muted); font-size: var(--text-sm); overflow-wrap: break-word; text-wrap: pretty; }
 .card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .card, .notice, .dialog-shell { min-width: 0; border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface); }
 .card { padding: var(--space-5); box-shadow: var(--shadow-soft); }
 .card h3 { margin-bottom: var(--space-2); font-size: var(--text-lg); }
-.card p { color: var(--color-muted); overflow-wrap: anywhere; }
+.card p { color: var(--color-muted); overflow-wrap: break-word; }
 .notice { padding: var(--space-4) var(--space-5); }
 .notice strong { display: block; margin-bottom: var(--space-1); font-family: var(--font-display); }
-.notice p { color: var(--color-muted); overflow-wrap: anywhere; }
+.notice p { color: var(--color-muted); overflow-wrap: break-word; }
 .notice-info { background: linear-gradient(100deg, rgb(10 132 255 / 12%), var(--color-surface)); }
 .notice-error { border-color: var(--color-accent); background: var(--color-accent-soft); }
 .dialog-shell { padding: var(--space-5); box-shadow: var(--shadow-soft); }
 .dialog-shell h2 { font-size: var(--text-lg); }
-.dialog-description { margin-top: var(--space-2); color: var(--color-muted); overflow-wrap: anywhere; }
+.dialog-description { margin-top: var(--space-2); color: var(--color-muted); overflow-wrap: break-word; }
 .fixture-stack { display: grid; gap: var(--space-4); }
 .fixture-copy { overflow-wrap: anywhere; word-break: normal; }
 
