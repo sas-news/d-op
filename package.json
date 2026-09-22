@@ -15,7 +15,7 @@
     "test": "bun run test:unit && bun run test:worker && bun run test:e2e",
     "test:unit": "bunx vitest run --config vitest.unit.config.ts",
     "test:worker": "bunx vitest run --config apps/web/vitest.worker.config.ts",
-    "test:e2e": "bunx playwright test",
+    "test:e2e": "node ./scripts/run-e2e.mjs",
     "check:test-origins": "node ./scripts/check-test-origins.mjs",
     "test:browser:firefox": "bun ./tests/browser/firefox-harness.mjs",
     "test:browser:chrome": "bun ./tests/browser/chrome-harness.mjs",

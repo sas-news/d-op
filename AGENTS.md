@@ -57,7 +57,7 @@ These are product requirements, not implementation details — do not weaken the
 - `bun install --frozen-lockfile` once, then:
 - `bun run test:unit` — Vitest unit suite (extension + shared).
 - `bun run test:worker` — Miniflare/D1 tests for the Share API.
-- `bun run test:e2e` — Playwright (fixture server + built extension/web output). Example: `bun run test:e2e -- --project=extension-chromium privacy-consent.spec.ts`.
+- `bun run test:e2e` — Playwright via `scripts/run-e2e.mjs` (fixture server + built extension/web output). Web projects (`web-chromium`/`web-firefox`) run serially under one worker: they share the persisted local D1, and parallel workers poison each other's seeds, frozen `discovery_snapshots`, and the global import-count window. `extension-chromium` is fully route-mocked and runs parallel afterwards. Targeted runs keep the usual passthrough, e.g. `bun run test:e2e -- --project=extension-chromium privacy-consent.spec.ts`.
 - `bun run typecheck` — root tsc, extension `wxt prepare` + tsc, web `astro check` + `wrangler types`.
 - `bun run lint` — Biome.
 - `bun run check:test-origins` — guards against real origins in tests/fixtures.
