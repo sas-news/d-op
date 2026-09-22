@@ -58,6 +58,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
 
   const el = <T extends HTMLElement>(id: string): T | null => doc.getElementById(id) as T | null
 
+  const statusTimers = new Set<unknown>()
   const makeStatusWriter = (id: string): ((text: string, type?: "success" | "error") => void) => {
     let statusTimer: unknown
     return (text, type = "success") => {
@@ -67,10 +68,12 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
       status.className = type === "error" ? "error" : "success"
       if (statusTimer !== undefined) deps.cancelTimer(statusTimer)
       statusTimer = deps.schedule(() => {
+        statusTimers.delete(statusTimer)
         statusTimer = undefined
         status.textContent = ""
         status.className = ""
       }, 3000)
+      statusTimers.add(statusTimer)
     }
   }
   const showStatus = makeStatusWriter("importStatus")
@@ -549,7 +552,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     unsubscribe = null
     doc.removeEventListener("mousemove", drag.onMouseMove)
     doc.removeEventListener("mouseup", drag.onMouseUp)
-    if (statusTimer !== undefined) deps.cancelTimer(statusTimer)
+    for (const timer of statusTimers) deps.cancelTimer(timer)
     drag.cancel()
     modal.dispose()
   }

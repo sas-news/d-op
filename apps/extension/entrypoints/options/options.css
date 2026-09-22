@@ -913,9 +913,17 @@ button:disabled {
 .share-remote,
 .share-preview,
 .share-confirm-text,
+.share-consent-text,
+.share-source-line,
 .share-busy {
   font-size: 12px;
   color: var(--dop-text-secondary);
+  margin: 0;
+}
+
+.share-consent-privacy {
+  font-size: 12px;
+  color: var(--dop-text-tertiary);
   margin: 0;
 }
 
