@@ -69,7 +69,7 @@ function sharedResponse(shareId: string) {
 }
 
 function sharePageHtml(shareId: string, extra = ""): string {
-  // Mirrors ShareSavePanel.astro's contract: disabled button + status line +
+  // Mirrors the /p/ page contract: SSR-disabled button + status line +
   // deferred same-origin script. No playlist JSON in the DOM.
   return `<!doctype html><html lang="ja"><head><meta charset="utf-8"></head><body>
     <button type="button" data-share-save data-share-id="${shareId}" disabled
@@ -498,7 +498,7 @@ test("closed share page cannot undo a completed save; imported copy edits indepe
   }
 })
 
-test("missing extension: save button stays disabled, no postMessage listener", async () => {
+test("missing extension: save button stays clickable, click shows guidance, nothing posted", async () => {
   const browser = await chromium.launch({ ...browserLaunchTarget(), headless: true })
   try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true })
@@ -525,11 +525,12 @@ test("missing extension: save button stays disabled, no postMessage listener", a
     })
     await page.goto(`${ORIGIN}/p/${SHARE_ID}`)
     const button = page.locator("[data-testid='save-open-button']")
-    await expect(button).toBeDisabled()
+    await expect(button).toBeEnabled()
     await expect(page.locator("html[data-dop-extension]")).toHaveCount(0)
-    await expect(page.locator("[data-testid='save-status']")).toContainText("見つかりません")
-    // Clicking a disabled button is a no-op — nothing is posted anywhere.
-    await button.click({ force: true }).catch(() => undefined)
+    // Clicking without the marker reveals install guidance and still posts
+    // NOTHING — the shareId never leaves the page without the extension.
+    await button.click()
+    await expect(page.locator("[data-testid='save-status']")).toContainText("再読み込み")
     await page.waitForTimeout(300)
     expect(posted).toBe(false)
     await context.close()

@@ -4,18 +4,21 @@
 //
 //   1. URL copy button -> navigator.clipboard + a visible status line. On
 //      denial the canonical URL is printed so the user can copy manually.
-//   2. Save handshake: when the d-OP extension advertises itself via the
-//      data-dop-extension marker on <html>, the open button activates and
-//      posts a typed relay request to the extension content script. The
-//      message carries ONLY shareId + requestId + protocol fields — never
-//      playlist JSON (the extension fetches the snapshot itself). Replies are
-//      status-only acks bound to requestId; the page never receives local
-//      library or publication state. Keep these literals in sync with
+//   2. Save handshake: the open button is enabled for EVERYONE (it is the
+//      single entry point). A click with the extension marker present posts a
+//      typed relay request to the extension content script; a click without
+//      it reveals install guidance + store links. The message carries ONLY
+//      shareId + requestId + protocol fields — never playlist JSON (the
+//      extension fetches the snapshot itself). Replies are status-only acks
+//      bound to requestId; the page never receives local library or
+//      publication state. Keep these literals in sync with
 //      apps/extension/src/share/protocol.ts.
 ;(() => {
   const copyButton = document.querySelector("[data-share-copy]")
   const copyStatus = document.querySelector("[data-share-copy-status]")
   if (copyButton instanceof HTMLButtonElement && copyStatus instanceof HTMLElement) {
+    copyButton.disabled = false
+    copyButton.removeAttribute("aria-disabled")
     copyButton.addEventListener("click", () => {
       const url = copyButton.getAttribute("data-copy-url") || location.href
       const clipboard = navigator.clipboard
@@ -51,6 +54,9 @@
   const extensionPresent = () => document.documentElement.hasAttribute("data-dop-extension")
 
   const STATUS_READY = "d-OP 拡張機能を検出しました。共有ページから確認画面を開いて保存できます。"
+  const STATUS_NEUTRAL = "d-OP 拡張機能で開いて保存します。"
+  const STATUS_NEEDS_EXTENSION =
+    "d-OP 拡張機能が見つかりません。インストール後、このページを再読み込みしてください。"
   const STATUS_ACK = {
     opened: "拡張機能の確認画面を開きました。内容を確認して保存してください。",
     duplicate: "このリクエストは受け付け済みです。拡張機能の画面を確認してください。",
@@ -59,24 +65,31 @@
   }
 
   const storeLinks = document.querySelector("[data-share-stores]")
-
-  const enableSave = () => {
-    if (!extensionPresent() || !saveButton.disabled) return
-    saveButton.disabled = false
-    saveButton.removeAttribute("aria-disabled")
-    saveStatus.textContent = STATUS_READY
+  const showStores = (visible) => {
     if (storeLinks instanceof HTMLElement) {
-      storeLinks.hidden = true
+      storeLinks.hidden = !visible
     }
   }
 
-  // The content script sets the marker at document_start, before deferred
-  // scripts run — but observe briefly anyway so a late injection still works.
-  enableSave()
-  if (!extensionPresent()) {
+  const markReady = () => {
+    saveStatus.textContent = STATUS_READY
+    showStores(false)
+  }
+
+  // Enable unconditionally: the button is the single entry point. Without the
+  // extension marker a click reveals install guidance instead of dead-ending.
+  saveButton.disabled = false
+  saveButton.removeAttribute("aria-disabled")
+  if (extensionPresent()) {
+    markReady()
+  } else {
+    saveStatus.textContent = STATUS_NEUTRAL
+    showStores(false)
+    // The content script sets the marker at document_start, before deferred
+    // scripts run — but observe briefly anyway so a late injection still works.
     const observer = new MutationObserver(() => {
       if (extensionPresent()) {
-        enableSave()
+        markReady()
         observer.disconnect()
       }
     })
@@ -85,7 +98,11 @@
   }
 
   saveButton.addEventListener("click", () => {
-    if (!extensionPresent()) return
+    if (!extensionPresent()) {
+      saveStatus.textContent = STATUS_NEEDS_EXTENSION
+      showStores(true)
+      return
+    }
     const shareId = saveButton.getAttribute("data-share-id")
     if (!shareId) return
     const requestId = crypto.randomUUID()

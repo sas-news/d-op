@@ -211,7 +211,7 @@ async function handleShareApi(route: Route, api: FakeApi): Promise<void> {
 }
 
 function sharePageHtml(shareId: string): string {
-  // Mirrors ShareSavePanel.astro's contract: disabled button + status line +
+  // Mirrors the /p/ page contract: SSR-disabled button + status line +
   // deferred same-origin script. No playlist JSON in the DOM.
   return `<!doctype html><html lang="ja"><head><meta charset="utf-8"></head><body>
     <button type="button" data-share-save data-share-id="${shareId}" disabled

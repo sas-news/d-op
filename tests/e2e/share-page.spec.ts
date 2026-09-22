@@ -402,22 +402,25 @@ test("copy button copies or degrades visibly; X intent link is correct", async (
   )
 })
 
-test("save/install shell offers a safe disabled state plus store links", async ({ page }) => {
+test("save/install shell stays clickable and reveals install guidance", async ({ page }) => {
   await page.goto(`${WEB_ORIGIN}/p/${publicId}`)
   const panel = page.locator("[data-testid='save-panel']")
   await expect(panel).toBeVisible()
+  // The button is the single entry point: enabled for everyone, including
+  // browsers without the extension marker.
   const openButton = page.locator("[data-testid='save-open-button']")
-  await expect(openButton).toBeDisabled()
-  await expect(openButton).toHaveAttribute("aria-disabled", "true")
-  await expect(page.locator("[data-testid='save-status']")).toContainText("拡張機能")
-  await expect(page.locator("[data-testid='save-chrome-link']")).toHaveAttribute(
-    "href",
-    /chromewebstore\.google\.com/,
-  )
-  await expect(page.locator("[data-testid='save-firefox-link']")).toHaveAttribute(
-    "href",
-    /addons\.mozilla\.org/,
-  )
+  await expect(openButton).toBeEnabled()
+  // No extension here: clicking reveals install guidance + store links.
+  await openButton.click()
+  const status = page.locator("[data-testid='save-status']")
+  await expect(status).toContainText("拡張機能")
+  await expect(status).toContainText("再読み込み")
+  const chromeLink = page.locator("[data-testid='save-chrome-link']")
+  const firefoxLink = page.locator("[data-testid='save-firefox-link']")
+  await expect(chromeLink).toBeVisible()
+  await expect(firefoxLink).toBeVisible()
+  await expect(chromeLink).toHaveAttribute("href", /chromewebstore\.google\.com/)
+  await expect(firefoxLink).toHaveAttribute("href", /addons\.mozilla\.org/)
 })
 
 test("remix provenance: source link, direct-children list, and hidden-parent redaction", async ({

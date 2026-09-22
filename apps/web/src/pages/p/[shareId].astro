@@ -114,6 +114,8 @@ const description =
           <button
             type="button"
             class="button button-secondary"
+            disabled
+            aria-disabled="true"
             data-share-copy
             data-copy-url={result.view.canonicalUrl}
             data-testid="copy-url-button"
@@ -133,7 +135,7 @@ const description =
         <p class="share-status-line">
           <span class="save-status" role="status" data-share-save-status data-testid="save-status">
             d-OP
-            拡張機能が見つかりません。インストールすると、このページから直接プレイリストを保存できます。
+            拡張機能が必要です。インストール後、このページを再読み込みしてください。
           </span>
           <span class="share-status-stores" data-share-stores>
             （<a
@@ -152,6 +154,12 @@ const description =
           </span>
         </p>
         <p class="share-copy-status" role="status" aria-live="polite" data-share-copy-status data-testid="copy-status"></p>
+        <noscript>
+          <p class="share-noscript">
+            ボタンの動作には JavaScript が必要です。URL:
+            <code class="share-noscript-url">{result.view.canonicalUrl}</code>
+          </p>
+        </noscript>
       </section>
 
       <ShareItems items={result.view.items} />
@@ -296,6 +304,21 @@ const description =
     color: var(--color-success);
     font-size: var(--text-sm);
     overflow-wrap: break-word;
+  }
+
+  .share-noscript {
+    margin-top: var(--space-3);
+    color: var(--color-subtle);
+    font-size: var(--text-sm);
+    overflow-wrap: break-word;
+  }
+
+  .share-noscript-url {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    overflow-wrap: break-word;
+    user-select: all;
   }
 
   .share-remix {
