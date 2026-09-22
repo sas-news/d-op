@@ -58,11 +58,16 @@
     unavailable: "拡張機能と通信できませんでした。拡張機能の状態を確認してください。",
   }
 
+  const storeLinks = document.querySelector("[data-share-stores]")
+
   const enableSave = () => {
     if (!extensionPresent() || !saveButton.disabled) return
     saveButton.disabled = false
     saveButton.removeAttribute("aria-disabled")
     saveStatus.textContent = STATUS_READY
+    if (storeLinks instanceof HTMLElement) {
+      storeLinks.hidden = true
+    }
   }
 
   // The content script sets the marker at document_start, before deferred

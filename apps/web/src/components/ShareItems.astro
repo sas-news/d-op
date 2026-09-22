@@ -13,13 +13,9 @@ const { items } = Astro.props
 ---
 
 <section class="section" aria-labelledby="share-items-title">
-  <div class="section-heading">
-    <div>
-      <p class="section-eyebrow">Playlist</p>
-      <h2 id="share-items-title">クリップ一覧</h2>
-    </div>
-    <p>{items.length} 件のクリップ</p>
-  </div>
+  <h2 id="share-items-title" class="share-items-title">
+    クリップ一覧（{items.length}）
+  </h2>
   <ol class="share-items" data-testid="share-items">
     {items.map((item) => (
       <li class="share-item" data-testid="share-item">
@@ -46,6 +42,11 @@ const { items } = Astro.props
 </section>
 
 <style>
+  .share-items-title {
+    font-size: var(--text-lg);
+    letter-spacing: -0.01em;
+  }
+
   .share-items {
     display: grid;
     gap: var(--space-3);
