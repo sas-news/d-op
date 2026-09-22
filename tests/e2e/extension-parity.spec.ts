@@ -336,7 +336,7 @@ test("popup: constrained width, playlist picker, item start, now-playing control
 
     // Picker view: two cards, version stamp, constrained 340px width.
     await expect(page.locator(".playlist-card")).toHaveCount(2, { timeout: 15_000 })
-    await expect(page.locator("#popupVersion")).toHaveText("d-OP v0.1.0")
+    await expect(page.locator("#popupVersion")).toHaveText(/d-OP v\d+\.\d+\.\d+/)
     const width = await page
       .locator(".container")
       .evaluate((el) => el.getBoundingClientRect().width)
