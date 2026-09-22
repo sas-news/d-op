@@ -42,6 +42,7 @@ describe("d-Anime adapter", () => {
   it("reports chapters without ws duration or video metadata", () => {
     const vc = {
       ws010105Data: {
+        partId: "12345",
         chapters: [
           { start: 0, end: 10_000, type: "none", showInterface: true },
           { start: 10_000, end: 1_390_000, type: "mainStory" },
@@ -57,6 +58,7 @@ describe("d-Anime adapter", () => {
         { startMs: 10_000, endMs: 1_390_000, type: "mainStory" },
       ],
       durationMs: undefined,
+      partId: "12345",
     })
   })
 

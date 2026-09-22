@@ -4,7 +4,7 @@ import type { Chapter } from "./chapter-parser"
 // v1 tolerated it (`data.duration || null`) and used video.duration for the
 // naming heuristic, so the contract is: chapters array required, duration
 // derived from the <video> element when ready.
-type PlayerData = { readonly chapters?: readonly unknown[] }
+type PlayerData = { readonly chapters?: readonly unknown[]; readonly partId?: unknown }
 type Player = {
   readonly jump?: unknown
   goNext?: unknown
@@ -42,6 +42,8 @@ export type ChapterResult =
       readonly kind: "ready"
       readonly chapters: readonly Chapter[]
       readonly durationMs: number | undefined
+      /** ws010105Data.partId — episode identity for change detection. */
+      readonly partId: string | undefined
     }
   | { readonly kind: "unavailable" }
   | { readonly kind: "disposed" }
@@ -99,7 +101,14 @@ export function createDAnimeAdapter(options: AdapterOptions) {
       typeof videoDuration === "number" && Number.isFinite(videoDuration) && videoDuration > 0
         ? Math.round(videoDuration * 1000)
         : undefined
-    return { kind: "ready", chapters, durationMs }
+    const rawPartId = data["partId"]
+    const partId =
+      typeof rawPartId === "string"
+        ? rawPartId
+        : typeof rawPartId === "number" && Number.isFinite(rawPartId)
+          ? String(rawPartId)
+          : undefined
+    return { kind: "ready", chapters, durationMs, partId }
   }
 
   function seek(timeMs: number): AdapterResult {

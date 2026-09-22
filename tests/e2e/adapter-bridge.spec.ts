@@ -62,3 +62,33 @@ test("adapter fixture delivers READY before CHAPTERS and rejects forged messages
     .poll(() => page.evaluate(() => (window as FixtureWindow).__adapterFixture?.events))
     .toEqual(["ready", "chapters", "ready", "chapters"])
 })
+
+// Episode-advance parity (v1 injected.js MutationObserver): d-Anime swaps
+// ws010105Data and rewrites location.href in place — no reload — so the main
+// world must re-deliver CHAPTERS or OP/ED markers stay on the old episode.
+test("re-delivers chapters when the SPA swaps episode data after a URL change", async ({
+  page,
+}) => {
+  await page.goto(`${FIXTURE_ORIGIN}/adapter-bridge.html`)
+  await expect
+    .poll(() => page.evaluate(() => (window as FixtureWindow).__adapterFixture?.events))
+    .toEqual(["ready", "chapters"])
+
+  await page.evaluate(() => {
+    window.history.pushState(null, "", "/adapter-bridge.html?partId=999")
+    const vc = (window as unknown as { vc: { ws010105Data: unknown } }).vc
+    vc.ws010105Data = {
+      partId: 999,
+      chapters: [
+        { start: 1_000, end: 91_000, type: "none" },
+        { start: 91_000, end: 1_400_000, type: "mainStory" },
+      ],
+    }
+    // SPA navigation mutates the DOM — that's what wakes the URL observer.
+    document.body.appendChild(document.createElement("div"))
+  })
+
+  await expect
+    .poll(() => page.evaluate(() => (window as FixtureWindow).__adapterFixture?.events))
+    .toEqual(["ready", "chapters", "chapters"])
+})
