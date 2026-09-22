@@ -1,62 +1,192 @@
+/* Share-import confirm page — v1 design system (same token vocabulary as
+   options.css/popup.css): light theme, d-OP red, compact radii/spacing. */
+
 :root {
-  color-scheme: dark;
-  --bg: #0a0a0c;
-  --surface: #141417;
-  --line: #2a2a30;
-  --text: #f7f8fa;
-  --muted: #a8abb3;
-  --accent: #e5484d;
-  --accent-soft: #2a1518;
+  color-scheme: light;
+  --dop-accent: #e60012;
+  --dop-accent-hover: #ff1a2d;
+  --dop-accent-pressed: #b3000e;
+  --dop-accent-subtle: rgba(230, 0, 18, 0.10);
+  /* Accent as TEXT needs a darker shade: #e60012 is 4.3:1 on the base tint
+     and 3.6:1 on accent-subtle — both fail WCAG AA. #b3000e is ≥5.4:1 on
+     every surface tint (task 24). */
+  --dop-accent-text: #b3000e;
+  --dop-danger: #cf1e41;
+  --dop-info: #0a84ff;
+  --dop-success: #146c2e;
+
+  --dop-bg-base: #f2f2f6;
+  --dop-bg-panel: #ffffff;
+  --dop-bg-elevated: #f7f7f9;
+
+  --dop-border: #e5e5ea;
+  --dop-border-strong: #d1d1d6;
+
+  --dop-text-primary: #111114;
+  /* Both muted tiers must reach 4.5:1 on the lightest surface they sit on
+     (#f2f2f6 base / #f7f7f9 elevated). */
+  --dop-text-secondary: #62626a;
+  --dop-text-tertiary: #6b6b73;
+
+  --dop-font: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --dop-font-mono: "SF Mono", "JetBrains Mono", "Fira Code", "Noto Sans JP", monospace;
+
+  --dop-radius-sm: 2px;
+  --dop-radius-md: 4px;
+  --dop-radius-lg: 6px;
+
+  --dop-space-1: 2px;
+  --dop-space-2: 4px;
+  --dop-space-3: 6px;
+  --dop-space-4: 8px;
+  --dop-space-5: 12px;
+  --dop-space-6: 16px;
+  --dop-space-7: 20px;
+  --dop-space-8: 24px;
+
+  --dop-transition-fast: 120ms ease-out;
+  --dop-transition-base: 180ms ease-out;
 }
-* { box-sizing: border-box; }
+
+* {
+  box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--dop-accent);
+  outline-offset: 2px;
+}
+
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  background: var(--dop-bg-base);
+  color: var(--dop-text-primary);
+  font-family: var(--dop-font);
+  font-size: 13px;
+  line-height: 1.55;
 }
+
 .container {
   max-width: 26rem;
   margin: 0 auto;
-  padding: 1.25rem;
+  padding: var(--dop-space-7) var(--dop-space-6);
 }
-.title { font-size: 1.25rem; margin: 0 0 0.75rem; }
-.lead { color: var(--muted); font-size: 0.85rem; line-height: 1.6; }
+
+.title {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 var(--dop-space-3);
+  letter-spacing: 0.02em;
+}
+
+.lead {
+  color: var(--dop-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 var(--dop-space-5);
+}
+
+.lead a {
+  color: var(--dop-accent-text);
+}
+
+/* Consent panel + playlist preview share the same bordered card. */
+.consent,
 .preview {
-  margin: 1rem 0;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: var(--surface);
+  margin: 0 0 var(--dop-space-5);
+  padding: var(--dop-space-5) var(--dop-space-6);
+  border: 1px solid var(--dop-border);
+  border-radius: var(--dop-radius-lg);
+  background: var(--dop-bg-panel);
 }
+
+.consent p {
+  margin: 0 0 var(--dop-space-4);
+  color: var(--dop-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.consent a {
+  color: var(--dop-accent-text);
+}
+
 .preview-title {
-  margin: 0 0 0.5rem;
-  font-size: 1rem;
+  margin: 0 0 var(--dop-space-4);
+  font-size: 15px;
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
-.preview-stats { display: flex; gap: 1.25rem; margin: 0; }
-.preview-stats dt { color: var(--muted); font-size: 0.7rem; }
-.preview-stats dd { margin: 0.15rem 0 0; font-size: 1rem; font-weight: 700; }
+
+.preview-stats {
+  display: flex;
+  gap: var(--dop-space-7);
+  margin: 0;
+}
+
+.preview-stats dt {
+  color: var(--dop-text-secondary);
+  font-size: 11px;
+}
+
+.preview-stats dd {
+  margin: var(--dop-space-1) 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .status {
   min-height: 2.5em;
-  color: var(--muted);
-  font-size: 0.85rem;
+  margin: 0 0 var(--dop-space-4);
+  color: var(--dop-text-secondary);
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
-.actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+
+/* --- Buttons: v1 vocabulary -------------------------------------------- */
+
+.actions {
+  display: flex;
+  gap: var(--dop-space-4);
+}
+
 button {
   flex: 1;
-  padding: 0.6rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: 0.4rem;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.9rem;
+  padding: var(--dop-space-4) var(--dop-space-6);
+  font-family: var(--dop-font);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  border: 1px solid var(--dop-border);
+  border-radius: var(--dop-radius-sm);
+  background: var(--dop-bg-elevated);
+  color: var(--dop-text-primary);
+  transition: background var(--dop-transition-fast), border-color var(--dop-transition-fast), opacity var(--dop-transition-fast);
 }
+
+button:hover:not(:disabled) {
+  background: var(--dop-bg-base);
+  border-color: var(--dop-border-strong);
+}
+
 button.primary {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: var(--dop-accent);
+  background: var(--dop-accent);
+  color: #fff;
 }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+button.primary:hover:not(:disabled) {
+  background: var(--dop-accent-hover);
+  border-color: var(--dop-accent-hover);
+}
+
+button.primary:active:not(:disabled) {
+  background: var(--dop-accent-pressed);
+  border-color: var(--dop-accent-pressed);
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
