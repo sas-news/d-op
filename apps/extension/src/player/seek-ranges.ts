@@ -38,7 +38,8 @@ function pushUnique(markers: MutableMarker[], marker: MutableMarker): void {
 
 export function computeSeekMarkers(input: SeekMarkerInput): SeekMarker[] {
   const markers: MutableMarker[] = []
-  const chapters = input.chapters ?? []
+  // Legacy getNoneRanges parity: only type==='none' chapters become markers.
+  const chapters = (input.chapters ?? []).filter((chapter) => chapter.type === "none")
   const total = chapters.length
   for (const [index, chapter] of chapters.entries()) {
     markers.push({

@@ -2,11 +2,22 @@ const MAX_DOCUMENT_BYTES = 1_000_000
 const MAX_CHAPTERS = 500
 
 export type ChapterParseResult =
-  | { readonly kind: "ok"; readonly chapters: readonly Chapter[]; readonly durationMs: number }
+  | {
+      readonly kind: "ok"
+      readonly chapters: readonly Chapter[]
+      readonly durationMs: number | undefined
+    }
   | { readonly kind: "malformed"; readonly reason: string }
   | { readonly kind: "oversized"; readonly reason: string }
 
-export type Chapter = { readonly startMs: number; readonly endMs: number }
+export type Chapter = {
+  readonly startMs: number
+  readonly endMs: number
+  // d-Anime chapter type ("none" = skippable section; "avant"/"mainStory"/… are
+  // story segments). Carried through so consumers can apply the legacy
+  // type==='none' filter — v1 never treated non-none chapters as skip ranges.
+  readonly type?: string | undefined
+}
 
 function balancedJsonEnd(source: string, start: number): number | undefined {
   const opening = source[start]
@@ -40,17 +51,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readDocument(value: unknown): ChapterParseResult {
-  if (
-    !isRecord(value) ||
-    !Array.isArray(value["chapters"]) ||
-    typeof value["duration"] !== "number"
-  ) {
-    return { kind: "malformed", reason: "chapters and duration are required" }
+  if (!isRecord(value) || !Array.isArray(value["chapters"])) {
+    return { kind: "malformed", reason: "chapters are required" }
   }
+  const duration = value["duration"]
+  // ws010105Data.duration is absent on the live site — optional like v1's
+  // `durMatch ? parseInt : null`, never a hard requirement.
   if (
     value["chapters"].length > MAX_CHAPTERS ||
-    !Number.isSafeInteger(value["duration"]) ||
-    value["duration"] < 0
+    (duration !== undefined &&
+      (typeof duration !== "number" || !Number.isSafeInteger(duration) || duration < 0))
   ) {
     return { kind: "malformed", reason: "chapter bounds exceed contract" }
   }
@@ -69,11 +79,18 @@ function readDocument(value: unknown): ChapterParseResult {
     ) {
       return { kind: "malformed", reason: "invalid chapter" }
     }
-    chapters.push({ startMs: start, endMs: end })
+    const type = item["type"]
+    chapters.push({
+      startMs: start,
+      endMs: end,
+      type: typeof type === "string" ? type : undefined,
+    })
   }
-  const duration = value["duration"]
-  if (typeof duration !== "number") return { kind: "malformed", reason: "invalid duration" }
-  return { kind: "ok", chapters, durationMs: duration }
+  return {
+    kind: "ok",
+    chapters,
+    durationMs: typeof duration === "number" ? duration : undefined,
+  }
 }
 
 export function parseChapterDocument(html: string): ChapterParseResult {

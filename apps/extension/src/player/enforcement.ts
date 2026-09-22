@@ -15,7 +15,13 @@ import {
 
 export type PlayerModeKind = "idle" | "playlist" | "op-ed" | "custom-preview"
 
-export type EnforcedRange = { readonly startMs: number; readonly endMs: number }
+export type EnforcedRange = {
+  readonly startMs: number
+  readonly endMs: number
+  /** d-Anime chapter type when the range came from ws010105Data — only
+   *  "none" chapters are skippable (legacy getNoneRanges parity). */
+  readonly type?: string | undefined
+}
 
 /** Same-video playlist entries eligible for a seek-driven retarget. */
 export type SameVideoRange = {

@@ -29,13 +29,16 @@ export type PageCommand = z.infer<typeof PageCommandSchema>
 const BridgeChapterSchema = z.strictObject({
   startMs: MsIntSchema,
   endMs: MsIntSchema,
+  // d-Anime chapter type; only "none" is a skippable section (legacy parity).
+  type: z.string().optional(),
 })
 
 export const ChaptersFoundSchema = z
   .strictObject({
     source: z.literal(PAGE_MESSAGE_SOURCE),
     chapters: z.array(BridgeChapterSchema).max(500),
-    durationMs: MsIntSchema,
+    // Absent on the live site — derived from the <video> element when ready.
+    durationMs: MsIntSchema.optional(),
   })
   .refine((found) => found.chapters.every((chapter) => chapter.startMs < chapter.endMs), {
     message: "chapter start must be before chapter end",

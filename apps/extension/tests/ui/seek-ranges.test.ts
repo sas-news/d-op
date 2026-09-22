@@ -6,9 +6,9 @@ import { computeSeekMarkers } from "../../src/player/seek-ranges"
 import { item } from "../domain/fixtures"
 
 const CHAPTERS = [
-  { startMs: 0, endMs: 90_000 },
-  { startMs: 90_000, endMs: 1_300_000 },
-  { startMs: 1_300_000, endMs: 1_390_000 },
+  { startMs: 0, endMs: 90_000, type: "none" },
+  { startMs: 90_000, endMs: 1_300_000, type: "mainStory" },
+  { startMs: 1_300_000, endMs: 1_390_000, type: "none" },
 ]
 
 describe("player/seek-ranges (getSeekMarkers parity)", () => {
@@ -27,10 +27,12 @@ describe("player/seek-ranges (getSeekMarkers parity)", () => {
       ],
       durationMs: 1_420_000,
     })
+    // The mainStory chapter is filtered out (not a skip range); its bounds
+    // still appear via the stored library range as a plain 範囲 marker.
     expect(markers).toHaveLength(4)
     expect(markers[0]?.label).toBe("俺のOP")
-    expect(markers[1]?.label).toBe("パート2")
-    expect(markers[2]?.label).toBe("ED")
+    expect(markers[1]?.label).toBe("ED")
+    expect(markers[2]?.label).toBe("範囲")
     expect(markers[3]?.label).toBe("範囲")
     expect(markers.every((m) => !m.active)).toBe(true)
   })
@@ -76,7 +78,8 @@ describe("player/seek-ranges (getSeekMarkers parity)", () => {
       libraryRanges: [],
       durationMs: 1_420_000,
     })
-    expect(markers[2]?.active).toBe(true)
+    // mainStory filtered → ED is marker index 1.
+    expect(markers[1]?.active).toBe(true)
     expect(markers[0]?.active).toBe(false)
   })
 

@@ -39,8 +39,8 @@ const playlist: LocalPlaylist = {
 const CHAPTERS = {
   source: "d-op-injected" as const,
   chapters: [
-    { startMs: 10_000, endMs: 90_000 },
-    { startMs: 120_000, endMs: 140_000 },
+    { startMs: 10_000, endMs: 90_000, type: "none" },
+    { startMs: 120_000, endMs: 140_000, type: "none" },
   ],
   durationMs: 180_000,
 }

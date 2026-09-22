@@ -24,7 +24,9 @@ function namedSkipRanges(ctx: PlayerContext): NamedRange[] {
     video !== undefined && Number.isFinite(video.duration) && video.duration > 0
       ? video.duration * 1000
       : Number.POSITIVE_INFINITY
-  const chapters = ctx.chapters ?? []
+  // Legacy getNoneRanges: only chapters marked type==='none' are skippable
+  // sections — avant/mainStory segments are story structure, never ranges.
+  const chapters = (ctx.chapters ?? []).filter((chapter) => chapter.type === "none")
   return chapters.map((chapter, index) => ({
     startMs: chapter.startMs,
     endMs: chapter.endMs,

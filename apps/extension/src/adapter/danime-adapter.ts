@@ -1,6 +1,10 @@
 import type { Chapter } from "./chapter-parser"
 
-type PlayerData = { readonly duration?: unknown; readonly chapters?: readonly unknown[] }
+// ws010105Data.duration is ABSENT on the live site (verified 2026-09-22) —
+// v1 tolerated it (`data.duration || null`) and used video.duration for the
+// naming heuristic, so the contract is: chapters array required, duration
+// derived from the <video> element when ready.
+type PlayerData = { readonly chapters?: readonly unknown[] }
 type Player = {
   readonly jump?: unknown
   goNext?: unknown
@@ -8,7 +12,14 @@ type Player = {
   readonly ws010105Data?: unknown
   sentPauseResumeTimerId?: unknown
 }
-type Video = { currentTime: number; paused: boolean; play: () => Promise<void>; pause: () => void }
+type Video = {
+  currentTime: number
+  paused: boolean
+  /** HTMLVideoElement.duration — NaN until metadata is ready. */
+  readonly duration?: number
+  play: () => Promise<void>
+  pause: () => void
+}
 type Timer = number
 type NativeMethod = (...args: readonly unknown[]) => unknown
 const MAX_TIME_MS = 86_400_000
@@ -27,7 +38,11 @@ export type AdapterResult =
   | { readonly kind: "command-failed"; readonly command: "PLAY" | "PAUSE" | "SEEK" | "GO_NEXT" }
   | { readonly kind: "disposed" }
 export type ChapterResult =
-  | { readonly kind: "ready"; readonly chapters: readonly Chapter[]; readonly durationMs: number }
+  | {
+      readonly kind: "ready"
+      readonly chapters: readonly Chapter[]
+      readonly durationMs: number | undefined
+    }
   | { readonly kind: "unavailable" }
   | { readonly kind: "disposed" }
 
@@ -53,14 +68,7 @@ export function createDAnimeAdapter(options: AdapterOptions) {
     const player = options.getVc()
     if (!record(player) || !record(player["ws010105Data"])) return { kind: "unavailable" }
     const data = player["ws010105Data"] as PlayerData
-    if (!Array.isArray(data["chapters"]) || typeof data["duration"] !== "number")
-      return { kind: "unavailable" }
-    if (
-      !Number.isSafeInteger(data["duration"]) ||
-      data["duration"] < 0 ||
-      data["duration"] > MAX_TIME_MS
-    )
-      return { kind: "unavailable" }
+    if (!Array.isArray(data["chapters"])) return { kind: "unavailable" }
     const chapters: Chapter[] = []
     for (const item of data["chapters"]) {
       if (!record(item)) return { kind: "unavailable" }
@@ -72,13 +80,26 @@ export function createDAnimeAdapter(options: AdapterOptions) {
         !Number.isSafeInteger(start) ||
         !Number.isSafeInteger(end) ||
         start < 0 ||
-        end <= start ||
-        end > data["duration"]
+        end <= start
       )
         return { kind: "unavailable" }
-      chapters.push({ startMs: start, endMs: end })
+      const type = item["type"]
+      chapters.push({
+        startMs: start,
+        endMs: end,
+        type: typeof type === "string" ? type : undefined,
+      })
     }
-    return { kind: "ready", chapters, durationMs: data["duration"] }
+    // Naming heuristic duration comes from the video element, exactly like
+    // v1 (video.duration seconds -> ms). Not ready yet -> absent; consumers
+    // re-read live video.duration anyway.
+    const video = options.getVideo()
+    const videoDuration = video?.duration
+    const durationMs =
+      typeof videoDuration === "number" && Number.isFinite(videoDuration) && videoDuration > 0
+        ? Math.round(videoDuration * 1000)
+        : undefined
+    return { kind: "ready", chapters, durationMs }
   }
 
   function seek(timeMs: number): AdapterResult {

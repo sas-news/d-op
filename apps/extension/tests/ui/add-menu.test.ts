@@ -39,8 +39,8 @@ function makeDeps(): Harness {
     current: {
       partId: "p9",
       chapters: [
-        { startMs: 0, endMs: 90_000 },
-        { startMs: 1_320_000, endMs: 1_410_000 },
+        { startMs: 0, endMs: 90_000, type: "none" },
+        { startMs: 1_320_000, endMs: 1_410_000, type: "none" },
       ],
     } satisfies AddMenuSession,
   }

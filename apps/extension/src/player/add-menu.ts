@@ -234,7 +234,9 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
         video !== undefined && Number.isFinite(video.duration) && video.duration > 0
           ? video.duration * 1000
           : Number.POSITIVE_INFINITY
-      const chapters = session.chapters ?? []
+      // Same type==='none' filter as legacy getNoneRanges — non-none
+      // chapters are story segments, not skip candidates.
+      const chapters = (session.chapters ?? []).filter((chapter) => chapter.type === "none")
       const ranges: NamedRange[] = chapters.map((chapter, index) => ({
         startMs: chapter.startMs,
         endMs: chapter.endMs,

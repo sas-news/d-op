@@ -294,6 +294,7 @@ export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
     ctx.chapters = payload.chapters.map((chapter) => ({
       startMs: chapter.startMs,
       endMs: chapter.endMs,
+      type: chapter.type,
     }))
     if (partIdChanged) {
       ctx.partId = partId

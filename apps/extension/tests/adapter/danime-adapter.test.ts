@@ -4,6 +4,7 @@ import { createDAnimeAdapter } from "../../src/adapter/danime-adapter"
 type FakeVideo = {
   currentTime: number
   paused: boolean
+  duration?: number
   play: () => Promise<void>
   pause: () => void
 }
@@ -19,21 +20,44 @@ function videoFixture(): FakeVideo {
 
 describe("d-Anime adapter", () => {
   it("seeks through vc.jump and reports chapters", () => {
-    const video = videoFixture()
+    const video = { ...videoFixture(), duration: 120 }
     const jumps: number[] = []
     const vc = {
       jump: (seconds: number) => jumps.push(seconds),
-      ws010105Data: { duration: 120000, chapters: [{ start: 0, end: 90000, type: "none" }] },
+      // Real site shape: ws010105Data has NO duration — it is derived from
+      // the video element instead.
+      ws010105Data: { chapters: [{ start: 0, end: 90000, type: "none" }] },
     }
     const adapter = createDAnimeAdapter({ getVc: () => vc, getVideo: () => video })
 
     expect(adapter.readChapters()).toEqual({
       kind: "ready",
-      chapters: [{ startMs: 0, endMs: 90000 }],
+      chapters: [{ startMs: 0, endMs: 90000, type: "none" }],
       durationMs: 120000,
     })
     expect(adapter.seek(12_000)).toEqual({ kind: "ok" })
     expect(jumps).toEqual([12])
+  })
+
+  it("reports chapters without ws duration or video metadata", () => {
+    const vc = {
+      ws010105Data: {
+        chapters: [
+          { start: 0, end: 10_000, type: "none", showInterface: true },
+          { start: 10_000, end: 1_390_000, type: "mainStory" },
+        ],
+      },
+    }
+    const adapter = createDAnimeAdapter({ getVc: () => vc, getVideo: () => undefined })
+
+    expect(adapter.readChapters()).toEqual({
+      kind: "ready",
+      chapters: [
+        { startMs: 0, endMs: 10_000, type: "none" },
+        { startMs: 10_000, endMs: 1_390_000, type: "mainStory" },
+      ],
+      durationMs: undefined,
+    })
   })
 
   it("falls back to video controls and models rejected play", async () => {
@@ -54,7 +78,7 @@ describe("d-Anime adapter", () => {
     const jumps: number[] = []
     const vc = {
       jump: (seconds: number) => jumps.push(seconds),
-      ws010105Data: { duration: 1000, chapters: [{ start: 0, end: 2000, type: "none" }] },
+      ws010105Data: { chapters: [{ start: 5_000, end: 5_000, type: "none" }] },
     }
     const adapter = createDAnimeAdapter({ getVc: () => vc, getVideo: () => video })
 
