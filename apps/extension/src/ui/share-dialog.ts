@@ -249,7 +249,7 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
         actionButton(
           doc,
           "共有機能を有効にする",
-          "btn-primary-text share-consent-grant",
+          "btn-primary share-consent-grant",
           () => void decideConsent("granted"),
           busy,
         ),
@@ -363,7 +363,7 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
         row.append(
           button(
             "公開する",
-            "btn-primary-text share-publish",
+            "btn-primary share-publish",
             () => {
               const meta = readForm()
               const visibility = meta.visibility
@@ -381,7 +381,7 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
         )
       } else if (record.state === "pending") {
         row.append(
-          button("公開を完了する", "btn-primary-text share-activate", () => {
+          button("公開を完了する", "btn-primary share-activate", () => {
             if (record === undefined) return
             const shareId = record.shareId
             void run(() => deps.manage.activate({ shareId, operationId: deps.newId() }))
@@ -389,7 +389,7 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
         )
       } else {
         row.append(
-          button("更新を公開", "btn-primary-text share-update", () => {
+          button("更新を公開", "btn-primary share-update", () => {
             if (record === undefined) return
             const shareId = record.shareId
             updateOpId ??= deps.newId()
@@ -513,7 +513,7 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       title: `共有: ${playlist.name}`,
       body: "",
       bodyNode: container,
-      buttons: [{ label: "閉じる", value: "close", primary: true }],
+      buttons: [{ label: "閉じる", value: "close" }],
       onReady: (handle) => {
         closeModal = handle.close
       },

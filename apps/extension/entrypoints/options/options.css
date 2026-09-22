@@ -204,16 +204,6 @@ button:disabled {
   background: rgba(255, 45, 85, 0.08);
 }
 
-.btn-primary-text {
-  padding: var(--dop-space-3) var(--dop-space-4);
-  background: transparent;
-  color: var(--dop-accent);
-}
-
-.btn-primary-text:hover:not(:disabled) {
-  background: var(--dop-accent-subtle);
-}
-
 .btn-icon {
   width: 28px;
   height: 28px;
@@ -576,6 +566,20 @@ button:disabled {
 }
 
 #importStatus.error {
+  color: var(--dop-danger);
+}
+
+#shareStatus {
+  margin-top: var(--dop-space-4);
+  font-size: 14px;
+  min-height: 20px;
+}
+
+#shareStatus.success {
+  color: var(--dop-success);
+}
+
+#shareStatus.error {
   color: var(--dop-danger);
 }
 

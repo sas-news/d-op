@@ -55,22 +55,26 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
   let renderRunning = false
   let unsubscribe: (() => void) | null = null
   let disposed = false
-  let statusTimer: unknown
 
   const el = <T extends HTMLElement>(id: string): T | null => doc.getElementById(id) as T | null
 
-  function showStatus(text: string, type: "success" | "error" = "success"): void {
-    const status = el("importStatus")
-    if (status === null) return
-    status.textContent = text
-    status.className = type === "error" ? "error" : "success"
-    if (statusTimer !== undefined) deps.cancelTimer(statusTimer)
-    statusTimer = deps.schedule(() => {
-      statusTimer = undefined
-      status.textContent = ""
-      status.className = ""
-    }, 3000)
+  const makeStatusWriter = (id: string): ((text: string, type?: "success" | "error") => void) => {
+    let statusTimer: unknown
+    return (text, type = "success") => {
+      const status = el(id)
+      if (status === null) return
+      status.textContent = text
+      status.className = type === "error" ? "error" : "success"
+      if (statusTimer !== undefined) deps.cancelTimer(statusTimer)
+      statusTimer = deps.schedule(() => {
+        statusTimer = undefined
+        status.textContent = ""
+        status.className = ""
+      }, 3000)
+    }
   }
+  const showStatus = makeStatusWriter("importStatus")
+  const showShareStatus = makeStatusWriter("shareStatus")
 
   async function showConfirm(message: string): Promise<boolean> {
     const value = await modal.show({
@@ -156,7 +160,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     newId: deps.newId,
     dataPermissions: deps.dataPermissions,
     copyText: deps.copyText ?? (async () => false),
-    showStatus,
+    showStatus: showShareStatus,
     subscribe: deps.subscribe,
     log: deps.log,
     onChanged: () => render(),
@@ -169,7 +173,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     manage,
     newId: deps.newId,
     modal,
-    showStatus,
+    showStatus: showShareStatus,
     log: deps.log,
     onChanged: () => render(),
   })
@@ -180,7 +184,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     storage: deps.storage,
     dataPermissions: deps.dataPermissions,
     newId: deps.newId,
-    showStatus,
+    showStatus: showShareStatus,
     log: deps.log,
     onChanged: () => render(),
   })
