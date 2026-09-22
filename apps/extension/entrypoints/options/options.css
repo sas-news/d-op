@@ -204,6 +204,16 @@ button:disabled {
   background: rgba(255, 45, 85, 0.08);
 }
 
+.btn-primary-text {
+  padding: var(--dop-space-3) var(--dop-space-4);
+  background: transparent;
+  color: var(--dop-accent);
+}
+
+.btn-primary-text:hover:not(:disabled) {
+  background: var(--dop-accent-subtle);
+}
+
 .btn-icon {
   width: 28px;
   height: 28px;
@@ -732,6 +742,24 @@ button:disabled {
   margin-top: var(--dop-space-4);
 }
 
+.consent-desc {
+  font-size: 14px;
+  color: var(--dop-text-secondary);
+  margin: 0 0 var(--dop-space-4);
+}
+
+.consent-status {
+  font-size: 13px;
+  color: var(--dop-text-secondary);
+  margin: 0 0 var(--dop-space-4);
+}
+
+.consent-privacy {
+  font-size: 12px;
+  color: var(--dop-text-tertiary);
+  margin: var(--dop-space-4) 0 0;
+}
+
 .guide-list {
   margin: 0;
   padding-left: var(--dop-space-6);
@@ -801,6 +829,34 @@ button:disabled {
   /* Long unbroken strings (200-char CJK titles in confirm prompts) wrap
      instead of forcing the panel wider than the viewport. */
   overflow-wrap: anywhere;
+}
+
+.d-op-modal-footer button {
+  padding: var(--dop-space-4) var(--dop-space-6);
+  border: 1px solid var(--dop-border-strong);
+  border-radius: var(--dop-radius-sm);
+  background: transparent;
+  color: var(--dop-text-primary);
+  cursor: pointer;
+  font-family: var(--dop-font);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--dop-transition-fast), border-color var(--dop-transition-fast);
+}
+
+.d-op-modal-footer button:hover {
+  background: var(--dop-bg-elevated);
+}
+
+.d-op-modal-footer button.primary {
+  background: var(--dop-accent);
+  border-color: var(--dop-accent);
+  color: #fff;
+}
+
+.d-op-modal-footer button.primary:hover {
+  background: var(--dop-accent-hover);
+  border-color: var(--dop-accent-hover);
 }
 
 .d-op-modal-footer button:disabled {
