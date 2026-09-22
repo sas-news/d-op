@@ -71,9 +71,26 @@
     }
   }
 
+  const installDialog = document.querySelector("[data-share-install-dialog]")
+  const installClose = document.querySelector("[data-share-install-close]")
+  if (installDialog instanceof HTMLDialogElement) {
+    if (installClose instanceof HTMLElement) {
+      installClose.addEventListener("click", () => installDialog.close())
+    }
+    // Backdrop click dismisses — the dialog itself sits above the backdrop.
+    installDialog.addEventListener("click", (event) => {
+      if (event.target === installDialog) {
+        installDialog.close()
+      }
+    })
+  }
+
   const markReady = () => {
     saveStatus.textContent = STATUS_READY
     showStores(false)
+    if (installDialog instanceof HTMLDialogElement && installDialog.open) {
+      installDialog.close()
+    }
   }
 
   // Enable unconditionally: the button is the single entry point. Without the
@@ -100,7 +117,13 @@
   saveButton.addEventListener("click", () => {
     if (!extensionPresent()) {
       saveStatus.textContent = STATUS_NEEDS_EXTENSION
-      showStores(true)
+      if (installDialog instanceof HTMLDialogElement) {
+        if (!installDialog.open) {
+          installDialog.showModal()
+        }
+      } else {
+        showStores(true)
+      }
       return
     }
     const shareId = saveButton.getAttribute("data-share-id")

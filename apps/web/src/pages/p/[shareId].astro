@@ -141,19 +141,63 @@ const description =
             （<a
               href="https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc"
               target="_blank"
-              rel="noopener noreferrer"
-              data-testid="save-chrome-link">Chrome 版</a
+              rel="noopener noreferrer">Chrome 版</a
             >
             /
             <a
               href="https://addons.mozilla.org/ja/firefox/addon/d-op/"
               target="_blank"
-              rel="noopener noreferrer"
-              data-testid="save-firefox-link">Firefox 版</a
+              rel="noopener noreferrer">Firefox 版</a
             >）
           </span>
         </p>
         <p class="share-copy-status" role="status" aria-live="polite" data-share-copy-status data-testid="copy-status"></p>
+        <dialog
+          class="install-dialog"
+          aria-labelledby="install-dialog-title"
+          data-share-install-dialog
+          data-testid="install-dialog"
+        >
+          <button
+            type="button"
+            class="install-dialog-close"
+            aria-label="閉じる"
+            data-share-install-close
+            data-testid="install-dialog-close"
+          >
+            ×
+          </button>
+          <h2 id="install-dialog-title" class="install-dialog-title">
+            d-OP 拡張機能が必要です
+          </h2>
+          <p class="install-dialog-body">
+            このプレイリストを保存するには、d-OP
+            拡張機能をインストールしてください。インストールはこちらから:
+          </p>
+          <div class="button-row install-dialog-stores">
+            <a
+              class="button button-primary"
+              href="https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="save-chrome-link"
+            >
+              Chrome 版を入手
+            </a>
+            <a
+              class="button button-secondary"
+              href="https://addons.mozilla.org/ja/firefox/addon/d-op/"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="save-firefox-link"
+            >
+              Firefox 版を入手
+            </a>
+          </div>
+          <p class="install-dialog-note">
+            インストール後、このページを再読み込みすると「d-OP で開く」から保存できます。
+          </p>
+        </dialog>
         <noscript>
           <p class="share-noscript">
             ボタンの動作には JavaScript が必要です。URL:
@@ -319,6 +363,67 @@ const description =
     font-size: var(--text-xs);
     overflow-wrap: break-word;
     user-select: all;
+  }
+
+  .install-dialog {
+    position: relative;
+    max-width: min(26rem, calc(100vw - 2rem));
+    padding: var(--space-6);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .install-dialog::backdrop {
+    background: rgb(0 0 0 / 0.55);
+    backdrop-filter: blur(2px);
+  }
+
+  .install-dialog-title {
+    font-size: var(--text-xl);
+    letter-spacing: -0.01em;
+  }
+
+  .install-dialog-body {
+    margin-top: var(--space-3);
+    color: var(--color-muted);
+    overflow-wrap: break-word;
+  }
+
+  .install-dialog-stores {
+    margin-top: var(--space-5);
+  }
+
+  .install-dialog-note {
+    margin-top: var(--space-4);
+    color: var(--color-subtle);
+    font-size: var(--text-sm);
+    overflow-wrap: break-word;
+  }
+
+  .install-dialog-close {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-muted);
+    font-size: var(--text-lg);
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .install-dialog-close:hover {
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
   }
 
   .share-remix {

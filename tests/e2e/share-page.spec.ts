@@ -402,7 +402,7 @@ test("copy button copies or degrades visibly; X intent link is correct", async (
   )
 })
 
-test("save/install shell stays clickable and reveals install guidance", async ({ page }) => {
+test("save/install shell stays clickable and opens an install dialog", async ({ page }) => {
   await page.goto(`${WEB_ORIGIN}/p/${publicId}`)
   const panel = page.locator("[data-testid='save-panel']")
   await expect(panel).toBeVisible()
@@ -410,17 +410,23 @@ test("save/install shell stays clickable and reveals install guidance", async ({
   // browsers without the extension marker.
   const openButton = page.locator("[data-testid='save-open-button']")
   await expect(openButton).toBeEnabled()
-  // No extension here: clicking reveals install guidance + store links.
+  // No extension here: clicking opens the install dialog with store links.
   await openButton.click()
-  const status = page.locator("[data-testid='save-status']")
-  await expect(status).toContainText("拡張機能")
-  await expect(status).toContainText("再読み込み")
-  const chromeLink = page.locator("[data-testid='save-chrome-link']")
-  const firefoxLink = page.locator("[data-testid='save-firefox-link']")
+  const dialog = page.locator("[data-testid='install-dialog']")
+  await expect(dialog).toBeVisible()
+  const chromeLink = dialog.locator("[data-testid='save-chrome-link']")
+  const firefoxLink = dialog.locator("[data-testid='save-firefox-link']")
   await expect(chromeLink).toBeVisible()
   await expect(firefoxLink).toBeVisible()
   await expect(chromeLink).toHaveAttribute("href", /chromewebstore\.google\.com/)
   await expect(firefoxLink).toHaveAttribute("href", /addons\.mozilla\.org/)
+  // The status line carries the same guidance for assistive tech.
+  const status = page.locator("[data-testid='save-status']")
+  await expect(status).toContainText("拡張機能")
+  await expect(status).toContainText("再読み込み")
+  // The dialog dismisses via its close button.
+  await dialog.locator("[data-testid='install-dialog-close']").click()
+  await expect(dialog).not.toBeVisible()
 })
 
 test("remix provenance: source link, direct-children list, and hidden-parent redaction", async ({
