@@ -941,6 +941,7 @@ button:disabled {
 .share-confirm-text,
 .share-consent-text,
 .share-source-line,
+.share-danger-desc,
 .share-busy {
   font-size: 12px;
   color: var(--dop-text-secondary);
@@ -1026,6 +1027,37 @@ button:disabled {
   font-size: 12px;
   color: var(--dop-text-secondary);
   flex-basis: 100%;
+}
+
+/* Key discard is tucked behind a collapsed disclosure — off the main row. */
+.share-danger-zone {
+  border-top: 1px solid var(--dop-border);
+  padding-top: var(--dop-space-2);
+}
+
+.share-danger-zone summary,
+.management-danger summary {
+  font-size: 12px;
+  color: var(--dop-text-tertiary);
+  cursor: pointer;
+  width: fit-content;
+}
+
+.share-danger-zone[open] {
+  padding-bottom: var(--dop-space-2);
+}
+
+.share-danger-zone .share-danger-desc {
+  margin-top: var(--dop-space-2);
+}
+
+.share-danger-zone .share-discard,
+.share-danger-zone .share-actions {
+  margin-top: var(--dop-space-2);
+}
+
+.management-danger .management-destroy {
+  margin: var(--dop-space-2) 0;
 }
 
 /* Reduced motion (task 24): entrance animations, collapse/expand and drag

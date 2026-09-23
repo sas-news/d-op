@@ -52,7 +52,7 @@ export type ShareDialog = {
   readonly open: (playlistId: string) => Promise<void>
 }
 
-type ConfirmKind = "delete-remote" | "discard"
+type ConfirmKind = "delete-remote" | "discard" | "discard-final"
 
 export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
   const { doc } = deps
@@ -67,6 +67,9 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
     let resultText = ""
     let resultError = false
     let remoteText = ""
+    // The destructive key-discard lives behind a collapsed <details> zone —
+    // kept open across re-renders only while its two-step confirm runs.
+    let dangerOpen = false
     // Task 20: first-publish provenance preview line (async, advisory).
     let sourceText = ""
     let forceRevision: number | undefined
@@ -315,48 +318,31 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
     function actions(): HTMLElement {
       const row = doc.createElement("div")
       row.className = "share-actions"
-      if (confirm === "delete-remote" || confirm === "discard") {
-        const onCancel = (): void => {
-          confirm = undefined
-          render()
-        }
-        if (confirm === "delete-remote") {
-          return confirmRow(
-            doc,
-            "リモートの公開版を削除します。ローカルのプレイリストは残ります。よろしいですか？",
-            "公開版を削除する",
-            "share-confirm-delete",
-            busy,
-            () => {
-              confirm = undefined
-              const shareId = record?.shareId
-              if (shareId === undefined) return
-              deleteOpId ??= deps.newId()
-              const operationId = deleteOpId
-              void run(() =>
-                deps.manage.deleteRemote({
-                  shareId,
-                  operationId,
-                  ...(forceRevision === undefined ? {} : { expectedRevision: forceRevision }),
-                }),
-              )
-            },
-            onCancel,
-          )
-        }
+      if (confirm === "delete-remote") {
         return confirmRow(
           doc,
-          "管理情報（管理キー）を破棄します。破棄するとこの公開版を更新・削除する手段は失われます。リモートの公開版は削除されず残り続けます。この操作は取り消せません。",
-          "破棄する",
-          "share-confirm-discard",
+          "リモートの公開版を削除します。ローカルのプレイリストは残ります。よろしいですか？",
+          "公開版を削除する",
+          "share-confirm-delete",
           busy,
           () => {
             confirm = undefined
             const shareId = record?.shareId
             if (shareId === undefined) return
-            discardConfirmed(shareId)
+            deleteOpId ??= deps.newId()
+            const operationId = deleteOpId
+            void run(() =>
+              deps.manage.deleteRemote({
+                shareId,
+                operationId,
+                ...(forceRevision === undefined ? {} : { expectedRevision: forceRevision }),
+              }),
+            )
           },
-          onCancel,
+          () => {
+            confirm = undefined
+            render()
+          },
         )
       }
       if (record === undefined) {
@@ -413,13 +399,72 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
             confirm = "delete-remote"
             render()
           }),
+        )
+      }
+      return row
+    }
+
+    function dangerZone(): HTMLElement {
+      const details = doc.createElement("details")
+      details.className = "share-danger-zone"
+      details.open = dangerOpen || confirm === "discard" || confirm === "discard-final"
+      details.addEventListener("toggle", () => {
+        dangerOpen = details.open
+      })
+      const summary = doc.createElement("summary")
+      summary.className = "share-danger-summary"
+      summary.textContent = "その他の操作"
+      details.appendChild(summary)
+      const cancel = (): void => {
+        confirm = undefined
+        render()
+      }
+      if (confirm === "discard") {
+        details.appendChild(
+          confirmRow(
+            doc,
+            "管理情報（管理キー）を破棄します。公開版はリモートに残ったまま、更新・削除する手段が失われます。サイトから消したい場合は「公開版を削除」を使ってください。",
+            "次へ",
+            "share-discard-step1",
+            busy,
+            () => {
+              confirm = "discard-final"
+              render()
+            },
+            cancel,
+          ),
+        )
+      } else if (confirm === "discard-final") {
+        details.appendChild(
+          confirmRow(
+            doc,
+            "最終確認: 破棄するとこの公開版を管理する手段は永久に失われ、元に戻せません。本当に破棄しますか？",
+            "管理情報を破棄する",
+            "share-confirm-discard",
+            busy,
+            () => {
+              confirm = undefined
+              const shareId = record?.shareId
+              if (shareId === undefined) return
+              discardConfirmed(shareId)
+            },
+            cancel,
+          ),
+        )
+      } else {
+        details.append(
+          line(
+            doc,
+            "share-danger-desc",
+            "公開版をサイトから消すには上の「公開版を削除」を使います。ここにあるのは管理キーの破棄だけです。",
+          ),
           button("管理情報を破棄", "btn-danger-text share-discard", () => {
             confirm = "discard"
             render()
           }),
         )
       }
-      return row
+      return details
     }
 
     function render(): void {
@@ -473,6 +518,9 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       const result = line(doc, `share-result ${resultError ? "error" : "success"}`, resultText)
       result.dataset["testid"] = "share-result"
       container.appendChild(result)
+      if (!consentRequired && record !== undefined) {
+        container.appendChild(dangerZone())
+      }
     }
 
     await reload()

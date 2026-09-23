@@ -164,7 +164,9 @@ describe("options 共有管理 (detached publication records)", () => {
 
     destroy?.click()
     await settle()
-    await clickModalButton("破棄する")
+    await clickModalButton("次へ")
+    await settle()
+    await clickModalButton("管理情報を破棄する")
     await settle()
 
     // The record is gone from the vault and the list — remote untouched.

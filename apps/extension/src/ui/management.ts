@@ -37,12 +37,21 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
   const forceRevisions = new Map<string, number>()
 
   async function destroy(record: PublicationRecord): Promise<void> {
-    const value = await deps.modal.show({
+    const first = await deps.modal.show({
       title: "管理情報の破棄",
-      body: `共有 ${record.shareId} の管理情報（管理キー）を破棄します。破棄するとこの公開版を更新・削除する手段は失われます。リモートの公開版は削除されず残り続けます。この操作は取り消せません。`,
+      body: `共有 ${record.shareId} の管理情報（管理キー）を破棄します。公開版はリモートに残ったまま、更新・削除する手段が失われます。サイトから消したい場合は「公開版を削除」を選んでください。`,
       buttons: [
         { label: "キャンセル", value: "cancel" },
-        { label: "破棄する", value: "destroy", primary: true },
+        { label: "次へ", value: "next" },
+      ],
+    })
+    if (first !== "next") return
+    const value = await deps.modal.show({
+      title: "管理情報の破棄（最終確認）",
+      body: "破棄するとこの公開版を管理する手段は永久に失われ、元に戻せません。本当に破棄しますか？",
+      buttons: [
+        { label: "キャンセル", value: "cancel" },
+        { label: "管理情報を破棄する", value: "destroy", primary: true },
       ],
     })
     if (value !== "destroy") return
@@ -169,7 +178,14 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
     destroyButton.className = "btn-danger-text management-destroy"
     destroyButton.textContent = "管理情報を破棄"
     destroyButton.addEventListener("click", () => void destroy(record))
-    element.append(id, visibility, updated, inspectButton, deleteButton, destroyButton)
+    // Key discard is irreversible and easily mistaken for remote delete —
+    // keep it behind a collapsed per-row disclosure, off the main row.
+    const danger = doc.createElement("details")
+    danger.className = "management-danger"
+    const dangerSummary = doc.createElement("summary")
+    dangerSummary.textContent = "その他"
+    danger.append(dangerSummary, destroyButton)
+    element.append(id, visibility, updated, inspectButton, deleteButton, danger)
     return element
   }
 

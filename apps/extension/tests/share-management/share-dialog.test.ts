@@ -224,6 +224,8 @@ describe("share-dialog", () => {
     const open = dialog.open("p1")
     await vi.waitFor(() => expect(q(".share-discard")).not.toBeNull())
     q<HTMLButtonElement>(".share-discard").click()
+    await vi.waitFor(() => expect(q(".share-discard-step1")).not.toBeNull())
+    q<HTMLButtonElement>(".share-discard-step1").click()
     await vi.waitFor(() => expect(q(".share-confirm-discard")).not.toBeNull())
     q<HTMLButtonElement>(".share-confirm-discard").click()
     await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce())
