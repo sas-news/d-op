@@ -12,6 +12,12 @@ import { newRequestId } from "../server/services/respond"
 
 const result = await loadExplorePage(Astro.request, newRequestId())
 
+if (result.kind === "redirect") {
+  // Canonicalize away empty form fields and stale paging params — the URL
+  // in the address bar is always the clean form.
+  return Astro.redirect(result.location, 301)
+}
+
 if (result.kind === "invalid") {
   Astro.response.status = 400
 } else if (result.kind === "unavailable") {

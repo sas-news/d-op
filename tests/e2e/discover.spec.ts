@@ -404,12 +404,14 @@ test("expired snapshot cursor: API answers 410; /explore just renders live data"
   expect(body.error.code).toBe("CURSOR_EXPIRED")
   expect(body.error.message).toContain("restart")
 
-  // ...but humans never see it: stale paging params are dropped and /explore
-  // renders the live first page — expiry states do not exist for the page.
+  // ...but humans never see it: stale paging params are canonicalized away
+  // (301 to the clean URL) and /explore renders live data — expiry states
+  // do not exist for the page.
   const response = await page.goto(
     `${WEB_ORIGIN}/explore?sort=new&tag=e2eexp&cursor=${encodeURIComponent(cursor)}`,
   )
   expect(response?.status()).toBe(200)
+  expect(page).not.toHaveURL(/cursor=/)
   await expect(page.locator("[data-testid='explore-expired']")).toHaveCount(0)
   await expect(page.locator("[data-testid='explore-item']").first()).toBeVisible()
 })
@@ -495,10 +497,13 @@ test("explore page: sort links, search form, chips and pager navigation", async 
     page.locator("[data-testid='explore-tag-chip']").filter({ hasText: "e2edis" }),
   ).toBeVisible()
 
-  // The search form GETs /explore with the filters.
+  // The search form GETs /explore; empty fields canonicalize away (301) so
+  // the address bar lands on the clean URL — never an empty `?q=&tag=`.
+  // (The active tag filter e2edis stays — only empties are dropped.)
   await page.locator("[data-testid='explore-q']").fill("needle")
   await page.locator("[data-testid='explore-submit']").click()
   await expect(page).toHaveURL(/q=needle/)
+  await expect(page).not.toHaveURL(/[?&](q|tag|limit|s|p|cursor)=(&|$)/)
   await expect(page.locator("[data-testid='explore-item']")).toHaveCount(1)
 
   // Paged views carry noindex; the first page does not.

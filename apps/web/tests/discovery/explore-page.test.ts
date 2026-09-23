@@ -155,18 +155,28 @@ describe("loadExplorePage", () => {
     await seedPlaylist(db(), { firstPublishedAt: ISO(1), tags: ["xp-form"] })
     // The GET form always submits every field — empty ones included — plus
     // whatever trackers a browser/extension appends.
-    for (const suffix of [
-      "?sort=new&q=&tag=",
-      "?sort=new&q=nonexistent&tag=",
-      "?sort=new&utm_source=share",
-      "?q=",
-    ]) {
+    // Non-canonical queries are answered with a redirect to the clean URL —
+    // never an error page, and following it lands on live data.
+    for (const [suffix, expected] of [
+      ["?sort=new&q=&tag=", "/explore?sort=new"],
+      ["?sort=new&q=nonexistent&tag=", "/explore?sort=new&q=nonexistent"],
+      ["?sort=new&utm_source=share", "/explore?sort=new"],
+      ["?q=", "/explore"],
+    ] as const) {
       const result = await loadExplorePage(
         new Request(`https://d-op.sasnews.dev/explore${suffix}`, { method: "GET" }),
         crypto.randomUUID(),
         { now: NOW },
       )
-      expect(result.kind, suffix).toBe("ready")
+      expect(result.kind, suffix).toBe("redirect")
+      if (result.kind !== "redirect") continue
+      expect(result.location).toBe(expected)
+      const followed = await loadExplorePage(
+        new Request(`https://d-op.sasnews.dev${result.location}`, { method: "GET" }),
+        crypto.randomUUID(),
+        { now: NOW },
+      )
+      expect(followed.kind, `${suffix} -> ${result.location}`).toBe("ready")
     }
   })
 
@@ -196,31 +206,35 @@ describe("loadExplorePage", () => {
     expect(far.view.items).toHaveLength(1)
   })
 
-  it("legacy s/cursor params degrade silently — stale links still render", async () => {
-    // Old snapshot-era URLs (?s=<id>&p=N, ?cursor=<signed>) are lifted out
-    // with the stray-param whitelist; the page falls back to live page 1.
-    for (const suffix of [
-      `?s=${crypto.randomUUID()}&p=2`,
-      "?cursor=tampered.garbage",
-      "?s=not-a-uuid",
-    ]) {
+  it("legacy s/cursor params canonicalize away — stale links still land fine", async () => {
+    // Old snapshot-era URLs (?s=<id>&p=N, ?cursor=<signed>) redirect to the
+    // clean live URL — the page itself can never expire.
+    for (const [suffix, expected] of [
+      [`?s=${crypto.randomUUID()}&p=2`, "/explore?p=2"],
+      ["?cursor=tampered.garbage", "/explore"],
+      ["?s=not-a-uuid", "/explore"],
+    ] as const) {
       const result = await loadExplorePage(
         new Request(`https://d-op.sasnews.dev/explore${suffix}`, { method: "GET" }),
         crypto.randomUUID(),
         { now: NOW },
       )
-      expect(result.kind, suffix).toBe("ready")
+      expect(result.kind, suffix).toBe("redirect")
+      if (result.kind !== "redirect") continue
+      expect(result.location).toBe(expected)
     }
   })
 
-  it("malformed p values degrade to page 1 — paging junk never errors", async () => {
-    for (const suffix of ["?p=abc", "?p=0x2", "?p=-1", "?p="]) {
+  it("malformed p values canonicalize to the bare page — never an error", async () => {
+    for (const suffix of ["?p=abc", "?p=0x2", "?p=-1", "?p=", "?p=1", "?p=0"]) {
       const result = await loadExplorePage(
         new Request(`https://d-op.sasnews.dev/explore${suffix}`, { method: "GET" }),
         crypto.randomUUID(),
         { now: NOW },
       )
-      expect(result.kind, suffix).toBe("ready")
+      expect(result.kind, suffix).toBe("redirect")
+      if (result.kind !== "redirect") continue
+      expect(result.location).toBe("/explore")
     }
   })
 
@@ -231,9 +245,9 @@ describe("loadExplorePage", () => {
     expect(result.kind).toBe("invalid")
   })
 
-  it("an expired snapshot-era cursor still renders — nothing can 410", async () => {
-    // Even a syntactically real (but stale) cursor is dropped by the
-    // whitelist, so the page renders live data instead of an expiry page.
+  it("an expired snapshot-era cursor redirects to live data — never a 410", async () => {
+    // Even a syntactically real (but stale) cursor is canonicalized away;
+    // following the redirect renders live data instead of an expiry page.
     for (let i = 0; i < 3; i += 1) {
       await seedPlaylist(db(), { firstPublishedAt: ISO(i + 1), tags: ["xp-d"] })
     }
@@ -242,9 +256,17 @@ describe("loadExplorePage", () => {
       crypto.randomUUID(),
       { now: NOW },
     )
-    expect(result.kind).toBe("ready")
-    if (result.kind !== "ready") return
-    expect(result.view.items.length).toBeGreaterThan(0)
+    expect(result.kind).toBe("redirect")
+    if (result.kind !== "redirect") return
+    expect(result.location).toBe("/explore?sort=new&tag=xp-d")
+    const followed = await loadExplorePage(
+      new Request(`https://d-op.sasnews.dev${result.location}`, { method: "GET" }),
+      crypto.randomUUID(),
+      { now: NOW },
+    )
+    expect(followed.kind).toBe("ready")
+    if (followed.kind !== "ready") return
+    expect(followed.view.items.length).toBeGreaterThan(0)
   })
 
   it("tag chips come from the public dictionary and mark the active tag", async () => {

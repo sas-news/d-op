@@ -84,6 +84,7 @@ export type ExplorePageView = {
 
 export type ExplorePageResult =
   | { readonly kind: "ready"; readonly view: ExplorePageView }
+  | { readonly kind: "redirect"; readonly location: string }
   | { readonly kind: "invalid" }
   | { readonly kind: "unavailable"; readonly status: 429 | 503; readonly retryAfter: string | null }
 
@@ -93,6 +94,17 @@ export async function loadExplorePage(
   deps: CollectionDeps = {},
 ): Promise<ExplorePageResult> {
   const url = new URL(request.url)
+  // Canonicalize FIRST: a GET form always serializes empty fields and old
+  // links carry dead paging state, so any request whose query would lose
+  // params under the whitelist is redirected (301) to the clean URL — the
+  // address bar never shows `?q=&tag=` or a stale `s`/`cursor`.
+  const canonical = canonicalExploreQuery(url)
+  if (canonical !== null) {
+    return {
+      kind: "redirect",
+      location: canonical === "" ? EXPLORE_PATH : `${EXPLORE_PATH}?${canonical}`,
+    }
+  }
   // The page is friendlier than the strict API schema: empty fields from a
   // GET form (`?q=&tag=`), stray params (utm_*, tracker junk) and stale
   // paging state (`s`, `cursor` — leftovers of the pre-live-paging URLs)
@@ -196,9 +208,38 @@ function toItemView(item: ListItem): ExploreItemView {
 /** `p` — 1-based page number; a malformed value degrades to page 1. */
 const PAGE_RE = /^\d{1,7}$/
 
+/** Params the page understands — everything else is canonicalized away. */
+const PAGE_PARAMS = new Set(["sort", "q", "tag", "limit", "p"])
+
 /**
- * Reads `?p=` as a 1-based page. Anything unusable (`?p=abc`, `?p=-1`, an
- * empty `?p=`) simply means page 1 — paging state is never worth an error.
+ * Builds the canonical query for /explore: whitelisted, non-empty, first
+ * occurrence wins; `p` must be a valid page ≥ 2 (`p=1` is the bare page).
+ * Returns null when the request is already canonical — otherwise the query
+ * to 301 to ("" means the bare path). Direct service calls and hand-typed
+ * URLs converge on the same clean form, so nothing errors or looks broken.
+ */
+function canonicalExploreQuery(url: URL): string | null {
+  const kept = new URLSearchParams()
+  const seen = new Set<string>()
+  let dirty = false
+  for (const [key, value] of url.searchParams) {
+    let keep = PAGE_PARAMS.has(key) && value !== "" && !seen.has(key)
+    if (keep && key === "p") {
+      keep = PAGE_RE.test(value) && Number.parseInt(value, 10) >= 2
+    }
+    if (keep) {
+      seen.add(key)
+      kept.append(key, value)
+    } else {
+      dirty = true
+    }
+  }
+  return dirty ? kept.toString() : null
+}
+
+/**
+ * Reads `?p=` as a 1-based page. Post-canonicalization it is always valid
+ * and ≥ 2, but a direct in-process call still degrades instead of failing.
  */
 function parsePage(url: URL): number {
   const raw = url.searchParams.get("p")
