@@ -251,9 +251,16 @@ export function statusBlock(
     nodes.push(line(doc, `share-dirty share-dirty-${dirty.kind}`, shareDirtyText(dirty)))
   }
   if (record !== undefined) {
+    const url = sharePageUrl(record.shareId)
     const urlRow = doc.createElement("div")
     urlRow.className = "share-url-row"
-    urlRow.appendChild(line(doc, "share-url", sharePageUrl(record.shareId)))
+    const link = doc.createElement("a")
+    link.className = "share-url"
+    link.href = url
+    link.target = "_blank"
+    link.rel = "noopener"
+    link.textContent = url
+    urlRow.appendChild(link)
     urlRow.appendChild(
       actionButton(doc, "コピー", "btn-text share-copy", () => onCopy(record.shareId), busy),
     )

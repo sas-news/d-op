@@ -45,7 +45,7 @@ export function shareSiteUrl(path: `/${string}`): string {
 }
 
 /** Public snapshot page URL for a shareId — shareable link, never carries keys. */
-export function sharePageUrl(shareId: string, origin: string = SHARE_ORIGIN): string {
+export function sharePageUrl(shareId: string, origin: string = shareApiOrigin()): string {
   return `${origin}${SHARE_PAGE_PATH_PREFIX}${shareId}`
 }
 

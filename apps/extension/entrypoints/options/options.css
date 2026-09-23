@@ -183,6 +183,20 @@ button:disabled {
   background: var(--dop-bg-base);
 }
 
+/* Prominent Explore jump under the playlist list — shares btn-secondary
+   chrome but renders as a block-level anchor with breathing room. */
+.explore-link {
+  display: inline-block;
+  margin-top: var(--dop-space-4);
+  text-decoration: none;
+  text-align: center;
+  font-size: 13px;
+}
+
+.explore-link:hover {
+  text-decoration: none;
+}
+
 .btn-text {
   padding: var(--dop-space-3) var(--dop-space-4);
   background: transparent;
@@ -627,7 +641,10 @@ button:disabled {
   }
 
   .share-dialog {
-    min-width: 0;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    max-height: 60vh;
   }
 
   .share-url-row {
@@ -868,12 +885,16 @@ button:disabled {
   cursor: default;
 }
 
-/* Task 15 share-management dialog (options page). */
+/* Task 15 share-management dialog (options page). The fixed footprint matches
+   the published state so the panel does not jump when 公開する lands — the URL
+   row, dirty badge and extra actions that appear after publish already fit. */
 .share-dialog {
   display: flex;
   flex-direction: column;
   gap: var(--dop-space-3);
-  min-width: 320px;
+  width: min(480px, calc(100vw - 96px));
+  height: min(580px, calc(80vh - 140px));
+  overflow-y: auto;
 }
 
 .share-state {
@@ -907,6 +928,11 @@ button:disabled {
   color: var(--dop-accent-text);
   margin: 0;
   overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.share-url:hover {
+  text-decoration: underline;
 }
 
 .share-updated,
