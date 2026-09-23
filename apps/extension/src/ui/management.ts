@@ -98,7 +98,14 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
   async function inspect(record: PublicationRecord, element: HTMLElement): Promise<void> {
     rowStatus(element, "確認中…")
     const reply = await deps.manage.inspect({ shareId: record.shareId })
-    rowStatus(element, describeRemote(reply))
+    rowStatus(element, "")
+    // A one-line span was too cramped for this — show the status in the same
+    // modal surface the rest of the extension uses.
+    await deps.modal.show({
+      title: "公開版の状態",
+      body: `${describeRemote(reply)}\n\n共有ID: ${record.shareId}\n最終更新: ${record.updatedAt}`,
+      buttons: [{ label: "閉じる", value: "ok", primary: true }],
+    })
   }
 
   async function deleteRemote(record: PublicationRecord, element: HTMLElement): Promise<void> {

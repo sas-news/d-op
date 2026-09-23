@@ -547,6 +547,40 @@ p.empty {
   border-color: var(--dop-accent);
 }
 
+/* Explore call-to-action — same accent-button language as the transport
+   controls, centered under the playlist list. */
+.explore-row {
+  display: flex;
+  justify-content: center;
+  margin: var(--dop-space-5) 0 var(--dop-space-4);
+}
+
+.explore-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 180px;
+  padding: var(--dop-space-4) var(--dop-space-6);
+  border: none;
+  border-radius: var(--dop-radius-md);
+  background: var(--dop-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--dop-transition-fast), transform var(--dop-transition-fast);
+}
+
+.explore-btn:hover {
+  background: var(--dop-accent-hover);
+}
+
+.explore-btn:active {
+  background: var(--dop-accent-pressed);
+  transform: translateY(1px);
+}
+
 .popup-footer {
   text-align: center;
   padding: var(--dop-space-3) 0 var(--dop-space-3);
@@ -583,7 +617,8 @@ p.empty {
   .playlist-card-play,
   .playlist-card-shuffle,
   .shuffle-action-btn,
-  .empty-state button {
+  .empty-state button,
+  .explore-btn {
     transition: none;
   }
 }

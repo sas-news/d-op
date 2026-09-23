@@ -468,9 +468,13 @@ test("detached records stay manageable: remote inspect + remote delete", async (
     await expect(row).toHaveCount(1, { timeout: 15_000 })
     await expect(row.locator(".management-id")).toHaveText(SHARE_ID)
 
-    // Remote inspect reconciles status on demand.
+    // Remote inspect reconciles status on demand — shown in the modal.
     await row.locator(".management-inspect").click()
-    await expect(row.locator(".management-remote")).toContainText("公開中", { timeout: 10_000 })
+    const inspectModal = page.locator("#d-op-modal")
+    await expect(inspectModal.locator(".d-op-modal-body")).toContainText("公開中", {
+      timeout: 10_000,
+    })
+    await inspectModal.locator("button", { hasText: "閉じる" }).click()
     expect(apiLog.map((call) => call.method)).toEqual(["GET"])
 
     // Remote delete needs the modal confirmation, then retires the record.

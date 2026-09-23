@@ -222,6 +222,8 @@ describe("share-dialog", () => {
       },
     })
     const open = dialog.open("p1")
+    await vi.waitFor(() => expect(q(".share-danger-open")).not.toBeNull())
+    q<HTMLButtonElement>(".share-danger-open").click()
     await vi.waitFor(() => expect(q(".share-discard")).not.toBeNull())
     q<HTMLButtonElement>(".share-discard").click()
     await vi.waitFor(() => expect(q(".share-discard-step1")).not.toBeNull())

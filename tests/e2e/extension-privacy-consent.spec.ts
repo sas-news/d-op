@@ -367,9 +367,14 @@ test("declined: every local feature works and Share emits zero traffic", async (
     const row = page.locator("#managementList .management-row")
     await expect(row).toHaveCount(1)
 
-    // Detached-row inspect is gated by the background — no API call.
+    // Detached-row inspect is gated by the background — no API call; the
+    // result surfaces in the shared modal.
     await row.locator(".management-inspect").click()
-    await expect(row.locator(".management-remote")).toContainText("無効", { timeout: 10_000 })
+    const gatedModal = page.locator("#d-op-modal")
+    await expect(gatedModal.locator(".d-op-modal-body")).toContainText("無効", {
+      timeout: 10_000,
+    })
+    await gatedModal.locator("button", { hasText: "閉じる" }).click()
 
     // Share dialog shows the consent panel, never the publish form.
     await page.locator(".playlist-card .share-open").first().click()
@@ -513,7 +518,11 @@ test("revoked: future Share traffic blocked, remote publication preserved", asyn
     const row = page.locator("#managementList .management-row")
     await expect(row).toHaveCount(1)
     await row.locator(".management-inspect").click()
-    await expect(row.locator(".management-remote")).toContainText("公開中", { timeout: 10_000 })
+    const activeModal = page.locator("#d-op-modal")
+    await expect(activeModal.locator(".d-op-modal-body")).toContainText("公開中", {
+      timeout: 10_000,
+    })
+    await activeModal.locator("button", { hasText: "閉じる" }).click()
     expect(rig.apiLog.map((call) => call.method)).toEqual(["GET"])
 
     // Revoke via the consent section — the local record becomes declined.
@@ -529,7 +538,11 @@ test("revoked: future Share traffic blocked, remote publication preserved", asyn
     // Future Share traffic is blocked: row inspect, share dialog, and the
     // relayed import request all stop at the background gate.
     await row.locator(".management-inspect").click()
-    await expect(row.locator(".management-remote")).toContainText("無効", { timeout: 10_000 })
+    const revokedModal = page.locator("#d-op-modal")
+    await expect(revokedModal.locator(".d-op-modal-body")).toContainText("無効", {
+      timeout: 10_000,
+    })
+    await revokedModal.locator("button", { hasText: "閉じる" }).click()
     await page.locator(".playlist-card .share-open").click()
     const dialog = page.locator("#d-op-modal")
     await expect(dialog.locator(".share-consent-text")).toBeVisible()

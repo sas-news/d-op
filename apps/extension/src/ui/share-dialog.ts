@@ -67,9 +67,10 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
     let resultText = ""
     let resultError = false
     let remoteText = ""
-    // The destructive key-discard lives behind a collapsed <details> zone —
-    // kept open across re-renders only while its two-step confirm runs.
-    let dangerOpen = false
+    // Sub-view swap inside the fixed-size dialog: the destructive key-discard
+    // and the inspect result live behind dedicated views instead of inline
+    // expansion, so nothing ever changes the dialog's footprint.
+    let view: "main" | "danger" | "inspect" = "main"
     // Task 20: first-publish provenance preview line (async, advisory).
     let sourceText = ""
     let forceRevision: number | undefined
@@ -267,9 +268,15 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       return [text, privacy, row]
     }
 
-    async function doInspect(): Promise<void> {
+    async function doInspect(showView = false): Promise<void> {
       if (record === undefined) return
       const shareId = record.shareId
+      // The button opens the dedicated status view; the automatic reconcile
+      // on dialog open stays inline (it feeds the .share-remote status line).
+      if (showView) {
+        view = "inspect"
+        remoteText = ""
+      }
       await run(async () => {
         const reply = await deps.manage.inspect({ shareId })
         if (reply.status === "inspect") {
@@ -390,7 +397,7 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
               }),
             )
           }),
-          button("状態を確認", "btn-text share-inspect", () => void doInspect()),
+          button("状態を確認", "btn-text share-inspect", () => void doInspect(true)),
         )
       }
       if (record !== undefined) {
@@ -404,23 +411,14 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       return row
     }
 
-    function dangerZone(): HTMLElement {
-      const details = doc.createElement("details")
-      details.className = "share-danger-zone"
-      details.open = dangerOpen || confirm === "discard" || confirm === "discard-final"
-      details.addEventListener("toggle", () => {
-        dangerOpen = details.open
-      })
-      const summary = doc.createElement("summary")
-      summary.className = "share-danger-summary"
-      summary.textContent = "その他の操作"
-      details.appendChild(summary)
+    function dangerView(): HTMLElement[] {
+      const nodes: HTMLElement[] = [line(doc, "share-subview-title", "その他の操作")]
       const cancel = (): void => {
         confirm = undefined
         render()
       }
       if (confirm === "discard") {
-        details.appendChild(
+        nodes.push(
           confirmRow(
             doc,
             "管理情報（管理キー）を破棄します。公開版はリモートに残ったまま、更新・削除する手段が失われます。サイトから消したい場合は「公開版を削除」を使ってください。",
@@ -434,8 +432,10 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
             cancel,
           ),
         )
-      } else if (confirm === "discard-final") {
-        details.appendChild(
+        return nodes
+      }
+      if (confirm === "discard-final") {
+        nodes.push(
           confirmRow(
             doc,
             "最終確認: 破棄するとこの公開版を管理する手段は永久に失われ、元に戻せません。本当に破棄しますか？",
@@ -451,24 +451,67 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
             cancel,
           ),
         )
-      } else {
-        details.append(
-          line(
-            doc,
-            "share-danger-desc",
-            "公開版をサイトから消すには上の「公開版を削除」を使います。ここにあるのは管理キーの破棄だけです。",
-          ),
-          button("管理情報を破棄", "btn-danger-text share-discard", () => {
-            confirm = "discard"
-            render()
-          }),
+        return nodes
+      }
+      const row = doc.createElement("div")
+      row.className = "share-actions"
+      row.append(
+        button("管理情報を破棄", "btn-danger-text share-discard", () => {
+          confirm = "discard"
+          render()
+        }),
+        button("戻る", "btn-text share-back", () => {
+          view = "main"
+          render()
+        }),
+      )
+      nodes.push(
+        line(
+          doc,
+          "share-danger-desc",
+          "公開版をサイトから消すには「公開版を削除」を使います。ここにあるのは管理キーの破棄だけです。",
+        ),
+        row,
+      )
+      return nodes
+    }
+
+    function inspectView(): HTMLElement[] {
+      const nodes: HTMLElement[] = [
+        line(doc, "share-subview-title", "公開版の状態"),
+        line(doc, "share-remote-detail", remoteText === "" ? "確認中…" : remoteText),
+      ]
+      if (record !== undefined) {
+        nodes.push(
+          line(doc, "share-remote-meta", `共有ID: ${record.shareId}`),
+          line(doc, "share-remote-meta", `最終更新: ${record.updatedAt}`),
         )
       }
-      return details
+      if (resultText !== "") {
+        nodes.push(line(doc, `share-result ${resultError ? "error" : "success"}`, resultText))
+      }
+      const row = doc.createElement("div")
+      row.className = "share-actions"
+      row.append(
+        button("戻る", "btn-secondary share-back", () => {
+          view = "main"
+          render()
+        }),
+      )
+      nodes.push(row)
+      return nodes
     }
 
     function render(): void {
       container.replaceChildren()
+      if (view === "danger") {
+        container.append(...dangerView())
+        return
+      }
+      if (view === "inspect") {
+        container.append(...inspectView())
+        return
+      }
       container.append(
         ...statusBlock(doc, record, dirty, remoteText, busy, (shareId) => {
           void copyText(sharePageUrl(shareId)).then((ok) =>
@@ -519,7 +562,12 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       result.dataset["testid"] = "share-result"
       container.appendChild(result)
       if (!consentRequired && record !== undefined) {
-        container.appendChild(dangerZone())
+        container.appendChild(
+          button("その他の操作", "btn-text share-danger-open", () => {
+            view = "danger"
+            render()
+          }),
+        )
       }
     }
 

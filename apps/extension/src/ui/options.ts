@@ -76,8 +76,15 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
       statusTimers.add(statusTimer)
     }
   }
+  // Status writers are scoped to the section the user acted in — playlist
+  // ops and the share dialog report under the playlist list, share consent
+  // under 共有機能, detached management under 共有管理, import/export under
+  // its own section (a single shared status used to dump every message into
+  // whichever element it was pointed at).
   const showStatus = makeStatusWriter("importStatus")
   const showShareStatus = makeStatusWriter("shareStatus")
+  const showPlaylistStatus = makeStatusWriter("playlistStatus")
+  const showManagementStatus = makeStatusWriter("managementStatus")
 
   async function showConfirm(message: string): Promise<boolean> {
     const value = await modal.show({
@@ -138,7 +145,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     doc,
     deps,
     modal,
-    showStatus,
+    showStatus: showPlaylistStatus,
     showConfirm,
     render: () => render(),
     startPlaylistPlayback,
@@ -163,7 +170,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     newId: deps.newId,
     dataPermissions: deps.dataPermissions,
     copyText: deps.copyText ?? (async () => false),
-    showStatus: showShareStatus,
+    showStatus: showPlaylistStatus,
     subscribe: deps.subscribe,
     log: deps.log,
     onChanged: () => render(),
@@ -176,7 +183,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     manage,
     newId: deps.newId,
     modal,
-    showStatus: showShareStatus,
+    showStatus: showManagementStatus,
     log: deps.log,
     onChanged: () => render(),
   })
@@ -335,7 +342,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
           () => ({ kind: "rename-playlist", playlistId: playlist.id, name }),
           deps.newId,
         ).then((reply) => {
-          if (reply.kind !== "committed") showStatus("名前の変更に失敗しました。", "error")
+          if (reply.kind !== "committed") showPlaylistStatus("名前の変更に失敗しました。", "error")
           render()
         })
       })
@@ -373,7 +380,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
             () => ({ kind: "delete-playlist", playlistId: playlist.id }),
             deps.newId,
           )
-          if (reply.kind !== "committed") showStatus("削除に失敗しました。", "error")
+          if (reply.kind !== "committed") showPlaylistStatus("削除に失敗しました。", "error")
           render()
         })()
       })
