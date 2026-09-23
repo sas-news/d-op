@@ -182,17 +182,10 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
     deleteButton.addEventListener("click", () => void deleteRemote(record, element))
     const destroyButton = doc.createElement("button")
     destroyButton.type = "button"
-    destroyButton.className = "btn-danger-text management-destroy"
+    destroyButton.className = "btn-text management-destroy"
     destroyButton.textContent = "管理情報を破棄"
     destroyButton.addEventListener("click", () => void destroy(record))
-    // Key discard is irreversible and easily mistaken for remote delete —
-    // keep it behind a collapsed per-row disclosure, off the main row.
-    const danger = doc.createElement("details")
-    danger.className = "management-danger"
-    const dangerSummary = doc.createElement("summary")
-    dangerSummary.textContent = "その他"
-    danger.append(dangerSummary, destroyButton)
-    element.append(id, visibility, updated, inspectButton, deleteButton, danger)
+    element.append(id, visibility, updated, inspectButton, deleteButton, destroyButton)
     return element
   }
 

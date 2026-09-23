@@ -372,9 +372,7 @@ test("options: playlist delete detaches the publication record; destroy warns th
     expect(vault.publications[0]?.manageSecret).toBe(MANAGE_SECRET)
     await page.screenshot({ path: evidence("management-detached.png"), fullPage: true })
 
-    // 管理情報を破棄 lives behind a collapsed disclosure → two-step warning;
-    // cancelling step 1 keeps the record.
-    await page.locator("#managementList .management-danger summary").click()
+    // 管理情報を破棄 → two-step warning; cancelling step 1 keeps the record.
     await page.locator("#managementList .management-destroy").click()
     await expect(page.locator("#d-op-modal .d-op-modal-body")).toContainText("管理キー")
     await expect(page.locator("#d-op-modal .d-op-modal-body")).toContainText("公開版を削除")
@@ -383,7 +381,6 @@ test("options: playlist delete detaches the publication record; destroy warns th
     expect((await readState(worker)).publications).toHaveLength(1)
 
     // Both confirmations → distinct discard-publication-management; vault empties.
-    // (the disclosure stayed open — the list only re-renders on real changes)
     await page.locator("#managementList .management-destroy").click()
     await page.locator("#d-op-modal .d-op-modal-footer button", { hasText: "次へ" }).click()
     await expect(page.locator("#d-op-modal .d-op-modal-body")).toContainText("元に戻せません")

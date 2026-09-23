@@ -32,9 +32,9 @@ const DESCRIPTION =
   "自動同期は行いません。プレイリストの通常利用は完全にローカルで完結します。"
 
 function consentText(consent: ShareConsent | undefined): string {
-  if (consent === undefined) return "未設定 — 外部サーバーへの通信は一切行われません"
-  if (consent.choice === "granted") return `有効（${consent.decidedAt} に同意）`
-  return `無効（${consent.decidedAt} に選択）`
+  if (consent === undefined) return "未設定"
+  if (consent.choice === "granted") return "有効"
+  return "無効"
 }
 
 export function createShareConsentSection(deps: ShareConsentSectionDeps): ShareConsentSection {
@@ -107,7 +107,7 @@ export function createShareConsentSection(deps: ShareConsentSectionDeps): ShareC
     label.className = "setting-label"
     label.textContent = "共有機能"
     const status = doc.createElement("span")
-    status.className = "consent-status"
+    status.className = `consent-status consent-status-${consent?.choice ?? "unset"}`
     status.dataset["testid"] = "share-consent-status"
     status.textContent = consentText(consent)
 
@@ -120,7 +120,12 @@ export function createShareConsentSection(deps: ShareConsentSectionDeps): ShareC
       )
     } else if (consent.choice === "granted") {
       actions.append(
-        button("無効にする", "share-consent-revoke", "btn-text", () => void decide("declined")),
+        button(
+          "無効にする",
+          "share-consent-revoke",
+          "btn-secondary",
+          () => void decide("declined"),
+        ),
       )
     } else {
       actions.append(

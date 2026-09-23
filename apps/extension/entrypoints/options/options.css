@@ -183,18 +183,33 @@ button:disabled {
   background: var(--dop-bg-base);
 }
 
-/* Prominent Explore jump under the playlist list — shares btn-secondary
-   chrome but renders as a block-level anchor with breathing room. */
+/* Explore jump under the playlist list — same centered accent-pill look as
+   the popup's explore button. */
 .explore-link {
-  display: inline-block;
-  margin-top: var(--dop-space-4);
-  text-decoration: none;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-width: 200px;
+  margin: var(--dop-space-4) auto 0;
+  padding: var(--dop-space-3) var(--dop-space-6);
+  border: 1px solid var(--dop-accent);
+  border-radius: var(--dop-radius-full);
+  background: var(--dop-bg-panel);
+  color: var(--dop-accent-text);
   font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--dop-transition-fast);
 }
 
 .explore-link:hover {
+  background: var(--dop-accent-subtle);
   text-decoration: none;
+}
+
+.explore-link:active {
+  transform: translateY(1px);
 }
 
 .btn-text {
@@ -764,8 +779,19 @@ button:disabled {
 }
 
 .consent-status {
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px var(--dop-space-4);
+  border-radius: var(--dop-radius-full);
+  border: 1px solid var(--dop-border);
   color: var(--dop-text-secondary);
+  background: var(--dop-bg-elevated);
+}
+
+.consent-status-granted {
+  color: var(--dop-success);
+  border-color: var(--dop-success);
+  background: transparent;
 }
 
 .consent-actions {
@@ -1050,19 +1076,6 @@ button:disabled {
 
 .share-danger-open {
   align-self: flex-start;
-}
-
-/* Key discard in the detached-management list hides behind a collapsed
-   per-row disclosure — off the main row of actions. */
-.management-danger summary {
-  font-size: 12px;
-  color: var(--dop-text-tertiary);
-  cursor: pointer;
-  width: fit-content;
-}
-
-.management-danger .management-destroy {
-  margin: var(--dop-space-2) 0;
 }
 
 /* Reduced motion (task 24): entrance animations, collapse/expand and drag
