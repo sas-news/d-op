@@ -3,6 +3,7 @@ import type { D1Database } from "@cloudflare/workers-types"
 import { issuePaths, ListQuerySchema } from "../../../../../packages/shared/src/index"
 import {
   type CollectionDeps,
+  type CollectionOptions,
   type CollectionOutcome,
   type CollectionParams,
   runCollection,
@@ -81,6 +82,7 @@ export async function runCollectionRequest(
   request: Request,
   requestId: string,
   deps: CollectionDeps = {},
+  options: CollectionOptions = {},
 ): Promise<
   | { readonly stage: "denied"; readonly response: Response }
   | { readonly stage: "invalid-query"; readonly paths: readonly string[] }
@@ -93,7 +95,7 @@ export async function runCollectionRequest(
   const db = requireDb(env)
   const now = deps.now ?? new Date()
   await expirePendingProvisionals(db, now)
-  const outcome = await runCollection(db, parsed.params, { now })
+  const outcome = await runCollection(db, parsed.params, { now }, options)
   return { stage: "ok", db, outcome }
 }
 

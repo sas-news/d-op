@@ -73,7 +73,9 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
     await deps.modal.show({
       title: "公開版の状態",
       body: `${describeRemote(reply)}\n\n共有ID: ${record.shareId}\n最終更新: ${record.updatedAt}`,
-      buttons: [{ label: "閉じる", value: "ok", primary: true }],
+      // Read-only status: the dismiss button stays neutral like the share
+      // dialog's 閉じる — primary styling is for actions that do something.
+      buttons: [{ label: "閉じる", value: "ok" }],
     })
   }
 

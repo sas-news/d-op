@@ -1,5 +1,5 @@
 import type { Ranking } from "../../../../../packages/shared/src/index"
-import type { CollectionDeps, ListItem } from "../discovery/engine"
+import type { CollectionDeps, CollectionPages, ListItem } from "../discovery/engine"
 import type { FallbackReason, RankWindow } from "../discovery/policy"
 import { listPublicTagCounts } from "../discovery/queries"
 import { runCollectionRequest } from "./discover"
@@ -41,12 +41,36 @@ export type ExploreTagChip = {
   readonly url: string
 }
 
+export type ExplorePagerLink = {
+  readonly page: number
+  readonly url: string
+  readonly current: boolean
+}
+
+/** Numbered pager for /explore — exact pages over the frozen snapshot. */
+export type ExplorePager = {
+  readonly current: number
+  readonly totalPages: number
+  /** Frozen positions in the snapshot (eligible items may be fewer). */
+  readonly total: number
+  /** This page's positions skipped as hidden/deleted since the snapshot. */
+  readonly skipped: number
+  readonly prevUrl: string | null
+  readonly firstUrl: string
+  readonly lastUrl: string | null
+  readonly links: readonly ExplorePagerLink[]
+}
+
 export type ExplorePageView = {
   readonly canonicalUrl: string
   readonly filters: ExploreFilters
+  /** Non-default page size from `?limit=` — kept in pager/form links so page
+   *  numbers stay stable. Null at the default. */
+  readonly pageSize: number | null
   readonly items: readonly ExploreItemView[]
   readonly nextPageUrl: string | null
   readonly restartUrl: string | null
+  readonly pager: ExplorePager | null
   readonly truncated: boolean
   readonly ranking: Ranking
   /** Human-facing basis label, e.g. "人気順 · 直近30日間の保存通知（概数）". */
@@ -70,7 +94,8 @@ export async function loadExplorePage(
 ): Promise<ExplorePageResult> {
   let result: Awaited<ReturnType<typeof runCollectionRequest>>
   try {
-    result = await runCollectionRequest(request, requestId, deps)
+    // Fixed-position paging: exact page numbers and jump links for humans.
+    result = await runCollectionRequest(request, requestId, deps, { fixedPaging: true })
   } catch {
     return { kind: "unavailable", status: 503, retryAfter: null }
   }
@@ -94,6 +119,11 @@ export async function loadExplorePage(
     q: url.searchParams.get("q"),
     tag: url.searchParams.get("tag"),
   }
+  // Preserve a non-default page size across pager links — otherwise a jump
+  // link minted for limit=N would be re-read at the default and page
+  // numbers would drift.
+  const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10)
+  const limit = Number.isInteger(rawLimit) && rawLimit >= 1 && rawLimit <= 50 ? rawLimit : undefined
   let tagChips: readonly ExploreTagChip[] = []
   try {
     tagChips = (await listPublicTagCounts(result.db))
@@ -114,10 +144,18 @@ export async function loadExplorePage(
     view: {
       canonicalUrl: `${SHARE_SITE_ORIGIN}${EXPLORE_PATH}`,
       filters,
+      pageSize: limit ?? null,
       items: outcome.items.map(toItemView),
       nextPageUrl:
-        outcome.nextCursor === null ? null : filterUrl({ ...filters, cursor: outcome.nextCursor }),
-      restartUrl: filtersRestartUrl(url),
+        outcome.nextCursor === null
+          ? null
+          : filterUrl({
+              ...filters,
+              cursor: outcome.nextCursor,
+              ...(limit === undefined ? {} : { limit }),
+            }),
+      restartUrl: filtersRestartUrl(url, limit),
+      pager: toPager(outcome.pages, filters, limit),
       truncated: outcome.truncated,
       ranking: outcome.ranking,
       basisLabel: basisLabel(outcome.ranking),
@@ -148,21 +186,59 @@ function filterUrl(input: {
   readonly q: string | null
   readonly tag: string | null
   readonly cursor?: string
+  readonly limit?: number
 }): string {
   const params = new URLSearchParams()
   params.set("sort", input.sort)
   if (input.q !== null && input.q !== "") params.set("q", input.q)
   if (input.tag !== null && input.tag !== "") params.set("tag", input.tag)
+  if (input.limit !== undefined) params.set("limit", String(input.limit))
   if (input.cursor !== undefined) params.set("cursor", input.cursor)
   const query = params.toString()
   return query === "" ? EXPLORE_PATH : `${EXPLORE_PATH}?${query}`
 }
 
 /** First-page URL with the same filters but no cursor — the honest restart. */
-function filtersRestartUrl(url: URL): string | null {
+function filtersRestartUrl(url: URL, limit: number | undefined): string | null {
   if (!url.searchParams.has("cursor")) return null
   const sort = url.searchParams.get("sort") === "popular" ? "popular" : "new"
-  return filterUrl({ sort, q: url.searchParams.get("q"), tag: url.searchParams.get("tag") })
+  return filterUrl({
+    sort,
+    q: url.searchParams.get("q"),
+    tag: url.searchParams.get("tag"),
+    ...(limit === undefined ? {} : { limit }),
+  })
+}
+
+function toPager(
+  pages: CollectionPages | undefined,
+  filters: ExploreFilters,
+  limit: number | undefined,
+): ExplorePager | null {
+  if (pages === undefined) return null
+  const urlFor = (cursor: string | null): string =>
+    filterUrl({
+      ...filters,
+      ...(limit === undefined ? {} : { limit }),
+      ...(cursor === null ? {} : { cursor }),
+    })
+  const links = pages.links.map((link) => ({
+    page: link.page,
+    url: urlFor(link.cursor),
+    current: link.page === pages.current,
+  }))
+  const prev = links.find((link) => link.page === pages.current - 1)
+  const last = links.find((link) => link.page === pages.totalPages)
+  return {
+    current: pages.current,
+    totalPages: pages.totalPages,
+    total: pages.total,
+    skipped: pages.skipped,
+    prevUrl: prev?.url ?? null,
+    firstUrl: filterUrl({ ...filters, ...(limit === undefined ? {} : { limit }) }),
+    lastUrl: last !== undefined && pages.current !== pages.totalPages ? last.url : null,
+    links,
+  }
 }
 
 function windowLabel(window: RankWindow): string {

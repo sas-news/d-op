@@ -593,11 +593,17 @@ button:disabled {
   color: var(--dop-danger);
 }
 
+/* Status feedback reads as an inline notice, not bare text: tinted panel +
+   accent bar on the left. The empty element keeps only min-height. */
 #importStatus.success,
 #shareStatus.success,
 #playlistStatus.success,
 #managementStatus.success {
   color: var(--dop-success);
+  background: rgba(20, 108, 46, 0.08);
+  border-left: 3px solid var(--dop-success);
+  border-radius: var(--dop-radius-sm);
+  padding: var(--dop-space-3) var(--dop-space-4);
 }
 
 #importStatus.error,
@@ -605,6 +611,10 @@ button:disabled {
 #playlistStatus.error,
 #managementStatus.error {
   color: var(--dop-danger);
+  background: rgba(207, 30, 65, 0.08);
+  border-left: 3px solid var(--dop-danger);
+  border-radius: var(--dop-radius-sm);
+  padding: var(--dop-space-3) var(--dop-space-4);
 }
 
 .d-op-modal {

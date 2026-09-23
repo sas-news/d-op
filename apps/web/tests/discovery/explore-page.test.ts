@@ -112,6 +112,48 @@ describe("loadExplorePage", () => {
     expect(page2.view.restartUrl).not.toBeNull()
   })
 
+  it("exposes a numbered pager over fixed snapshot positions", async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await seedPlaylist(db(), { firstPublishedAt: ISO(i + 1), tags: ["xp-pager"] })
+    }
+    const page1 = await loadExplorePage(
+      exploreRequest({ sort: "new", tag: "xp-pager", limit: "2" }),
+      crypto.randomUUID(),
+      { now: NOW },
+    )
+    expect(page1.kind).toBe("ready")
+    if (page1.kind !== "ready") return
+    const pager = page1.view.pager
+    expect(pager).not.toBeNull()
+    if (pager === null) return
+    expect(pager.current).toBe(1)
+    expect(pager.totalPages).toBe(3)
+    expect(pager.total).toBe(5)
+    expect(pager.skipped).toBe(0)
+    expect(pager.links.map((link) => link.page)).toEqual([1, 2, 3])
+    // Page 1 is the bare filtered URL; deeper pages carry signed cursors.
+    expect(pager.links[0]?.url).not.toContain("cursor=")
+    expect(pager.links[1]?.url).toContain("cursor=")
+    expect(pager.prevUrl).toBeNull()
+    expect(pager.lastUrl).not.toBeNull()
+
+    // Following a numbered link lands exactly on that page's slice.
+    const page2 = await loadExplorePage(
+      new Request(new URL(pager.links[1]?.url ?? "", "https://d-op.sasnews.dev").toString(), {
+        method: "GET",
+      }),
+      crypto.randomUUID(),
+      { now: NOW },
+    )
+    expect(page2.kind).toBe("ready")
+    if (page2.kind !== "ready") return
+    expect(page2.view.pager?.current).toBe(2)
+    expect(page2.view.pager?.prevUrl).not.toBeNull()
+    // The middle of a 3-page list keeps links to 1, 2, 3.
+    expect(page2.view.pager?.links.map((link) => link.page)).toEqual([1, 2, 3])
+    expect(page2.view.pager?.links.find((link) => link.page === 2)?.current).toBe(true)
+  })
+
   it("invalid query -> kind invalid (page renders 400)", async () => {
     const result = await loadExplorePage(exploreRequest({ limit: "999" }), crypto.randomUUID(), {
       now: NOW,

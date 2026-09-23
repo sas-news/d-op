@@ -72,6 +72,9 @@ const sortLink = (sort: "new" | "popular"): string => {
 
       <form class="explore-form" method="get" action="/explore" data-testid="explore-search-form">
         <input type="hidden" name="sort" value={result.view.filters.sort} />
+        {result.view.pageSize !== null && (
+          <input type="hidden" name="limit" value={result.view.pageSize} />
+        )}
         <label class="explore-field">
           <span class="explore-label">検索</span>
           <input
@@ -167,18 +170,87 @@ const sortLink = (sort: "new" | "popular"): string => {
         </ol>
       )}
 
-      <div class="button-row explore-pager">
-        {result.view.nextPageUrl !== null && (
-          <a class="button button-secondary" href={result.view.nextPageUrl} data-testid="explore-next">
-            次のページ
-          </a>
-        )}
-        {result.view.restartUrl !== null && (
-          <a class="button button-secondary" href={result.view.restartUrl} data-testid="explore-restart">
-            先頭に戻る
-          </a>
-        )}
-      </div>
+      {result.view.pager !== null && result.view.items.length > 0 && (
+        <nav class="explore-pager" aria-label="ページ送り" data-testid="explore-pager">
+          <p class="explore-pager-status" data-testid="explore-pager-status">
+            全{result.view.pager.total}件 · {result.view.pager.current} / {result.view.pager.totalPages}ページ
+          </p>
+          {result.view.pager.totalPages > 1 && (
+            <div class="explore-pager-links">
+              {result.view.pager.current > 1 && (
+                <a
+                  class="button button-secondary explore-pager-nav"
+                  href={result.view.pager.firstUrl}
+                  data-testid="explore-restart"
+                >
+                  « 先頭
+                </a>
+              )}
+              {result.view.pager.prevUrl !== null && (
+                <a
+                  class="button button-secondary explore-pager-nav"
+                  href={result.view.pager.prevUrl}
+                  data-testid="explore-prev"
+                >
+                  ‹ 前
+                </a>
+              )}
+              {result.view.pager.links.map((link, index) => {
+                const previous =
+                  index > 0 ? (result.view.pager?.links[index - 1]?.page ?? link.page) : link.page
+                return (
+                  <span class="explore-pager-slot">
+                    {link.page - previous > 1 && (
+                      <span class="explore-pager-gap" aria-hidden="true">…</span>
+                    )}
+                    {link.current ? (
+                      <span
+                        class="explore-page-current"
+                        aria-current="page"
+                        data-testid="explore-page-current"
+                      >
+                        {link.page}
+                      </span>
+                    ) : (
+                      <a
+                        class="button button-secondary explore-page-num"
+                        href={link.url}
+                        aria-label={`${link.page}ページ目`}
+                        data-testid="explore-page-link"
+                      >
+                        {link.page}
+                      </a>
+                    )}
+                  </span>
+                )
+              })}
+              {result.view.nextPageUrl !== null && (
+                <a
+                  class="button button-secondary explore-pager-nav"
+                  href={result.view.nextPageUrl}
+                  data-testid="explore-next"
+                >
+                  次 ›
+                </a>
+              )}
+              {result.view.pager.lastUrl !== null && (
+                <a
+                  class="button button-secondary explore-pager-nav"
+                  href={result.view.pager.lastUrl}
+                  data-testid="explore-last"
+                >
+                  末尾 »
+                </a>
+              )}
+            </div>
+          )}
+          {result.view.pager.skipped > 0 && (
+            <p class="explore-pager-skipped">
+              スナップショット作成後に非公開・削除された項目は表示されていません。
+            </p>
+          )}
+        </nav>
+      )}
     </section>
   ) : result.kind === "invalid" ? (
     <section class="section" aria-labelledby="explore-error-title">
@@ -407,5 +479,51 @@ const sortLink = (sort: "new" | "popular"): string => {
 
   .explore-pager {
     margin-top: var(--space-6);
+  }
+
+  .explore-pager-status {
+    margin: 0 0 var(--space-3);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+  }
+
+  .explore-pager-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .explore-pager-slot {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .explore-pager-gap {
+    color: var(--color-subtle);
+  }
+
+  .explore-page-num,
+  .explore-page-current {
+    min-width: 2.4rem;
+    padding-inline: var(--space-3);
+    text-align: center;
+    justify-content: center;
+  }
+
+  .explore-page-current {
+    padding-block: var(--space-2);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    background: var(--color-accent-soft);
+    color: var(--color-ink);
+    font-weight: 700;
+  }
+
+  .explore-pager-skipped {
+    margin: var(--space-3) 0 0;
+    color: var(--color-subtle);
+    font-size: var(--text-xs);
   }
 </style>
