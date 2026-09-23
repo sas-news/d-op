@@ -1,22 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest"
 import { loadExplorePage } from "../../src/server/services/explore-page.js"
-import {
-  cursorPayload,
-  db,
-  expireSnapshot,
-  listAt,
-  listData,
-  listRequest,
-  migratedDb,
-  seedImport,
-  seedPlaylist,
-} from "./helpers.js"
+import { db, migratedDb, seedImport, seedPlaylist } from "./helpers.js"
 
 // /explore view-model tests (task 19): the page must surface the REAL ranking
 // basis (window + fallback), pagination URLs and honest non-ready states —
 // never a fake directory. Clock injected through loadExplorePage's deps.
-// Every test uses a unique tag so its query fingerprint — and therefore its
-// cached snapshot — cannot collide with another test's (same file = same D1).
+// Every test uses a unique tag so its result set cannot collide with another
+// test's (same file = same D1). Numbered paging is live — nothing expires.
 
 const NOW = new Date("2026-03-10T12:00:00.000Z")
 const ISO = (day: number) => `2026-03-${String(day).padStart(2, "0")}T00:00:00.000Z`
@@ -98,9 +88,9 @@ describe("loadExplorePage", () => {
     expect(url.pathname).toBe("/explore")
     expect(url.searchParams.get("sort")).toBe("new")
     expect(url.searchParams.get("tag")).toBe("xp-c")
-    // Human-facing pages use the short snapshot+page pair, not the opaque
-    // signed cursor — that stays an API-only contract.
-    expect(url.searchParams.get("s")).not.toBeNull()
+    // Human-facing pages are plain ?p=N over live data — no snapshot id, no
+    // signed cursor, nothing that can expire. Cursors stay API-only.
+    expect(url.searchParams.get("s")).toBeNull()
     expect(url.searchParams.get("p")).toBe("2")
     expect(url.searchParams.get("cursor")).toBeNull()
     // Following the page URL returns the remaining item, proving SSR paging.
@@ -116,7 +106,7 @@ describe("loadExplorePage", () => {
     expect(page2.view.restartUrl).not.toBeNull()
   })
 
-  it("exposes a numbered pager over fixed snapshot positions", async () => {
+  it("exposes a numbered pager over live data", async () => {
     for (let i = 0; i < 5; i += 1) {
       await seedPlaylist(db(), { firstPublishedAt: ISO(i + 1), tags: ["xp-pager"] })
     }
@@ -133,13 +123,12 @@ describe("loadExplorePage", () => {
     expect(pager.current).toBe(1)
     expect(pager.totalPages).toBe(3)
     expect(pager.total).toBe(5)
-    expect(pager.skipped).toBe(0)
     expect(pager.links.map((link) => link.page)).toEqual([1, 2, 3])
-    // Page 1 is the bare filtered URL; deeper pages pin snapshot+position.
+    // Page 1 is the bare filtered URL; deeper pages are just ?p=N.
     expect(pager.links[0]?.url).not.toContain("s=")
     expect(pager.links[0]?.url).not.toContain("p=")
-    expect(pager.links[1]?.url).toContain("s=")
     expect(pager.links[1]?.url).toContain("p=2")
+    expect(pager.links[1]?.url).not.toContain("s=")
     expect(pager.links[1]?.url).not.toContain("cursor=")
     expect(pager.prevUrl).toBeNull()
     expect(pager.nextUrl).not.toBeNull()
@@ -181,7 +170,7 @@ describe("loadExplorePage", () => {
     }
   })
 
-  it("p alone pages a fresh snapshot; out-of-range p clamps to the last page", async () => {
+  it("p alone pages live data; out-of-range p clamps to the last page", async () => {
     for (let i = 0; i < 5; i += 1) {
       await seedPlaylist(db(), { firstPublishedAt: ISO(i + 1), tags: ["xp-pjump"] })
     }
@@ -207,49 +196,31 @@ describe("loadExplorePage", () => {
     expect(far.view.items).toHaveLength(1)
   })
 
-  it("s bound to a different filter fingerprint is invalid; unknown s is expired", async () => {
-    await seedPlaylist(db(), { firstPublishedAt: ISO(1), tags: ["xp-s1"] })
-    await seedPlaylist(db(), { firstPublishedAt: ISO(2), tags: ["xp-s1"] })
-    const first = await loadExplorePage(
-      exploreRequest({ tag: "xp-s1", limit: "1" }),
-      crypto.randomUUID(),
-      { now: NOW },
-    )
-    expect(first.kind).toBe("ready")
-    if (first.kind !== "ready") return
-    const snapshotId = new URL(
-      first.view.pager?.links[1]?.url ?? "",
-      "https://d-op.sasnews.dev",
-    ).searchParams.get("s")
-    expect(snapshotId).not.toBeNull()
-    if (snapshotId === null) return
-
-    // The same snapshot id under a different filter is a fingerprint
-    // mismatch — identical rejection to a mismatched signed cursor.
-    const wrongFilter = await loadExplorePage(
-      exploreRequest({ tag: "xp-other", limit: "1", s: snapshotId, p: "1" }),
-      crypto.randomUUID(),
-      { now: NOW },
-    )
-    expect(wrongFilter.kind).toBe("invalid")
-
-    // A well-formed but nonexistent snapshot is the honest restart state.
-    const gone = await loadExplorePage(
-      exploreRequest({ tag: "xp-s1", s: crypto.randomUUID(), p: "2" }),
-      crypto.randomUUID(),
-      { now: NOW },
-    )
-    expect(gone.kind).toBe("expired")
-  })
-
-  it("malformed s/p values are rejected as invalid", async () => {
-    for (const suffix of ["?s=not-a-uuid", "?p=abc", "?p=0x2", "?p=-1"]) {
+  it("legacy s/cursor params degrade silently — stale links still render", async () => {
+    // Old snapshot-era URLs (?s=<id>&p=N, ?cursor=<signed>) are lifted out
+    // with the stray-param whitelist; the page falls back to live page 1.
+    for (const suffix of [
+      `?s=${crypto.randomUUID()}&p=2`,
+      "?cursor=tampered.garbage",
+      "?s=not-a-uuid",
+    ]) {
       const result = await loadExplorePage(
         new Request(`https://d-op.sasnews.dev/explore${suffix}`, { method: "GET" }),
         crypto.randomUUID(),
         { now: NOW },
       )
-      expect(result.kind, suffix).toBe("invalid")
+      expect(result.kind, suffix).toBe("ready")
+    }
+  })
+
+  it("malformed p values degrade to page 1 — paging junk never errors", async () => {
+    for (const suffix of ["?p=abc", "?p=0x2", "?p=-1", "?p="]) {
+      const result = await loadExplorePage(
+        new Request(`https://d-op.sasnews.dev/explore${suffix}`, { method: "GET" }),
+        crypto.randomUUID(),
+        { now: NOW },
+      )
+      expect(result.kind, suffix).toBe("ready")
     }
   })
 
@@ -260,23 +231,20 @@ describe("loadExplorePage", () => {
     expect(result.kind).toBe("invalid")
   })
 
-  it("expired cursor -> kind expired with restart guidance", async () => {
+  it("an expired snapshot-era cursor still renders — nothing can 410", async () => {
+    // Even a syntactically real (but stale) cursor is dropped by the
+    // whitelist, so the page renders live data instead of an expiry page.
     for (let i = 0; i < 3; i += 1) {
       await seedPlaylist(db(), { firstPublishedAt: ISO(i + 1), tags: ["xp-d"] })
     }
-    // Real signed cursor from the real engine, then expire its snapshot row.
-    const page1 = await listData(
-      await listAt(listRequest({ sort: "new", tag: "xp-d", limit: "1" }), NOW),
-    )
-    const cursor = page1.nextCursor ?? ""
-    expect(cursor).not.toBe("")
-    await expireSnapshot(db(), cursorPayload(cursor).s, NOW)
     const result = await loadExplorePage(
-      exploreRequest({ sort: "new", tag: "xp-d", cursor }),
+      exploreRequest({ sort: "new", tag: "xp-d", cursor: "AAAA.BBBB" }),
       crypto.randomUUID(),
       { now: NOW },
     )
-    expect(result.kind).toBe("expired")
+    expect(result.kind).toBe("ready")
+    if (result.kind !== "ready") return
+    expect(result.view.items.length).toBeGreaterThan(0)
   })
 
   it("tag chips come from the public dictionary and mark the active tag", async () => {

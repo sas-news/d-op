@@ -14,8 +14,6 @@ const result = await loadExplorePage(Astro.request, newRequestId())
 
 if (result.kind === "invalid") {
   Astro.response.status = 400
-} else if (result.kind === "expired") {
-  Astro.response.status = 410
 } else if (result.kind === "unavailable") {
   Astro.response.status = result.status
   if (result.retryAfter !== null) {
@@ -23,8 +21,9 @@ if (result.kind === "invalid") {
   }
 }
 
-// Cursor/snapshot/expired/invalid states are ephemeral per-request views —
-// never indexable. The plain first page stays indexable.
+// Paged and stale-param views are non-canonical per-request states — never
+// indexable (legacy `s`/`cursor` params degrade but still mark noindex).
+// The plain first page stays indexable.
 const isPaged =
   Astro.url.searchParams.has("cursor") ||
   Astro.url.searchParams.has("s") ||
@@ -251,11 +250,6 @@ const sortLink = (sort: "new" | "popular"): string => {
               )}
             </div>
           )}
-          {result.view.pager.skipped > 0 && (
-            <p class="explore-pager-skipped">
-              スナップショット作成後に非公開・削除された項目は表示されていません。
-            </p>
-          )}
         </nav>
       )}
     </section>
@@ -268,19 +262,6 @@ const sortLink = (sort: "new" | "popular"): string => {
         <div class="button-row">
           <a class="button button-secondary" href="/explore" data-testid="explore-reset">
             一覧へ戻る
-          </a>
-        </div>
-      </div>
-    </section>
-  ) : result.kind === "expired" ? (
-    <section class="section" aria-labelledby="explore-expired-title">
-      <div class="notice notice-error" role="alert" data-testid="explore-expired">
-        <p class="eyebrow">410 / EXPIRED</p>
-        <h1 id="explore-expired-title">ページングの有効期限が切れました</h1>
-        <p class="lead">表示順は約15分で更新されます。先頭からもう一度ご覧ください。</p>
-        <div class="button-row">
-          <a class="button button-secondary" href="/explore" data-testid="explore-restart">
-            先頭から表示
           </a>
         </div>
       </div>
@@ -549,11 +530,5 @@ const sortLink = (sort: "new" | "popular"): string => {
     font-weight: 700;
     line-height: 1.5;
     text-align: center;
-  }
-
-  .explore-pager-skipped {
-    margin: var(--space-3) 0 0;
-    color: var(--color-subtle);
-    font-size: var(--text-xs);
   }
 </style>

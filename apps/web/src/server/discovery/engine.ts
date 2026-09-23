@@ -7,6 +7,7 @@ import {
   collectRankCoverage,
   type EligibleEntry,
   fetchEligibleChunk,
+  listLivePage,
   materializeCandidates,
   type NormalizedFilter,
   normalizeFilter,
@@ -52,12 +53,8 @@ export type CollectionPages = {
   /** 1-based page the caller is on. */
   readonly current: number
   readonly totalPages: number
-  /** Frozen positions in the snapshot — eligible items may be fewer. */
+  /** Eligible items in the filtered listing (capped), computed live. */
   readonly total: number
-  /** Positions consumed by this page but skipped as hidden/deleted. */
-  readonly skipped: number
-  /** Snapshot id — the page links carry it as `s` so jump URLs stay short. */
-  readonly snapshotId: string
   readonly links: readonly CollectionPageLink[]
 }
 
@@ -67,7 +64,7 @@ export type CollectionOk = {
   readonly nextCursor: string | null
   readonly truncated: boolean
   readonly ranking: Ranking
-  /** Fixed-position paging metadata — only present when requested. */
+  /** Numbered paging metadata — present only for live `?p=` requests. */
   readonly pages?: CollectionPages
 }
 
@@ -84,22 +81,14 @@ export type CollectionDeps = {
 
 export type CollectionOptions = {
   /**
-   * /explore only: slice the snapshot at FIXED positions (page N = entries
-   * [(N-1)*limit, N*limit)) so page numbers and jump links are exact. Hidden
-   * entries then shrink a page's item count instead of shifting boundaries.
-   * The API keeps the default scan-until-limit behaviour.
-   */
-  readonly fixedPaging?: boolean
-  /**
-   * /explore only: a numbered-page request (`?s=<snapshot>&p=<n>`). The
-   * snapshot id is unguessable and rows hold only public-eligible entries, so
-   * page refs need no signature — the fingerprint check still binds filters.
-   * `page` is 1-based; out-of-range pages clamp to the last page. Without
-   * `snapshotId` the request resolves a fresh/reused snapshot at the page's
-   * offset, so `?p=n` alone also works.
+   * /explore only: a numbered-page request (`?p=<n>`). Pages are computed
+   * LIVE — same eligibility and ordering as the snapshot path, but nothing
+   * is frozen so page links can never expire or go stale. Ordering may
+   * drift if rows publish/hide mid-browse; accepted for the human page.
+   * `page` is 1-based and clamps into range. The API keeps snapshots and
+   * the signed-cursor contract untouched.
    */
   readonly pageRequest?: {
-    readonly snapshotId?: string
     readonly page: number
   }
 }
@@ -113,12 +102,12 @@ export async function runCollection(
   const now = deps.now ?? new Date()
   const filter = normalizeFilter({ q: params.q, tag: params.tag })
   if (params.cursor !== undefined) {
-    return continueCollection(db, params, filter, now, options)
+    return continueCollection(db, params, filter, now)
   }
   if (options.pageRequest !== undefined) {
-    return pagedCollection(db, params, filter, now, options, options.pageRequest)
+    return pagedCollection(db, params, filter, now, options.pageRequest)
   }
-  return firstPage(db, params, filter, now, options)
+  return firstPage(db, params, filter, now)
 }
 
 // --- First page: policy -> fingerprint -> reuse-or-materialize -> scan --------
@@ -128,10 +117,9 @@ async function firstPage(
   params: CollectionParams,
   filter: NormalizedFilter,
   now: Date,
-  options: CollectionOptions,
 ): Promise<CollectionOutcome> {
   const snapshot = await resolveSnapshot(db, params, filter, now)
-  return pageFromSnapshot(db, snapshot, 0, params.limit, options)
+  return pageFromSnapshot(db, snapshot, 0, params.limit)
 }
 
 /** Shared policy -> fingerprint -> reuse-or-materialize for first-page reads. */
@@ -153,46 +141,47 @@ async function resolveSnapshot(
 }
 
 /**
- * /explore numbered page: `s` pins the frozen snapshot directly (no signed
- * token — the id is unguessable and positions are public-only data), `p` picks
- * the fixed slice. A missing/expired snapshot is the same honest restart as an
- * expired cursor; a filter change is the same fingerprint mismatch.
+ * /explore numbered page: plain offset paging over live eligible rows —
+ * COUNT, clamp `p` into range, LIMIT/OFFSET the same candidate ordering the
+ * snapshot path materializes. No snapshot, no cursor, nothing to expire.
  */
 async function pagedCollection(
   db: D1Database,
   params: CollectionParams,
   filter: NormalizedFilter,
   now: Date,
-  options: CollectionOptions,
   pageRequest: NonNullable<CollectionOptions["pageRequest"]>,
 ): Promise<CollectionOutcome> {
-  const snapshot =
-    pageRequest.snapshotId === undefined
-      ? await resolveSnapshot(db, params, filter, now)
-      : await loadSnapshot(db, pageRequest.snapshotId)
-  if (snapshot === null || snapshotExpired(snapshot, now)) {
-    return { kind: "expired-cursor" }
-  }
-  const requestFingerprint = await fingerprintOf(params.sort, filter, {
-    mode: snapshot.mode,
-    effectiveWindow: snapshot.effectiveWindow,
+  const decision =
+    params.sort === "new"
+      ? decideRanking("new")
+      : decideRanking("popular", await collectRankCoverage(db, now))
+  const page = await listLivePage(db, {
+    decision,
+    filter,
+    now,
+    page: pageRequest.page,
+    limit: params.limit,
   })
-  if (requestFingerprint !== snapshot.fingerprint) {
-    return { kind: "invalid-cursor" }
+  return {
+    kind: "ok",
+    items: page.entries.map(toListItem),
+    // Live paging has no opaque continuation — page links are `?p=` URLs.
+    nextCursor: null,
+    truncated: page.liveCount > page.total,
+    ranking: {
+      mode: decision.mode,
+      effectiveWindow: decision.effectiveWindow,
+      asOf: now.toISOString(),
+      ...(decision.fallbackReason === null ? {} : { fallbackReason: decision.fallbackReason }),
+    },
+    pages: {
+      current: page.current,
+      totalPages: page.totalPages,
+      total: page.total,
+      links: numberedPages(page.current, page.totalPages),
+    },
   }
-  return pageFromSnapshot(
-    db,
-    snapshot,
-    clampPageOffset(snapshot.entries.length, pageRequest.page, params.limit),
-    params.limit,
-    options,
-  )
-}
-
-/** 1-based page -> start offset, clamped to the last page's start. */
-function clampPageOffset(total: number, page: number, limit: number): number {
-  const lastStart = Math.max(0, (Math.ceil(total / limit) - 1) * limit)
-  return Math.min(Math.max(0, page - 1) * limit, lastStart)
 }
 
 async function createSnapshot(
@@ -217,7 +206,6 @@ async function continueCollection(
   params: CollectionParams,
   filter: NormalizedFilter,
   now: Date,
-  options: CollectionOptions,
 ): Promise<CollectionOutcome> {
   const cursor = params.cursor ?? ""
   const decoded = decodeCursorPayload(cursor)
@@ -244,7 +232,7 @@ async function continueCollection(
   if (requestFingerprint !== snapshot.fingerprint) {
     return { kind: "invalid-cursor" }
   }
-  return pageFromSnapshot(db, snapshot, verified.o, params.limit, options)
+  return pageFromSnapshot(db, snapshot, verified.o, params.limit)
 }
 
 // --- Page slicing over frozen entries ------------------------------------------
@@ -254,15 +242,12 @@ async function pageFromSnapshot(
   snapshot: DiscoverySnapshot,
   offset: number,
   limit: number,
-  options: CollectionOptions,
 ): Promise<CollectionOutcome> {
   const items: ListItem[] = []
   const entries = snapshot.entries
   let scanned = offset
-  if (options.fixedPaging === true) {
-    // Fixed positions: page boundaries never drift when an entry gets hidden
-    // mid-snapshot — the slice is exactly [offset, offset+limit).
-    const chunk = entries.slice(offset, offset + limit)
+  while (items.length < limit && scanned < entries.length) {
+    const chunk = entries.slice(scanned, scanned + VISIBILITY_CHUNK)
     const eligible = await fetchEligibleChunk(
       db,
       chunk.map(([shareId]) => shareId),
@@ -270,25 +255,11 @@ async function pageFromSnapshot(
     for (const [shareId] of chunk) {
       scanned += 1
       const hit: EligibleEntry | undefined = eligible.get(shareId)
+      // Newly hidden/deleted entries are skipped but still consume their
+      // frozen position — pagination never reorders mid-stream.
       if (hit === undefined) continue
       items.push(toListItem(hit))
-    }
-  } else {
-    while (items.length < limit && scanned < entries.length) {
-      const chunk = entries.slice(scanned, scanned + VISIBILITY_CHUNK)
-      const eligible = await fetchEligibleChunk(
-        db,
-        chunk.map(([shareId]) => shareId),
-      )
-      for (const [shareId] of chunk) {
-        scanned += 1
-        const hit: EligibleEntry | undefined = eligible.get(shareId)
-        // Newly hidden/deleted entries are skipped but still consume their
-        // frozen position — pagination never reorders mid-stream.
-        if (hit === undefined) continue
-        items.push(toListItem(hit))
-        if (items.length === limit) break
-      }
+      if (items.length === limit) break
     }
   }
   const hasMore = scanned < entries.length
@@ -309,26 +280,11 @@ async function pageFromSnapshot(
       asOf: snapshot.asOf,
       ...(snapshot.fallbackReason === null ? {} : { fallbackReason: snapshot.fallbackReason }),
     },
-    ...(options.fixedPaging === true
-      ? { pages: pageLinks(snapshot, offset, limit, scanned - offset - items.length) }
-      : {}),
   }
 }
 
-/**
- * Numbered page links over the frozen snapshot — current ±2 plus first/last.
- * The service layer turns each page number into a `?s=<id>&p=<n>` URL; no
- * per-link signing is needed since the snapshot id itself is unforgeable.
- */
-function pageLinks(
-  snapshot: DiscoverySnapshot,
-  offset: number,
-  limit: number,
-  skipped: number,
-): CollectionPages {
-  const total = snapshot.entries.length
-  const totalPages = Math.max(1, Math.ceil(total / limit))
-  const current = Math.min(totalPages, Math.floor(offset / limit) + 1)
+/** Numbered page links — current ±2 plus first/last, for /explore's `?p=` UI. */
+function numberedPages(current: number, totalPages: number): CollectionPageLink[] {
   const wanted = new Set<number>([
     1,
     totalPages,
@@ -343,7 +299,7 @@ function pageLinks(
     if (page < 1 || page > totalPages) continue
     links.push({ page })
   }
-  return { current, totalPages, total, skipped, snapshotId: snapshot.snapshotId, links }
+  return links
 }
 
 async function fingerprintOf(

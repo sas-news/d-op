@@ -7,9 +7,11 @@ import { formatDateJa, formatDurationJa, SHARE_SITE_ORIGIN } from "./share-page"
 
 // /explore view-model assembly (task 19). Same read path and eligibility as
 // the collection API — the page is SSR over the identical engine, never a
-// separate query. Every state (ready / invalid query / expired cursor /
-// unavailable) is decided here so the page renders an honest status instead
-// of content served without admission or a fake empty directory.
+// separate query. Numbered paging runs LIVE (?p=N over COUNT+LIMIT/OFFSET)
+// so no snapshot state exists for the page and nothing can expire; stale
+// `s`/`cursor` params from snapshot-era URLs are lifted out and ignored.
+// Every state (ready / invalid query / unavailable) is decided here so the
+// page renders an honest status instead of a fake empty directory.
 
 export const EXPLORE_PATH = "/explore" as const
 export const EXPLORE_TAG_CHIPS_MAX = 20 as const
@@ -47,14 +49,12 @@ export type ExplorePagerLink = {
   readonly current: boolean
 }
 
-/** Numbered pager for /explore — exact pages over the frozen snapshot. */
+/** Numbered pager for /explore — live `?p=` links, nothing to expire. */
 export type ExplorePager = {
   readonly current: number
   readonly totalPages: number
-  /** Frozen positions in the snapshot (eligible items may be fewer). */
+  /** Eligible items in the filtered listing (live count, capped). */
   readonly total: number
-  /** This page's positions skipped as hidden/deleted since the snapshot. */
-  readonly skipped: number
   readonly prevUrl: string | null
   readonly nextUrl: string | null
   readonly firstUrl: string
@@ -85,7 +85,6 @@ export type ExplorePageView = {
 export type ExplorePageResult =
   | { readonly kind: "ready"; readonly view: ExplorePageView }
   | { readonly kind: "invalid" }
-  | { readonly kind: "expired" }
   | { readonly kind: "unavailable"; readonly status: 429 | 503; readonly retryAfter: string | null }
 
 export async function loadExplorePage(
@@ -95,13 +94,12 @@ export async function loadExplorePage(
 ): Promise<ExplorePageResult> {
   const url = new URL(request.url)
   // The page is friendlier than the strict API schema: empty fields from a
-  // GET form (`?q=&tag=`), stray params (utm_*, tracker junk) and the page's
-  // own s/p controls are lifted out before the whitelist is re-validated —
-  // a plain filter submit can never land on the 400 page.
-  const parsed = parseExploreParams(url)
-  if (parsed === null) return { kind: "invalid" }
+  // GET form (`?q=&tag=`), stray params (utm_*, tracker junk) and stale
+  // paging state (`s`, `cursor` — leftovers of the pre-live-paging URLs)
+  // are lifted out before the whitelist is re-validated. A plain filter
+  // submit or an old link can never land on an error page.
   const cleanParams = new URLSearchParams()
-  for (const key of ["sort", "q", "tag", "limit", "cursor"] as const) {
+  for (const key of ["sort", "q", "tag", "limit"] as const) {
     const value = url.searchParams.get(key)
     if (value !== null && value !== "") cleanParams.set(key, value)
   }
@@ -112,10 +110,9 @@ export async function loadExplorePage(
   )
   let result: Awaited<ReturnType<typeof runCollectionRequest>>
   try {
-    // Fixed-position paging: exact page numbers and jump links for humans.
+    // Live numbered paging — no snapshot state, nothing that can expire.
     result = await runCollectionRequest(normalizedRequest, requestId, deps, {
-      fixedPaging: true,
-      ...(parsed.pageRequest === undefined ? {} : { pageRequest: parsed.pageRequest }),
+      pageRequest: { page: parsePage(url) },
     })
   } catch {
     return { kind: "unavailable", status: 503, retryAfter: null }
@@ -131,7 +128,8 @@ export async function loadExplorePage(
   if (result.stage === "invalid-query") return { kind: "invalid" }
   const outcome = result.outcome
   if (outcome.kind !== "ok") {
-    return outcome.kind === "expired-cursor" ? { kind: "expired" } : { kind: "invalid" }
+    // Defensive: live paging has no expired/invalid states of its own.
+    return { kind: "invalid" }
   }
 
   const filters: ExploreFilters = {
@@ -195,34 +193,17 @@ function toItemView(item: ListItem): ExploreItemView {
   }
 }
 
-/** `s` — snapshot ids are uuids; anything else is a malformed page link. */
-const SNAPSHOT_ID_RE = /^[0-9a-fA-F-]{8,64}$/
-/** `p` — 1-based page number, bounded so absurd inputs fail fast. */
+/** `p` — 1-based page number; a malformed value degrades to page 1. */
 const PAGE_RE = /^\d{1,7}$/
 
 /**
- * Lifts the page-only `s`/`p` controls out of the raw query. Returns null on
- * malformed values ( -> the 400 page); a well-formed but unknown/expired
- * snapshot id surfaces later as the 410 restart page.
+ * Reads `?p=` as a 1-based page. Anything unusable (`?p=abc`, `?p=-1`, an
+ * empty `?p=`) simply means page 1 — paging state is never worth an error.
  */
-function parseExploreParams(
-  url: URL,
-): { readonly pageRequest: { snapshotId?: string; page: number } | undefined } | null {
-  // Empty controls drop like empty filter fields — `?s=`/`?p=` are no-ops.
-  const rawSnapshot = url.searchParams.get("s") || null
-  const rawPage = url.searchParams.get("p") || null
-  // A signed cursor wins outright — old-style links keep working.
-  if (url.searchParams.get("cursor") !== null) return { pageRequest: undefined }
-  if (rawSnapshot !== null && !SNAPSHOT_ID_RE.test(rawSnapshot)) return null
-  if (rawPage !== null && !PAGE_RE.test(rawPage)) return null
-  if (rawSnapshot === null && rawPage === null) return { pageRequest: undefined }
-  const page = rawPage === null ? 1 : Math.max(1, Number.parseInt(rawPage, 10))
-  return {
-    pageRequest: {
-      ...(rawSnapshot === null ? {} : { snapshotId: rawSnapshot }),
-      page,
-    },
-  }
+function parsePage(url: URL): number {
+  const raw = url.searchParams.get("p")
+  if (raw === null || !PAGE_RE.test(raw)) return 1
+  return Math.max(1, Number.parseInt(raw, 10))
 }
 
 function filterUrl(input: {
@@ -230,7 +211,6 @@ function filterUrl(input: {
   readonly q: string | null
   readonly tag: string | null
   readonly limit?: number
-  readonly s?: string
   readonly p?: number
 }): string {
   const params = new URLSearchParams()
@@ -238,7 +218,6 @@ function filterUrl(input: {
   if (input.q !== null && input.q !== "") params.set("q", input.q)
   if (input.tag !== null && input.tag !== "") params.set("tag", input.tag)
   if (input.limit !== undefined) params.set("limit", String(input.limit))
-  if (input.s !== undefined) params.set("s", input.s)
   if (input.p !== undefined) params.set("p", String(input.p))
   const query = params.toString()
   return query === "" ? EXPLORE_PATH : `${EXPLORE_PATH}?${query}`
@@ -265,16 +244,11 @@ function toPager(
 ): ExplorePager | null {
   if (pages === undefined) return null
   // Page 1 stays the bare filtered URL — the canonical restart; deeper pages
-  // pin the snapshot via `s` and the fixed position via `p`.
+  // are just `?p=N` over live data, so links never go stale.
   const urlFor = (page: number): string =>
     page === 1
       ? filterUrl({ ...filters, ...(limit === undefined ? {} : { limit }) })
-      : filterUrl({
-          ...filters,
-          ...(limit === undefined ? {} : { limit }),
-          s: pages.snapshotId,
-          p: page,
-        })
+      : filterUrl({ ...filters, ...(limit === undefined ? {} : { limit }), p: page })
   const links = pages.links.map((link) => ({
     page: link.page,
     url: urlFor(link.page),
@@ -284,7 +258,6 @@ function toPager(
     current: pages.current,
     totalPages: pages.totalPages,
     total: pages.total,
-    skipped: pages.skipped,
     prevUrl: pages.current > 1 ? urlFor(pages.current - 1) : null,
     nextUrl: pages.current < pages.totalPages ? urlFor(pages.current + 1) : null,
     firstUrl: urlFor(1),

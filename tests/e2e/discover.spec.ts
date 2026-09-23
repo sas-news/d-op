@@ -384,7 +384,7 @@ test("frozen pagination: later publications/imports never enter an open cursor",
   expect(page2.data.nextCursor).toBeUndefined()
 })
 
-test("expired snapshot cursor answers 410 and the page renders restart guidance", async ({
+test("expired snapshot cursor: API answers 410; /explore just renders live data", async ({
   request,
   page,
 }) => {
@@ -395,6 +395,7 @@ test("expired snapshot cursor answers 410 and the page renders restart guidance"
   const past = new Date(Date.now() - 60_000).toISOString()
   d1Execute([`UPDATE discovery_snapshots SET expires_at = ${sqlString(past)}`])
 
+  // The signed-cursor contract still expires for API clients...
   const res = await request.get(
     `${WEB_ORIGIN}/api/v1/playlists?sort=new&tag=e2eexp&cursor=${encodeURIComponent(cursor)}`,
   )
@@ -403,12 +404,14 @@ test("expired snapshot cursor answers 410 and the page renders restart guidance"
   expect(body.error.code).toBe("CURSOR_EXPIRED")
   expect(body.error.message).toContain("restart")
 
+  // ...but humans never see it: stale paging params are dropped and /explore
+  // renders the live first page — expiry states do not exist for the page.
   const response = await page.goto(
     `${WEB_ORIGIN}/explore?sort=new&tag=e2eexp&cursor=${encodeURIComponent(cursor)}`,
   )
-  expect(response?.status()).toBe(410)
-  await expect(page.locator("[data-testid='explore-expired']")).toContainText("有効期限")
-  await expect(page.locator("[data-testid='explore-restart']")).toHaveAttribute("href", "/explore")
+  expect(response?.status()).toBe(200)
+  await expect(page.locator("[data-testid='explore-expired']")).toHaveCount(0)
+  await expect(page.locator("[data-testid='explore-item']").first()).toBeVisible()
 })
 
 test("tampered, malformed and query-mismatched cursors answer 400", async ({ request }) => {
@@ -468,7 +471,7 @@ test(">1000 candidates materialize truncated and page exactly 1000 ids", async (
   await expect(page.locator("[data-testid='explore-truncated']")).toContainText("1,000件")
 })
 
-test("explore page: sort links, search form, chips and cursor navigation", async ({ page }) => {
+test("explore page: sort links, search form, chips and pager navigation", async ({ page }) => {
   const response = await page.goto(`${WEB_ORIGIN}/explore?sort=new&tag=e2edis`)
   expect(response?.ok()).toBe(true)
   const csp = response?.headers()["content-security-policy"] ?? ""
@@ -498,7 +501,7 @@ test("explore page: sort links, search form, chips and cursor navigation", async
   await expect(page).toHaveURL(/q=needle/)
   await expect(page.locator("[data-testid='explore-item']")).toHaveCount(1)
 
-  // Cursor pages carry noindex; the first page does not.
+  // Paged views carry noindex; the first page does not.
   const pager = await page.goto(`${WEB_ORIGIN}/explore?sort=new&tag=e2edis&limit=2`)
   expect(pager?.ok()).toBe(true)
   const next = page.locator("[data-testid='explore-next']")

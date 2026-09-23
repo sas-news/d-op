@@ -84,28 +84,27 @@ export async function collectRankCoverage(db: D1Database, now: Date): Promise<Ra
 
 export type SnapshotEntry = readonly [shareId: string, score: number]
 
-/**
- * Materializes the ordered eligible candidate list for `decision` + `filter`:
- * up to DISCOVERY_SNAPSHOT_MAX_IDS [shareId, score] pairs in the frozen rank
- * order — popular sorts score DESC, first_published_at DESC, share_id ASC;
- * new sorts first_published_at DESC, share_id ASC. Score-zero playlists are
- * included (a zero tail is listed, never hidden). Reads one extra row so
- * `truncated` is an explicit fact, not a silent cap.
- */
-export async function materializeCandidates(
-  db: D1Database,
-  input: {
-    readonly decision: RankingDecision
-    readonly filter: NormalizedFilter
-    readonly now: Date
-  },
-): Promise<{ readonly entries: SnapshotEntry[]; readonly truncated: boolean }> {
-  const binds: (string | number)[] = []
+/** Shared WHERE/ORDER/score for candidate materialization AND live paging —
+ *  identical eligibility and ordering, never two implementations. */
+function candidateQuery(input: {
+  readonly decision: RankingDecision
+  readonly filter: NormalizedFilter
+  readonly now: Date
+}): {
+  readonly whereSql: string
+  readonly scoreSelect: string
+  readonly orderBy: string
+  /** Binds for scoreSelect only — they precede the WHERE binds in SQL order. */
+  readonly scoreBinds: (string | number)[]
+  readonly whereBinds: (string | number)[]
+} {
+  const whereBinds: (string | number)[] = []
+  const scoreBinds: (string | number)[] = []
   const clauses: string[] = [ELIGIBLE]
   if (input.filter.tag !== null) {
     // Stored tags are canonical and never "", so a degenerate filter like
     // ?tag=+ simply matches nothing — consistent with the q handling below.
-    binds.push(input.filter.tag)
+    whereBinds.push(input.filter.tag)
     clauses.push(
       `EXISTS (SELECT 1 FROM playlist_tags pt JOIN tags t ON t.tag_id = pt.tag_id
        WHERE pt.share_id = p.share_id AND t.tag = ?)`,
@@ -117,7 +116,7 @@ export async function materializeCandidates(
       // nothing rather than silently become "match everything" ('%%').
       clauses.push("1 = 0")
     } else {
-      binds.push(`%${escapeLikePattern(input.filter.q)}%`)
+      whereBinds.push(`%${escapeLikePattern(input.filter.q)}%`)
       clauses.push(`p.search_text LIKE ? ESCAPE '\\'`)
     }
   }
@@ -135,20 +134,44 @@ export async function materializeCandidates(
         input.decision.effectiveWindow === "30d"
           ? RANK_POLICY.shortWindowDays
           : RANK_POLICY.longWindowDays
-      binds.unshift(windowStartDay(input.now, days), utcDayOf(input.now))
+      scoreBinds.push(windowStartDay(input.now, days), utcDayOf(input.now))
       scoreSelect = `(SELECT COALESCE(SUM(d.count), 0) FROM import_daily d
         WHERE d.share_id = p.share_id AND d.day BETWEEN ? AND ?)`
     }
   }
-  binds.push(DISCOVERY_SNAPSHOT_MAX_IDS + 1)
-  const sql = `SELECT p.share_id AS share_id, ${scoreSelect} AS score
+  return {
+    whereSql: clauses.join(" AND "),
+    scoreSelect,
+    orderBy,
+    scoreBinds,
+    whereBinds,
+  }
+}
+
+/**
+ * Materializes the ordered eligible candidate list for `decision` + `filter`:
+ * up to DISCOVERY_SNAPSHOT_MAX_IDS [shareId, score] pairs in the frozen rank
+ * order. Score-zero playlists are included (a zero tail is listed, never
+ * hidden). Reads one extra row so `truncated` is an explicit fact, not a
+ * silent cap.
+ */
+export async function materializeCandidates(
+  db: D1Database,
+  input: {
+    readonly decision: RankingDecision
+    readonly filter: NormalizedFilter
+    readonly now: Date
+  },
+): Promise<{ readonly entries: SnapshotEntry[]; readonly truncated: boolean }> {
+  const query = candidateQuery(input)
+  const sql = `SELECT p.share_id AS share_id, ${query.scoreSelect} AS score
     FROM playlists p
-    WHERE ${clauses.join(" AND ")}
-    ORDER BY ${orderBy}
+    WHERE ${query.whereSql}
+    ORDER BY ${query.orderBy}
     LIMIT ?`
   const rows = await db
     .prepare(sql)
-    .bind(...binds)
+    .bind(...query.scoreBinds, ...query.whereBinds, DISCOVERY_SNAPSHOT_MAX_IDS + 1)
     .all<{ share_id: string; score: number }>()
   const truncated = rows.results.length > DISCOVERY_SNAPSHOT_MAX_IDS
   const entries: SnapshotEntry[] = []
@@ -159,6 +182,72 @@ export async function materializeCandidates(
     entries.push([row.share_id, row.score])
   }
   return { entries, truncated }
+}
+
+/**
+ * Live numbered page for /explore — no snapshot, no expiry: COUNT the
+ * eligible filtered set (capped at DISCOVERY_SNAPSHOT_MAX_IDS like the
+ * snapshot path), clamp the 1-based page into range, then read that exact
+ * LIMIT/OFFSET slice with live visibility and the parent's public flag.
+ * Ordering may drift between requests if rows publish/hide mid-browse —
+ * accepted for the human page in exchange for never expiring.
+ */
+export async function listLivePage(
+  db: D1Database,
+  input: {
+    readonly decision: RankingDecision
+    readonly filter: NormalizedFilter
+    readonly now: Date
+    readonly page: number
+    readonly limit: number
+  },
+): Promise<{
+  readonly entries: readonly EligibleEntry[]
+  /** Eligible filtered rows, capped at the snapshot-equivalent maximum. */
+  readonly total: number
+  /** Live eligible count before the cap — drives `truncated`. */
+  readonly liveCount: number
+  /** The page actually served after clamping into range. */
+  readonly current: number
+  readonly totalPages: number
+}> {
+  const query = candidateQuery(input)
+  const countRow = await db
+    .prepare(`SELECT COUNT(*) AS c FROM playlists p WHERE ${query.whereSql}`)
+    .bind(...query.whereBinds)
+    .first<{ c: number }>()
+  const liveCount = countRow?.c ?? 0
+  const total = Math.min(liveCount, DISCOVERY_SNAPSHOT_MAX_IDS)
+  const totalPages = Math.max(1, Math.ceil(total / input.limit))
+  const current = Math.min(Math.max(1, input.page), totalPages)
+  const offset = (current - 1) * input.limit
+  const rows = await db
+    .prepare(
+      `SELECT ${LIST_COLUMNS}, ${query.scoreSelect} AS score,
+         CASE WHEN parent.share_id IS NULL THEN 0 ELSE 1 END AS parent_public
+       FROM playlists p
+       LEFT JOIN playlists parent
+         ON parent.share_id = p.derived_from_share_id
+         AND parent.state = 'active' AND parent.visibility = 'public' AND parent.blocked = 0
+       WHERE ${query.whereSql}
+       ORDER BY ${query.orderBy}
+       LIMIT ? OFFSET ?`,
+    )
+    .bind(...query.scoreBinds, ...query.whereBinds, input.limit, offset)
+    .all<Record<string, unknown>>()
+  const entries: EligibleEntry[] = []
+  for (const raw of rows.results) {
+    const parentFlag = raw["parent_public"]
+    if (typeof parentFlag !== "number") {
+      throw new SnapshotRepositoryError("CORRUPT_ROW", "listing row lost the parent_public flag")
+    }
+    const playlistRow = toPlaylistRow(raw)
+    entries.push({
+      stored: toStoredSnapshot(playlistRow),
+      parentPublic: parentFlag !== 0,
+    })
+  }
+  return { entries, total, liveCount, current, totalPages }
 }
 
 export type EligibleEntry = {
