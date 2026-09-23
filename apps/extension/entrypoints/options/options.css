@@ -778,20 +778,31 @@ button:disabled {
   margin-top: var(--dop-space-4);
 }
 
+/* Status reads as a label, not a button: plain text with a colored dot. */
 .consent-status {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 2px var(--dop-space-4);
-  border-radius: var(--dop-radius-full);
-  border: 1px solid var(--dop-border);
   color: var(--dop-text-secondary);
-  background: var(--dop-bg-elevated);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-2);
+  margin-right: var(--dop-space-4);
+}
+
+.consent-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dop-text-tertiary);
 }
 
 .consent-status-granted {
   color: var(--dop-success);
-  border-color: var(--dop-success);
-  background: transparent;
+}
+
+.consent-status-granted::before {
+  background: var(--dop-success);
 }
 
 .consent-actions {
@@ -964,7 +975,6 @@ button:disabled {
 .share-confirm-text,
 .share-consent-text,
 .share-source-line,
-.share-danger-desc,
 .share-busy {
   font-size: 12px;
   color: var(--dop-text-secondary);
@@ -1052,8 +1062,8 @@ button:disabled {
   flex-basis: 100%;
 }
 
-/* Sub-view swaps (inspect result / key discard) replace the whole dialog
-   body so the fixed-size panel never reflows. */
+/* The inspect sub-view replaces the whole dialog body so the fixed-size
+   panel never reflows. */
 .share-subview-title {
   font-size: 14px;
   font-weight: 600;
@@ -1072,10 +1082,6 @@ button:disabled {
   color: var(--dop-text-tertiary);
   font-family: var(--dop-font-mono);
   margin: 0;
-}
-
-.share-danger-open {
-  align-self: flex-start;
 }
 
 /* Reduced motion (task 24): entrance animations, collapse/expand and drag

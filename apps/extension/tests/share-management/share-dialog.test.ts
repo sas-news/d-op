@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Share-management dialog tests (task 15): explicit visibility on first
 // publish (button disabled until a radio is chosen), dirty badge rendering,
-// update/delete/discard actions, inline confirmations (no native dialogs),
+// update/delete actions, inline confirmations (no native dialogs),
 // secret never rendered, and zero fetch calls — the dialog only talks to the
 // background via the ShareManageClient stub.
 import { describe, expect, it, vi } from "vitest"
@@ -194,48 +194,6 @@ describe("share-dialog", () => {
     // 'deleted' closes the dialog with a status toast.
     await vi.waitFor(() => expect(document.querySelector("#d-op-modal")).toBeNull())
     expect(statuses).toContain("公開版を削除しました。")
-    await open
-  })
-
-  it("discard keeps the key-loss warning and only writes the vault — no remote call", async () => {
-    const local = playlist("p1", ["a"])
-    const record = await linkedRecord(local)
-    const dispatch = vi.fn(async () => ({
-      kind: "committed" as const,
-      operationId: "op",
-      revision: 1,
-    }))
-    const manage = manageStub()
-    const storage = { ...storageStub([local], [record]), dispatch }
-    const listeners: (() => void)[] = []
-    const dialog = createShareDialog({
-      doc: document,
-      modal: createModalHost(document),
-      storage,
-      manage,
-      newId: () => crypto.randomUUID(),
-      copyText: async () => true,
-      showStatus: () => undefined,
-      subscribe: (listener) => {
-        listeners.push(listener)
-        return () => undefined
-      },
-    })
-    const open = dialog.open("p1")
-    await vi.waitFor(() => expect(q(".share-danger-open")).not.toBeNull())
-    q<HTMLButtonElement>(".share-danger-open").click()
-    await vi.waitFor(() => expect(q(".share-discard")).not.toBeNull())
-    q<HTMLButtonElement>(".share-discard").click()
-    await vi.waitFor(() => expect(q(".share-discard-step1")).not.toBeNull())
-    q<HTMLButtonElement>(".share-discard-step1").click()
-    await vi.waitFor(() => expect(q(".share-confirm-discard")).not.toBeNull())
-    q<HTMLButtonElement>(".share-confirm-discard").click()
-    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce())
-    expect(dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "discard-publication-management", shareId: SHARE_ID }),
-    )
-    expect(manage.deleteRemote).not.toHaveBeenCalled() // discard ≠ remote delete
-    await vi.waitFor(() => expect(document.querySelector("#d-op-modal")).toBeNull())
     await open
   })
 

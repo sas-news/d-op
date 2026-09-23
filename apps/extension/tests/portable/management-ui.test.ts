@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 // Task-11 detached-management UI acceptance: the options page exposes the
-// '共有管理 / ローカル削除済み' list backed by the REAL repository vault, shows
-// only detached records without ever rendering key material, and routes the
-// explicit '管理情報を破棄' action through the distinct
-// discard-publication-management command behind a key-loss warning.
+// '共有管理 / ローカル削除済み' list backed by the REAL repository vault and
+// shows only detached records without ever rendering key material. There is
+// no standalone key-discard action — remote delete retires the key only
+// after a confirmed remote deletion.
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { InMemoryStorageDriver } from "../../src/storage/driver"
 import { createLocalRepository } from "../../src/storage/repository"
@@ -142,7 +142,7 @@ describe("options 共有管理 (detached publication records)", () => {
     controller.dispose()
   })
 
-  it("管理情報を破棄 requires the warning dialog and destroys the record", async () => {
+  it("detached rows expose no key-discard action", async () => {
     const { deps } = makeController(
       v2State({
         publications: [publicationRecord({ localPlaylistId: null, state: "local-deleted" })],
@@ -152,27 +152,13 @@ describe("options 共有管理 (detached publication records)", () => {
     controller.start()
     await settle()
 
-    const destroy = document.querySelector<HTMLButtonElement>("#managementList .management-destroy")
-    destroy?.click()
-    await settle()
-
-    // Warning modal explains the irreversible key loss; cancel keeps it.
-    const modalText = document.querySelector(".d-op-modal")?.textContent
-    expect(modalText).toContain("管理キー")
-    await clickModalButton("キャンセル")
+    const row = document.querySelector("#managementList .management-row")
+    expect(row).not.toBeNull()
+    // No standalone discard surface — the only destructive path is remote
+    // delete, which retires the key internally after confirmed removal.
+    expect(row?.querySelector(".management-destroy")).toBeNull()
+    expect(row?.textContent).not.toContain("破棄")
     expect((await deps.storage.readVault()).publications).toHaveLength(1)
-
-    destroy?.click()
-    await settle()
-    await clickModalButton("次へ")
-    await settle()
-    await clickModalButton("管理情報を破棄する")
-    await settle()
-
-    // The record is gone from the vault and the list — remote untouched.
-    expect((await deps.storage.readVault()).publications).toHaveLength(0)
-    await settle()
-    expect(document.querySelectorAll("#managementList .management-row")).toHaveLength(0)
     controller.dispose()
   })
 

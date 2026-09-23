@@ -20,7 +20,7 @@ import { browserLaunchTarget } from "./browser-target"
 // secret / vault material, (2) replace-all import is atomic and reconciles
 // stale transient playback, (3) merge import + same-name conflict choices,
 // (4) local playlist delete DETACHES the publication record, the options UI
-// lists it, and 管理情報を破棄 warns then issues discard-publication-management,
+// lists it, and no standalone key-discard action is exposed,
 // (5) a network spy proves ZERO /api/v1 (Share API) requests during all of it.
 const EXTENSION_PATH = path.resolve("apps/extension/.output/chrome-mv3")
 const EVIDENCE_DIR = path.resolve(".omo/evidence/task-11-d-op-v2-share")
@@ -341,7 +341,7 @@ test("options: safe export envelope, replace-all reconcile, merge conflict, zero
 })
 
 // biome-ignore lint/correctness/noEmptyPattern: playwright requires object destructuring for fixtures
-test("options: playlist delete detaches the publication record; destroy warns then discards", async ({}, testInfo) => {
+test("options: playlist delete detaches the publication record; no discard surface", async ({}, testInfo) => {
   const { context, worker, extensionId, shareRequests } = await launchExtension(testInfo, {
     playlists: [{ id: "pl-1", name: "E2E Shared", items: [item("a", "p1", "1")] }],
     publications: [publicationRecord()],
@@ -368,28 +368,16 @@ test("options: playlist delete detaches the publication record; destroy warns th
     expect(vault.publications).toHaveLength(1)
     expect(vault.publications[0]?.localPlaylistId).toBeNull()
     expect(vault.publications[0]?.state).toBe("local-deleted")
-    // The management key stays in the vault until the explicit destroy.
+    // The management key stays in the vault; only remote delete may retire
+    // it (internally, after a confirmed remote deletion).
     expect(vault.publications[0]?.manageSecret).toBe(MANAGE_SECRET)
     await page.screenshot({ path: evidence("management-detached.png"), fullPage: true })
 
-    // 管理情報を破棄 → two-step warning; cancelling step 1 keeps the record.
-    await page.locator("#managementList .management-destroy").click()
-    await expect(page.locator("#d-op-modal .d-op-modal-body")).toContainText("管理キー")
-    await expect(page.locator("#d-op-modal .d-op-modal-body")).toContainText("公開版を削除")
-    await page.locator("#d-op-modal .d-op-modal-footer button", { hasText: "キャンセル" }).click()
-    await expect(row).toHaveCount(1)
+    // No standalone discard action exists — accident-only surface removed.
+    await expect(page.locator("#managementList .management-destroy")).toHaveCount(0)
+    await expect(page.locator("#managementList")).not.toContainText("破棄")
+    // The record survives as long as the remote publication may exist.
     expect((await readState(worker)).publications).toHaveLength(1)
-
-    // Both confirmations → distinct discard-publication-management; vault empties.
-    await page.locator("#managementList .management-destroy").click()
-    await page.locator("#d-op-modal .d-op-modal-footer button", { hasText: "次へ" }).click()
-    await expect(page.locator("#d-op-modal .d-op-modal-body")).toContainText("元に戻せません")
-    await page
-      .locator("#d-op-modal .d-op-modal-footer button", { hasText: "管理情報を破棄する" })
-      .click()
-    await expect(page.locator("#managementList .management-row")).toHaveCount(0)
-    await expect(page.locator("#managementList .management-empty")).toBeVisible()
-    await expect.poll(async () => (await readState(worker)).publications).toHaveLength(0)
     expect(shareRequests).toEqual([])
   } finally {
     await context.close()

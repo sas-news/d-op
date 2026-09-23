@@ -4,18 +4,19 @@
 // state="local-deleted") instead of dropping it; this module renders those
 // records ('共有管理 / ローカル削除済み'), explains that the remote public
 // copy remains, and keeps them manageable: remote status check and remote
-// delete go through the background ShareManageClient, and the explicit
-// destructive '管理情報を破棄' action stays behind a key-loss warning.
+// delete go through the background ShareManageClient. Remote delete retires
+// the local key automatically once the remote copy is confirmed gone — a
+// standalone "discard key" action does not exist (accident-only surface).
 // Key export is intentionally NOT implemented; manageSecret and the
 // snapshot/hash fields are never rendered.
 import type { PublicationRecord } from "../../../../packages/shared/src/local-model"
 import type { ModalHost } from "../player/modal"
 import type { ShareManageClient, ShareManageReply } from "../share/management-protocol"
-import { runMutation, type UiStorageClient, type VaultReply } from "./storage-client"
+import type { UiStorageClient, VaultReply } from "./storage-client"
 
 export type ShareManagementDeps = {
   readonly doc: Document
-  readonly storage: Pick<UiStorageClient, "readPublic" | "readVault" | "dispatch">
+  readonly storage: Pick<UiStorageClient, "readPublic" | "readVault">
   readonly manage: ShareManageClient
   readonly newId: () => string
   readonly modal: ModalHost
@@ -35,38 +36,6 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
   // remote revision the server disclosed — an explicit user re-click, never
   // an automatic overwrite.
   const forceRevisions = new Map<string, number>()
-
-  async function destroy(record: PublicationRecord): Promise<void> {
-    const first = await deps.modal.show({
-      title: "管理情報の破棄",
-      body: `共有 ${record.shareId} の管理情報（管理キー）を破棄します。公開版はリモートに残ったまま、更新・削除する手段が失われます。サイトから消したい場合は「公開版を削除」を選んでください。`,
-      buttons: [
-        { label: "キャンセル", value: "cancel" },
-        { label: "次へ", value: "next" },
-      ],
-    })
-    if (first !== "next") return
-    const value = await deps.modal.show({
-      title: "管理情報の破棄（最終確認）",
-      body: "破棄するとこの公開版を管理する手段は永久に失われ、元に戻せません。本当に破棄しますか？",
-      buttons: [
-        { label: "キャンセル", value: "cancel" },
-        { label: "管理情報を破棄する", value: "destroy", primary: true },
-      ],
-    })
-    if (value !== "destroy") return
-    const reply = await runMutation(
-      deps.storage,
-      () => ({ kind: "discard-publication-management", shareId: record.shareId }),
-      deps.newId,
-    )
-    if (reply.kind === "committed") {
-      deps.showStatus("管理情報を破棄しました。")
-      deps.onChanged?.()
-    } else {
-      deps.showStatus("管理情報の破棄に失敗しました。", "error")
-    }
-  }
 
   function rowStatus(element: HTMLElement, text: string): void {
     let status = element.querySelector<HTMLElement>(".management-remote")
@@ -180,12 +149,7 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
     deleteButton.className = "btn-danger-text management-delete-remote"
     deleteButton.textContent = "公開版を削除"
     deleteButton.addEventListener("click", () => void deleteRemote(record, element))
-    const destroyButton = doc.createElement("button")
-    destroyButton.type = "button"
-    destroyButton.className = "btn-text management-destroy"
-    destroyButton.textContent = "管理情報を破棄"
-    destroyButton.addEventListener("click", () => void destroy(record))
-    element.append(id, visibility, updated, inspectButton, deleteButton, destroyButton)
+    element.append(id, visibility, updated, inspectButton, deleteButton)
     return element
   }
 

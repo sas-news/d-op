@@ -1,7 +1,8 @@
 // Share management dialog for the privileged options page (task 15). One
 // dialog per playlist covers the whole lifecycle: first publish (explicit
 // visibility, no default) → pending activation retry → status/URL/dirty +
-// update (revision-guarded, conflict-aware) → remote delete → key discard.
+// update (revision-guarded, conflict-aware) → remote delete (which retires
+// the local key only after a confirmed remote delete).
 // All Share API traffic goes through the background via ShareManageClient —
 // the page never fetches the share origin itself. Confirmations are inline
 // sub-views, not nested modals (the shared modal host replaces any open
@@ -30,7 +31,7 @@ import {
   shareStateText,
   statusBlock,
 } from "./share-dialog-views"
-import { runMutation, type UiStorageClient } from "./storage-client"
+import type { UiStorageClient } from "./storage-client"
 
 export type ShareDialogDeps = {
   readonly doc: Document
@@ -52,7 +53,7 @@ export type ShareDialog = {
   readonly open: (playlistId: string) => Promise<void>
 }
 
-type ConfirmKind = "delete-remote" | "discard" | "discard-final"
+type ConfirmKind = "delete-remote"
 
 export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
   const { doc } = deps
@@ -67,10 +68,10 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
     let resultText = ""
     let resultError = false
     let remoteText = ""
-    // Sub-view swap inside the fixed-size dialog: the destructive key-discard
-    // and the inspect result live behind dedicated views instead of inline
-    // expansion, so nothing ever changes the dialog's footprint.
-    let view: "main" | "danger" | "inspect" = "main"
+    // Sub-view swap inside the fixed-size dialog: the inspect result lives
+    // behind a dedicated view instead of inline expansion, so nothing ever
+    // changes the dialog's footprint.
+    let view: "main" | "inspect" = "main"
     // Task 20: first-publish provenance preview line (async, advisory).
     let sourceText = ""
     let forceRevision: number | undefined
@@ -300,28 +301,6 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       if (record === undefined) render()
     }
 
-    function discardConfirmed(shareId: string): void {
-      void (async () => {
-        busy = true
-        render()
-        const mutation = await runMutation(
-          deps.storage,
-          () => ({ kind: "discard-publication-management", shareId }),
-          deps.newId,
-        )
-        busy = false
-        if (mutation.kind === "committed") {
-          deps.showStatus("管理情報を破棄しました。")
-          deps.onChanged?.()
-          closeModal("close")
-          return
-        }
-        resultText = "管理情報の破棄に失敗しました。"
-        resultError = true
-        render()
-      })()
-    }
-
     function actions(): HTMLElement {
       const row = doc.createElement("div")
       row.className = "share-actions"
@@ -411,71 +390,6 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       return row
     }
 
-    function dangerView(): HTMLElement[] {
-      const nodes: HTMLElement[] = [line(doc, "share-subview-title", "その他の操作")]
-      const cancel = (): void => {
-        confirm = undefined
-        render()
-      }
-      if (confirm === "discard") {
-        nodes.push(
-          confirmRow(
-            doc,
-            "管理情報（管理キー）を破棄します。公開版はリモートに残ったまま、更新・削除する手段が失われます。サイトから消したい場合は「公開版を削除」を使ってください。",
-            "次へ",
-            "share-discard-step1",
-            busy,
-            () => {
-              confirm = "discard-final"
-              render()
-            },
-            cancel,
-          ),
-        )
-        return nodes
-      }
-      if (confirm === "discard-final") {
-        nodes.push(
-          confirmRow(
-            doc,
-            "最終確認: 破棄するとこの公開版を管理する手段は永久に失われ、元に戻せません。本当に破棄しますか？",
-            "管理情報を破棄する",
-            "share-confirm-discard",
-            busy,
-            () => {
-              confirm = undefined
-              const shareId = record?.shareId
-              if (shareId === undefined) return
-              discardConfirmed(shareId)
-            },
-            cancel,
-          ),
-        )
-        return nodes
-      }
-      const row = doc.createElement("div")
-      row.className = "share-actions"
-      row.append(
-        button("管理情報を破棄", "btn-danger-text share-discard", () => {
-          confirm = "discard"
-          render()
-        }),
-        button("戻る", "btn-text share-back", () => {
-          view = "main"
-          render()
-        }),
-      )
-      nodes.push(
-        line(
-          doc,
-          "share-danger-desc",
-          "公開版をサイトから消すには「公開版を削除」を使います。ここにあるのは管理キーの破棄だけです。",
-        ),
-        row,
-      )
-      return nodes
-    }
-
     function inspectView(): HTMLElement[] {
       const nodes: HTMLElement[] = [
         line(doc, "share-subview-title", "公開版の状態"),
@@ -504,10 +418,6 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
 
     function render(): void {
       container.replaceChildren()
-      if (view === "danger") {
-        container.append(...dangerView())
-        return
-      }
       if (view === "inspect") {
         container.append(...inspectView())
         return
@@ -561,14 +471,6 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       const result = line(doc, `share-result ${resultError ? "error" : "success"}`, resultText)
       result.dataset["testid"] = "share-result"
       container.appendChild(result)
-      if (!consentRequired && record !== undefined) {
-        container.appendChild(
-          button("その他の操作", "btn-text share-danger-open", () => {
-            view = "danger"
-            render()
-          }),
-        )
-      }
     }
 
     await reload()
