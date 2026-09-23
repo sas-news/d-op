@@ -56,6 +56,7 @@ export type ExplorePager = {
   /** This page's positions skipped as hidden/deleted since the snapshot. */
   readonly skipped: number
   readonly prevUrl: string | null
+  readonly nextUrl: string | null
   readonly firstUrl: string
   readonly lastUrl: string | null
   readonly links: readonly ExplorePagerLink[]
@@ -92,10 +93,30 @@ export async function loadExplorePage(
   requestId: string,
   deps: CollectionDeps = {},
 ): Promise<ExplorePageResult> {
+  const url = new URL(request.url)
+  // The page is friendlier than the strict API schema: empty fields from a
+  // GET form (`?q=&tag=`), stray params (utm_*, tracker junk) and the page's
+  // own s/p controls are lifted out before the whitelist is re-validated —
+  // a plain filter submit can never land on the 400 page.
+  const parsed = parseExploreParams(url)
+  if (parsed === null) return { kind: "invalid" }
+  const cleanParams = new URLSearchParams()
+  for (const key of ["sort", "q", "tag", "limit", "cursor"] as const) {
+    const value = url.searchParams.get(key)
+    if (value !== null && value !== "") cleanParams.set(key, value)
+  }
+  const query = cleanParams.toString()
+  const normalizedRequest = new Request(
+    `${url.origin}${EXPLORE_PATH}${query === "" ? "" : `?${query}`}`,
+    request,
+  )
   let result: Awaited<ReturnType<typeof runCollectionRequest>>
   try {
     // Fixed-position paging: exact page numbers and jump links for humans.
-    result = await runCollectionRequest(request, requestId, deps, { fixedPaging: true })
+    result = await runCollectionRequest(normalizedRequest, requestId, deps, {
+      fixedPaging: true,
+      ...(parsed.pageRequest === undefined ? {} : { pageRequest: parsed.pageRequest }),
+    })
   } catch {
     return { kind: "unavailable", status: 503, retryAfter: null }
   }
@@ -113,11 +134,10 @@ export async function loadExplorePage(
     return outcome.kind === "expired-cursor" ? { kind: "expired" } : { kind: "invalid" }
   }
 
-  const url = new URL(request.url)
   const filters: ExploreFilters = {
     sort: url.searchParams.get("sort") === "popular" ? "popular" : "new",
-    q: url.searchParams.get("q"),
-    tag: url.searchParams.get("tag"),
+    q: url.searchParams.get("q") || null,
+    tag: url.searchParams.get("tag") || null,
   }
   // Preserve a non-default page size across pager links — otherwise a jump
   // link minted for limit=N would be re-read at the default and page
@@ -139,6 +159,7 @@ export async function loadExplorePage(
     // an empty strip rather than failing the whole page.
     tagChips = []
   }
+  const pager = toPager(outcome.pages, filters, limit)
   return {
     kind: "ready",
     view: {
@@ -146,16 +167,9 @@ export async function loadExplorePage(
       filters,
       pageSize: limit ?? null,
       items: outcome.items.map(toItemView),
-      nextPageUrl:
-        outcome.nextCursor === null
-          ? null
-          : filterUrl({
-              ...filters,
-              cursor: outcome.nextCursor,
-              ...(limit === undefined ? {} : { limit }),
-            }),
+      nextPageUrl: pager?.nextUrl ?? null,
       restartUrl: filtersRestartUrl(url, limit),
-      pager: toPager(outcome.pages, filters, limit),
+      pager,
       truncated: outcome.truncated,
       ranking: outcome.ranking,
       basisLabel: basisLabel(outcome.ranking),
@@ -181,26 +195,60 @@ function toItemView(item: ListItem): ExploreItemView {
   }
 }
 
+/** `s` — snapshot ids are uuids; anything else is a malformed page link. */
+const SNAPSHOT_ID_RE = /^[0-9a-fA-F-]{8,64}$/
+/** `p` — 1-based page number, bounded so absurd inputs fail fast. */
+const PAGE_RE = /^\d{1,7}$/
+
+/**
+ * Lifts the page-only `s`/`p` controls out of the raw query. Returns null on
+ * malformed values ( -> the 400 page); a well-formed but unknown/expired
+ * snapshot id surfaces later as the 410 restart page.
+ */
+function parseExploreParams(
+  url: URL,
+): { readonly pageRequest: { snapshotId?: string; page: number } | undefined } | null {
+  // Empty controls drop like empty filter fields — `?s=`/`?p=` are no-ops.
+  const rawSnapshot = url.searchParams.get("s") || null
+  const rawPage = url.searchParams.get("p") || null
+  // A signed cursor wins outright — old-style links keep working.
+  if (url.searchParams.get("cursor") !== null) return { pageRequest: undefined }
+  if (rawSnapshot !== null && !SNAPSHOT_ID_RE.test(rawSnapshot)) return null
+  if (rawPage !== null && !PAGE_RE.test(rawPage)) return null
+  if (rawSnapshot === null && rawPage === null) return { pageRequest: undefined }
+  const page = rawPage === null ? 1 : Math.max(1, Number.parseInt(rawPage, 10))
+  return {
+    pageRequest: {
+      ...(rawSnapshot === null ? {} : { snapshotId: rawSnapshot }),
+      page,
+    },
+  }
+}
+
 function filterUrl(input: {
   readonly sort: "new" | "popular"
   readonly q: string | null
   readonly tag: string | null
-  readonly cursor?: string
   readonly limit?: number
+  readonly s?: string
+  readonly p?: number
 }): string {
   const params = new URLSearchParams()
   params.set("sort", input.sort)
   if (input.q !== null && input.q !== "") params.set("q", input.q)
   if (input.tag !== null && input.tag !== "") params.set("tag", input.tag)
   if (input.limit !== undefined) params.set("limit", String(input.limit))
-  if (input.cursor !== undefined) params.set("cursor", input.cursor)
+  if (input.s !== undefined) params.set("s", input.s)
+  if (input.p !== undefined) params.set("p", String(input.p))
   const query = params.toString()
   return query === "" ? EXPLORE_PATH : `${EXPLORE_PATH}?${query}`
 }
 
-/** First-page URL with the same filters but no cursor — the honest restart. */
+/** First-page URL with the same filters but no paging state — the restart. */
 function filtersRestartUrl(url: URL, limit: number | undefined): string | null {
-  if (!url.searchParams.has("cursor")) return null
+  if (!url.searchParams.has("cursor") && !url.searchParams.has("s") && !url.searchParams.has("p")) {
+    return null
+  }
   const sort = url.searchParams.get("sort") === "popular" ? "popular" : "new"
   return filterUrl({
     sort,
@@ -216,27 +264,31 @@ function toPager(
   limit: number | undefined,
 ): ExplorePager | null {
   if (pages === undefined) return null
-  const urlFor = (cursor: string | null): string =>
-    filterUrl({
-      ...filters,
-      ...(limit === undefined ? {} : { limit }),
-      ...(cursor === null ? {} : { cursor }),
-    })
+  // Page 1 stays the bare filtered URL — the canonical restart; deeper pages
+  // pin the snapshot via `s` and the fixed position via `p`.
+  const urlFor = (page: number): string =>
+    page === 1
+      ? filterUrl({ ...filters, ...(limit === undefined ? {} : { limit }) })
+      : filterUrl({
+          ...filters,
+          ...(limit === undefined ? {} : { limit }),
+          s: pages.snapshotId,
+          p: page,
+        })
   const links = pages.links.map((link) => ({
     page: link.page,
-    url: urlFor(link.cursor),
+    url: urlFor(link.page),
     current: link.page === pages.current,
   }))
-  const prev = links.find((link) => link.page === pages.current - 1)
-  const last = links.find((link) => link.page === pages.totalPages)
   return {
     current: pages.current,
     totalPages: pages.totalPages,
     total: pages.total,
     skipped: pages.skipped,
-    prevUrl: prev?.url ?? null,
-    firstUrl: filterUrl({ ...filters, ...(limit === undefined ? {} : { limit }) }),
-    lastUrl: last !== undefined && pages.current !== pages.totalPages ? last.url : null,
+    prevUrl: pages.current > 1 ? urlFor(pages.current - 1) : null,
+    nextUrl: pages.current < pages.totalPages ? urlFor(pages.current + 1) : null,
+    firstUrl: urlFor(1),
+    lastUrl: pages.current < pages.totalPages ? urlFor(pages.totalPages) : null,
     links,
   }
 }

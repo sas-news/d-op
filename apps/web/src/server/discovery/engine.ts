@@ -46,8 +46,6 @@ export type ListItem = ReturnType<typeof toListItem>
 
 export type CollectionPageLink = {
   readonly page: number
-  /** Signed continuation cursor for that page's start offset; null for 1. */
-  readonly cursor: string | null
 }
 
 export type CollectionPages = {
@@ -58,6 +56,8 @@ export type CollectionPages = {
   readonly total: number
   /** Positions consumed by this page but skipped as hidden/deleted. */
   readonly skipped: number
+  /** Snapshot id — the page links carry it as `s` so jump URLs stay short. */
+  readonly snapshotId: string
   readonly links: readonly CollectionPageLink[]
 }
 
@@ -90,6 +90,18 @@ export type CollectionOptions = {
    * The API keeps the default scan-until-limit behaviour.
    */
   readonly fixedPaging?: boolean
+  /**
+   * /explore only: a numbered-page request (`?s=<snapshot>&p=<n>`). The
+   * snapshot id is unguessable and rows hold only public-eligible entries, so
+   * page refs need no signature — the fingerprint check still binds filters.
+   * `page` is 1-based; out-of-range pages clamp to the last page. Without
+   * `snapshotId` the request resolves a fresh/reused snapshot at the page's
+   * offset, so `?p=n` alone also works.
+   */
+  readonly pageRequest?: {
+    readonly snapshotId?: string
+    readonly page: number
+  }
 }
 
 export async function runCollection(
@@ -103,6 +115,9 @@ export async function runCollection(
   if (params.cursor !== undefined) {
     return continueCollection(db, params, filter, now, options)
   }
+  if (options.pageRequest !== undefined) {
+    return pagedCollection(db, params, filter, now, options, options.pageRequest)
+  }
   return firstPage(db, params, filter, now, options)
 }
 
@@ -115,15 +130,69 @@ async function firstPage(
   now: Date,
   options: CollectionOptions,
 ): Promise<CollectionOutcome> {
+  const snapshot = await resolveSnapshot(db, params, filter, now)
+  return pageFromSnapshot(db, snapshot, 0, params.limit, options)
+}
+
+/** Shared policy -> fingerprint -> reuse-or-materialize for first-page reads. */
+async function resolveSnapshot(
+  db: D1Database,
+  params: CollectionParams,
+  filter: NormalizedFilter,
+  now: Date,
+): Promise<DiscoverySnapshot> {
   const decision =
     params.sort === "new"
       ? decideRanking("new")
       : decideRanking("popular", await collectRankCoverage(db, now))
   const fingerprint = await fingerprintOf(params.sort, filter, decision)
-  const snapshot =
+  return (
     (await findReusableSnapshot(db, fingerprint, now)) ??
     (await createSnapshot(db, fingerprint, decision, filter, now))
-  return pageFromSnapshot(db, snapshot, 0, params.limit, options)
+  )
+}
+
+/**
+ * /explore numbered page: `s` pins the frozen snapshot directly (no signed
+ * token — the id is unguessable and positions are public-only data), `p` picks
+ * the fixed slice. A missing/expired snapshot is the same honest restart as an
+ * expired cursor; a filter change is the same fingerprint mismatch.
+ */
+async function pagedCollection(
+  db: D1Database,
+  params: CollectionParams,
+  filter: NormalizedFilter,
+  now: Date,
+  options: CollectionOptions,
+  pageRequest: NonNullable<CollectionOptions["pageRequest"]>,
+): Promise<CollectionOutcome> {
+  const snapshot =
+    pageRequest.snapshotId === undefined
+      ? await resolveSnapshot(db, params, filter, now)
+      : await loadSnapshot(db, pageRequest.snapshotId)
+  if (snapshot === null || snapshotExpired(snapshot, now)) {
+    return { kind: "expired-cursor" }
+  }
+  const requestFingerprint = await fingerprintOf(params.sort, filter, {
+    mode: snapshot.mode,
+    effectiveWindow: snapshot.effectiveWindow,
+  })
+  if (requestFingerprint !== snapshot.fingerprint) {
+    return { kind: "invalid-cursor" }
+  }
+  return pageFromSnapshot(
+    db,
+    snapshot,
+    clampPageOffset(snapshot.entries.length, pageRequest.page, params.limit),
+    params.limit,
+    options,
+  )
+}
+
+/** 1-based page -> start offset, clamped to the last page's start. */
+function clampPageOffset(total: number, page: number, limit: number): number {
+  const lastStart = Math.max(0, (Math.ceil(total / limit) - 1) * limit)
+  return Math.min(Math.max(0, page - 1) * limit, lastStart)
 }
 
 async function createSnapshot(
@@ -241,22 +310,22 @@ async function pageFromSnapshot(
       ...(snapshot.fallbackReason === null ? {} : { fallbackReason: snapshot.fallbackReason }),
     },
     ...(options.fixedPaging === true
-      ? { pages: await pageLinks(snapshot, offset, limit, scanned - offset - items.length) }
+      ? { pages: pageLinks(snapshot, offset, limit, scanned - offset - items.length) }
       : {}),
   }
 }
 
 /**
  * Numbered page links over the frozen snapshot — current ±2 plus first/last.
- * Jump cursors are minted here because only the engine holds the snapshot's
- * short-lived signing key; it never leaves this module.
+ * The service layer turns each page number into a `?s=<id>&p=<n>` URL; no
+ * per-link signing is needed since the snapshot id itself is unforgeable.
  */
-async function pageLinks(
+function pageLinks(
   snapshot: DiscoverySnapshot,
   offset: number,
   limit: number,
   skipped: number,
-): Promise<CollectionPages> {
+): CollectionPages {
   const total = snapshot.entries.length
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const current = Math.min(totalPages, Math.floor(offset / limit) + 1)
@@ -272,24 +341,9 @@ async function pageLinks(
   const links: CollectionPageLink[] = []
   for (const page of [...wanted].sort((a, b) => a - b)) {
     if (page < 1 || page > totalPages) continue
-    links.push({
-      page,
-      // Page 1 needs no cursor — the bare URL is the canonical restart.
-      cursor:
-        page === 1
-          ? null
-          : await signCursor(
-              {
-                v: 1,
-                s: snapshot.snapshotId,
-                o: (page - 1) * limit,
-                f: snapshot.fingerprint,
-              },
-              snapshot.cursorKey,
-            ),
-    })
+    links.push({ page })
   }
-  return { current, totalPages, total, skipped, links }
+  return { current, totalPages, total, skipped, snapshotId: snapshot.snapshotId, links }
 }
 
 async function fingerprintOf(

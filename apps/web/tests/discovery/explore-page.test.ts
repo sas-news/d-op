@@ -81,7 +81,7 @@ describe("loadExplorePage", () => {
     expect(widened.view.fallbackLabel).toContain("広げて")
   })
 
-  it("exposes a next-page URL that preserves filters and carries the cursor", async () => {
+  it("exposes a next-page URL that preserves filters with short s/p params", async () => {
     for (let i = 0; i < 3; i += 1) {
       await seedPlaylist(db(), { firstPublishedAt: ISO(i + 1), tags: ["xp-c"] })
     }
@@ -98,8 +98,12 @@ describe("loadExplorePage", () => {
     expect(url.pathname).toBe("/explore")
     expect(url.searchParams.get("sort")).toBe("new")
     expect(url.searchParams.get("tag")).toBe("xp-c")
-    expect(url.searchParams.get("cursor")).not.toBeNull()
-    // Following the page URL returns the remaining item, proving SSR cursor flow.
+    // Human-facing pages use the short snapshot+page pair, not the opaque
+    // signed cursor — that stays an API-only contract.
+    expect(url.searchParams.get("s")).not.toBeNull()
+    expect(url.searchParams.get("p")).toBe("2")
+    expect(url.searchParams.get("cursor")).toBeNull()
+    // Following the page URL returns the remaining item, proving SSR paging.
     const page2 = await loadExplorePage(
       new Request(url.toString(), { method: "GET" }),
       crypto.randomUUID(),
@@ -131,10 +135,14 @@ describe("loadExplorePage", () => {
     expect(pager.total).toBe(5)
     expect(pager.skipped).toBe(0)
     expect(pager.links.map((link) => link.page)).toEqual([1, 2, 3])
-    // Page 1 is the bare filtered URL; deeper pages carry signed cursors.
-    expect(pager.links[0]?.url).not.toContain("cursor=")
-    expect(pager.links[1]?.url).toContain("cursor=")
+    // Page 1 is the bare filtered URL; deeper pages pin snapshot+position.
+    expect(pager.links[0]?.url).not.toContain("s=")
+    expect(pager.links[0]?.url).not.toContain("p=")
+    expect(pager.links[1]?.url).toContain("s=")
+    expect(pager.links[1]?.url).toContain("p=2")
+    expect(pager.links[1]?.url).not.toContain("cursor=")
     expect(pager.prevUrl).toBeNull()
+    expect(pager.nextUrl).not.toBeNull()
     expect(pager.lastUrl).not.toBeNull()
 
     // Following a numbered link lands exactly on that page's slice.
@@ -152,6 +160,97 @@ describe("loadExplorePage", () => {
     // The middle of a 3-page list keeps links to 1, 2, 3.
     expect(page2.view.pager?.links.map((link) => link.page)).toEqual([1, 2, 3])
     expect(page2.view.pager?.links.find((link) => link.page === 2)?.current).toBe(true)
+  })
+
+  it("a bare form submit never errors: empty fields and stray params drop", async () => {
+    await seedPlaylist(db(), { firstPublishedAt: ISO(1), tags: ["xp-form"] })
+    // The GET form always submits every field — empty ones included — plus
+    // whatever trackers a browser/extension appends.
+    for (const suffix of [
+      "?sort=new&q=&tag=",
+      "?sort=new&q=nonexistent&tag=",
+      "?sort=new&utm_source=share",
+      "?q=",
+    ]) {
+      const result = await loadExplorePage(
+        new Request(`https://d-op.sasnews.dev/explore${suffix}`, { method: "GET" }),
+        crypto.randomUUID(),
+        { now: NOW },
+      )
+      expect(result.kind, suffix).toBe("ready")
+    }
+  })
+
+  it("p alone pages a fresh snapshot; out-of-range p clamps to the last page", async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await seedPlaylist(db(), { firstPublishedAt: ISO(i + 1), tags: ["xp-pjump"] })
+    }
+    const page2 = await loadExplorePage(
+      exploreRequest({ tag: "xp-pjump", limit: "2", p: "2" }),
+      crypto.randomUUID(),
+      { now: NOW },
+    )
+    expect(page2.kind).toBe("ready")
+    if (page2.kind !== "ready") return
+    expect(page2.view.pager?.current).toBe(2)
+    expect(page2.view.items).toHaveLength(2)
+
+    // p beyond the end lands on the last page instead of an empty hole.
+    const far = await loadExplorePage(
+      exploreRequest({ tag: "xp-pjump", limit: "2", p: "999" }),
+      crypto.randomUUID(),
+      { now: NOW },
+    )
+    expect(far.kind).toBe("ready")
+    if (far.kind !== "ready") return
+    expect(far.view.pager?.current).toBe(3)
+    expect(far.view.items).toHaveLength(1)
+  })
+
+  it("s bound to a different filter fingerprint is invalid; unknown s is expired", async () => {
+    await seedPlaylist(db(), { firstPublishedAt: ISO(1), tags: ["xp-s1"] })
+    await seedPlaylist(db(), { firstPublishedAt: ISO(2), tags: ["xp-s1"] })
+    const first = await loadExplorePage(
+      exploreRequest({ tag: "xp-s1", limit: "1" }),
+      crypto.randomUUID(),
+      { now: NOW },
+    )
+    expect(first.kind).toBe("ready")
+    if (first.kind !== "ready") return
+    const snapshotId = new URL(
+      first.view.pager?.links[1]?.url ?? "",
+      "https://d-op.sasnews.dev",
+    ).searchParams.get("s")
+    expect(snapshotId).not.toBeNull()
+    if (snapshotId === null) return
+
+    // The same snapshot id under a different filter is a fingerprint
+    // mismatch — identical rejection to a mismatched signed cursor.
+    const wrongFilter = await loadExplorePage(
+      exploreRequest({ tag: "xp-other", limit: "1", s: snapshotId, p: "1" }),
+      crypto.randomUUID(),
+      { now: NOW },
+    )
+    expect(wrongFilter.kind).toBe("invalid")
+
+    // A well-formed but nonexistent snapshot is the honest restart state.
+    const gone = await loadExplorePage(
+      exploreRequest({ tag: "xp-s1", s: crypto.randomUUID(), p: "2" }),
+      crypto.randomUUID(),
+      { now: NOW },
+    )
+    expect(gone.kind).toBe("expired")
+  })
+
+  it("malformed s/p values are rejected as invalid", async () => {
+    for (const suffix of ["?s=not-a-uuid", "?p=abc", "?p=0x2", "?p=-1"]) {
+      const result = await loadExplorePage(
+        new Request(`https://d-op.sasnews.dev/explore${suffix}`, { method: "GET" }),
+        crypto.randomUUID(),
+        { now: NOW },
+      )
+      expect(result.kind, suffix).toBe("invalid")
+    }
   })
 
   it("invalid query -> kind invalid (page renders 400)", async () => {

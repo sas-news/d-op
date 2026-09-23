@@ -23,9 +23,12 @@ if (result.kind === "invalid") {
   }
 }
 
-// Cursor/expired/invalid states are ephemeral per-request views — never
-// indexable. The plain first page stays indexable.
-const isPaged = Astro.url.searchParams.has("cursor")
+// Cursor/snapshot/expired/invalid states are ephemeral per-request views —
+// never indexable. The plain first page stays indexable.
+const isPaged =
+  Astro.url.searchParams.has("cursor") ||
+  Astro.url.searchParams.has("s") ||
+  Astro.url.searchParams.has("p")
 const noindex = result.kind !== "ready" || isPaged
 
 const TITLE = "Explore | d-OP"
@@ -35,7 +38,11 @@ const DESCRIPTION =
 const sortLink = (sort: "new" | "popular"): string => {
   const params = new URLSearchParams(Astro.url.searchParams)
   params.set("sort", sort)
+  // A sort change is a new listing: drop every paging state (the old
+  // snapshot's fingerprint wouldn't match anyway).
   params.delete("cursor")
+  params.delete("s")
+  params.delete("p")
   return `/explore?${params.toString()}`
 }
 ---
@@ -179,7 +186,7 @@ const sortLink = (sort: "new" | "popular"): string => {
             <div class="explore-pager-links">
               {result.view.pager.current > 1 && (
                 <a
-                  class="button button-secondary explore-pager-nav"
+                  class="explore-pager-link"
                   href={result.view.pager.firstUrl}
                   data-testid="explore-restart"
                 >
@@ -188,7 +195,7 @@ const sortLink = (sort: "new" | "popular"): string => {
               )}
               {result.view.pager.prevUrl !== null && (
                 <a
-                  class="button button-secondary explore-pager-nav"
+                  class="explore-pager-link"
                   href={result.view.pager.prevUrl}
                   data-testid="explore-prev"
                 >
@@ -213,7 +220,7 @@ const sortLink = (sort: "new" | "popular"): string => {
                       </span>
                     ) : (
                       <a
-                        class="button button-secondary explore-page-num"
+                        class="explore-pager-link explore-page-num"
                         href={link.url}
                         aria-label={`${link.page}ページ目`}
                         data-testid="explore-page-link"
@@ -224,10 +231,10 @@ const sortLink = (sort: "new" | "popular"): string => {
                   </span>
                 )
               })}
-              {result.view.nextPageUrl !== null && (
+              {result.view.pager.nextUrl !== null && (
                 <a
-                  class="button button-secondary explore-pager-nav"
-                  href={result.view.nextPageUrl}
+                  class="explore-pager-link"
+                  href={result.view.pager.nextUrl}
                   data-testid="explore-next"
                 >
                   次 ›
@@ -235,7 +242,7 @@ const sortLink = (sort: "new" | "popular"): string => {
               )}
               {result.view.pager.lastUrl !== null && (
                 <a
-                  class="button button-secondary explore-pager-nav"
+                  class="explore-pager-link"
                   href={result.view.pager.lastUrl}
                   data-testid="explore-last"
                 >
@@ -491,34 +498,57 @@ const sortLink = (sort: "new" | "popular"): string => {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-1);
+  }
+
+  /* Compact pager: small text-links, not full-size buttons — a row of chunky
+     buttons is heavy to scan and clumsy to click through. */
+  .explore-pager-link {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-ink);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    text-decoration: none;
+  }
+
+  .explore-pager-link:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    text-decoration: none;
   }
 
   .explore-pager-slot {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-1);
   }
 
   .explore-pager-gap {
+    padding-inline: var(--space-1);
     color: var(--color-subtle);
   }
 
-  .explore-page-num,
-  .explore-page-current {
-    min-width: 2.4rem;
-    padding-inline: var(--space-3);
-    text-align: center;
+  .explore-page-num {
+    min-width: 2rem;
     justify-content: center;
+    text-align: center;
   }
 
   .explore-page-current {
-    padding-block: var(--space-2);
+    min-width: 2rem;
+    padding: var(--space-1) var(--space-2);
     border: 1px solid var(--color-accent);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--color-accent-soft);
     color: var(--color-ink);
+    font-size: var(--text-sm);
     font-weight: 700;
+    line-height: 1.5;
+    text-align: center;
   }
 
   .explore-pager-skipped {
