@@ -5,7 +5,8 @@
 // Share traffic. Writes go through writeShareConsent (repository single
 // writer + the Firefox ≥140 native prompt on grant).
 import type { ShareConsent } from "../../../../packages/shared/src/local-model"
-import { type DataPermissions, SHARE_PRIVACY_URL, writeShareConsent } from "../share/consent"
+import { type DataPermissions, writeShareConsent } from "../share/consent"
+import { shareSiteUrl } from "../share/origins"
 import type { UiStorageClient } from "./storage-client"
 
 export type ShareConsentSectionDeps = {
@@ -130,7 +131,7 @@ export function createShareConsentSection(deps: ShareConsentSectionDeps): ShareC
     const privacy = doc.createElement("p")
     privacy.className = "consent-privacy"
     const link = doc.createElement("a")
-    link.href = SHARE_PRIVACY_URL
+    link.href = shareSiteUrl("/privacy")
     link.target = "_blank"
     link.rel = "noopener"
     link.dataset["testid"] = "share-consent-privacy"

@@ -9,14 +9,14 @@
 // Pure DOM/text builders live in share-dialog-views.ts.
 import type { LocalPlaylist, PublicationRecord } from "../../../../packages/shared/src/local-model"
 import type { ModalHost } from "../player/modal"
-import { type DataPermissions, SHARE_PRIVACY_URL, writeShareConsent } from "../share/consent"
+import { type DataPermissions, writeShareConsent } from "../share/consent"
 import { type PublicationDirty, publicationDirty, snapshotMetadata } from "../share/dirty-state"
 import type {
   ShareManageClient,
   ShareManageMetadata,
   ShareManageReply,
 } from "../share/management-protocol"
-import { sharePageUrl } from "../share/origins"
+import { sharePageUrl, shareSiteUrl } from "../share/origins"
 import {
   actionButton,
   confirmRow,
@@ -237,7 +237,7 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       const privacy = doc.createElement("p")
       privacy.className = "share-consent-privacy"
       const link = doc.createElement("a")
-      link.href = SHARE_PRIVACY_URL
+      link.href = shareSiteUrl("/privacy")
       link.target = "_blank"
       link.rel = "noopener"
       link.dataset["testid"] = "share-consent-privacy"

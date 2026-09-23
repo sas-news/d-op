@@ -49,7 +49,10 @@ export function shareDirtyText(dirty: PublicationDirty | undefined): string {
     case "dirty":
       return "未公開の変更があります"
     case "unpublishable":
-      return "公開できない編集があります"
+      if (dirty.reasons.some((reason) => reason.code === "empty-playlist")) {
+        return "公開できません: プレイリストが空です"
+      }
+      return "範囲未設定の項目があるため公開できません"
     case "snapshot-invalid":
       return "保存済みの公開情報を確認できません"
     case "detached":
@@ -80,8 +83,13 @@ export function describeShareReply(reply: ShareManageReply): string {
       return "前回の公開応答を回復できませんでした。新しい公開操作としてもう一度実行してください。"
     case "persist-failed":
       return reply.message ?? "ローカルへの保存に失敗しました。"
-    case "unpublishable":
-      return "公開できない項目があります。"
+    case "unpublishable": {
+      const reasons = reply.reasons ?? []
+      if (reasons.some((reason) => reason.path === "items")) {
+        return "公開できません: プレイリストが空です。範囲が設定された項目を追加してください。"
+      }
+      return `公開できない項目があります（${reasons.length === 0 ? 1 : reasons.length}件）。範囲未設定（全話再生）の項目は公開できません。`
+    }
     case "conflict":
       return `リモートの公開版が変更されています${
         reply.remoteRevision === undefined ? "" : `（revision ${reply.remoteRevision}）`
@@ -156,7 +164,10 @@ export function publishPreviewText(
     return `公開内容: ${projection.items.length}件 / 合計 ${formatSec(totalMs)} / タイトル「${projection.title}」`
   } catch (error) {
     const reasons = (error as UnpublishablePlaylistError).reasons
-    return `公開できない項目があります（${Array.isArray(reasons) ? reasons.length : 1}件）`
+    if (Array.isArray(reasons) && reasons.some((reason) => reason.code === "empty-playlist")) {
+      return "公開内容: プレイリストが空です"
+    }
+    return `公開できない項目があります（${Array.isArray(reasons) ? reasons.length : 1}件）。範囲未設定の項目は公開できません。`
   }
 }
 

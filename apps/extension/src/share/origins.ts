@@ -36,6 +36,14 @@ export function shareApiOrigin(): string {
   return SHARE_ORIGIN
 }
 
+/**
+ * Absolute URL for a share-site page (`/explore`, `/privacy`, …) on the same
+ * origin the API uses — dev builds link to the local site, release to prod.
+ */
+export function shareSiteUrl(path: `/${string}`): string {
+  return `${shareApiOrigin()}${path}`
+}
+
 /** Public snapshot page URL for a shareId — shareable link, never carries keys. */
 export function sharePageUrl(shareId: string, origin: string = SHARE_ORIGIN): string {
   return `${origin}${SHARE_PAGE_PATH_PREFIX}${shareId}`

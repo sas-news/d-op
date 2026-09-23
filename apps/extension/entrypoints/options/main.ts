@@ -1,6 +1,13 @@
 import { browser } from "wxt/browser"
+import { shareSiteUrl } from "../../src/share/origins"
 import { createOptionsController } from "../../src/ui/options"
 import { createUiStorageClient, subscribePublicState } from "../../src/ui/storage-client"
+
+// Dev builds resolve share-site links (explore/privacy/…) to the local server.
+for (const a of document.querySelectorAll<HTMLAnchorElement>("a[data-share-site]")) {
+  const path = a.dataset["shareSite"]
+  if (path !== undefined) a.href = shareSiteUrl(path as `/${string}`)
+}
 
 const storage = createUiStorageClient((message) => browser.runtime.sendMessage(message))
 
