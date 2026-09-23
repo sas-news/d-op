@@ -758,22 +758,24 @@ button:disabled {
   margin-top: var(--dop-space-4);
 }
 
-.consent-desc {
-  font-size: 14px;
-  color: var(--dop-text-secondary);
-  margin: 0 0 var(--dop-space-4);
+/* Consent folded into a compact 設定 row — no standalone section. */
+.consent-row {
+  margin-top: var(--dop-space-4);
 }
 
 .consent-status {
   font-size: 13px;
   color: var(--dop-text-secondary);
-  margin: 0 0 var(--dop-space-4);
 }
 
-.consent-privacy {
-  font-size: 12px;
-  color: var(--dop-text-tertiary);
-  margin: var(--dop-space-4) 0 0;
+.consent-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-3);
+}
+
+.consent-desc {
+  margin-bottom: var(--dop-space-2);
 }
 
 .guide-list {

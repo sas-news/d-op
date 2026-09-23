@@ -560,11 +560,11 @@ p.empty {
   align-items: center;
   justify-content: center;
   min-width: 180px;
-  padding: var(--dop-space-4) var(--dop-space-6);
-  border: none;
-  border-radius: var(--dop-radius-md);
-  background: var(--dop-accent);
-  color: #fff;
+  padding: var(--dop-space-3) var(--dop-space-6);
+  border: 1px solid var(--dop-accent);
+  border-radius: var(--dop-radius-full);
+  background: var(--dop-bg-panel);
+  color: var(--dop-accent-text);
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
@@ -573,11 +573,10 @@ p.empty {
 }
 
 .explore-btn:hover {
-  background: var(--dop-accent-hover);
+  background: var(--dop-accent-subtle);
 }
 
 .explore-btn:active {
-  background: var(--dop-accent-pressed);
   transform: translateY(1px);
 }
 

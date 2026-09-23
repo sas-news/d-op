@@ -80,7 +80,7 @@ export function createShareManagement(deps: ShareManagementDeps): ShareManagemen
 
   function describeRemote(reply: ShareManageReply): string {
     if (reply.status === "consent-required") {
-      return "共有機能が無効です（上の「共有機能」セクションで有効化できます）。"
+      return "共有機能が無効です（設定の「共有機能」で有効化できます）。"
     }
     if (reply.status !== "inspect") return "確認できませんでした。"
     switch (reply.remote) {

@@ -32,13 +32,9 @@ const DESCRIPTION =
   "自動同期は行いません。プレイリストの通常利用は完全にローカルで完結します。"
 
 function consentText(consent: ShareConsent | undefined): string {
-  if (consent === undefined) {
-    return "共有機能は未設定です。選択するまで外部サーバーへの通信は一切行われません。"
-  }
-  if (consent.choice === "granted") {
-    return `共有機能は有効です（${consent.decidedAt} に同意）。無効にしても公開済みの共有は削除されません。`
-  }
-  return `共有機能は無効です（${consent.decidedAt} に選択）。ローカルの機能はすべて利用でき、外部サーバーへの通信は行われません。`
+  if (consent === undefined) return "未設定 — 外部サーバーへの通信は一切行われません"
+  if (consent.choice === "granted") return `有効（${consent.decidedAt} に同意）`
+  return `無効（${consent.decidedAt} に選択）`
 }
 
 export function createShareConsentSection(deps: ShareConsentSectionDeps): ShareConsentSection {
@@ -103,16 +99,20 @@ export function createShareConsentSection(deps: ShareConsentSectionDeps): ShareC
     }
     container.replaceChildren()
 
-    const description = doc.createElement("p")
-    description.className = "consent-desc"
-    description.textContent = DESCRIPTION
-    const status = doc.createElement("p")
+    // Compact settings row — the standalone 共有機能 section was folded into
+    // 設定 so the page stays scannable; testids and decision keywords stay.
+    const row = doc.createElement("div")
+    row.className = "setting-row consent-row"
+    const label = doc.createElement("span")
+    label.className = "setting-label"
+    label.textContent = "共有機能"
+    const status = doc.createElement("span")
     status.className = "consent-status"
     status.dataset["testid"] = "share-consent-status"
     status.textContent = consentText(consent)
 
     const actions = doc.createElement("div")
-    actions.className = "row consent-actions"
+    actions.className = "consent-actions"
     if (consent === undefined) {
       actions.append(
         button("有効にする", "share-consent-grant", "btn-secondary", () => void decide("granted")),
@@ -127,18 +127,25 @@ export function createShareConsentSection(deps: ShareConsentSectionDeps): ShareC
         button("有効にする", "share-consent-grant", "btn-secondary", () => void decide("granted")),
       )
     }
+    row.append(label, status, actions)
 
-    const privacy = doc.createElement("p")
-    privacy.className = "consent-privacy"
+    const desc = doc.createElement("p")
+    desc.className = "setting-desc consent-desc"
     const link = doc.createElement("a")
     link.href = shareSiteUrl("/privacy")
     link.target = "_blank"
     link.rel = "noopener"
     link.dataset["testid"] = "share-consent-privacy"
     link.textContent = "プライバシーポリシー"
-    privacy.append("送信内容の詳細は ", link, " を参照してください。")
+    desc.append(
+      DESCRIPTION +
+        (consent?.choice === "granted" ? "無効にしても公開済みの共有は削除されません。" : ""),
+      "送信内容の詳細は ",
+      link,
+      " を参照してください。",
+    )
 
-    container.append(description, status, actions, privacy)
+    container.append(row, desc)
   }
 
   return { render }
