@@ -38,27 +38,27 @@
     // approximate per-PoP). Names must match server/security/rate-limit.ts.
     {
       "name": "RATE_LIMIT_API",
-      "namespace_id": "dop-api",
+      "namespace_id": "1101",
       "simple": { "limit": 600, "period": 60 }
     },
     {
       "name": "RATE_LIMIT_CREATE",
-      "namespace_id": "dop-create",
+      "namespace_id": "1102",
       "simple": { "limit": 5, "period": 60 }
     },
     {
       "name": "RATE_LIMIT_MUTATION",
-      "namespace_id": "dop-mutation",
+      "namespace_id": "1103",
       "simple": { "limit": 30, "period": 60 }
     },
     {
       "name": "RATE_LIMIT_IMPORT",
-      "namespace_id": "dop-import",
+      "namespace_id": "1104",
       "simple": { "limit": 30, "period": 60 }
     },
     {
       "name": "RATE_LIMIT_READ",
-      "namespace_id": "dop-read",
+      "namespace_id": "1105",
       "simple": { "limit": 120, "period": 60 }
     }
   ],

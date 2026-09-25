@@ -43,8 +43,11 @@ real **staging** id is acceptable (ids are not secrets), but never backfill
 it into `wrangler.jsonc` — that file keeps its own placeholder until the
 production task provisions the production database.
 
-The rate-limit namespaces (`dop-staging-*`) require no provisioning: the
-`ratelimits` bindings create them implicitly on deploy.
+The rate-limit bindings require no provisioning: `namespace_id` values are
+numeric identifiers the API creates implicitly on deploy. Staging uses the
+`21xx` range and production the `11xx` range, so staging traffic can never
+consume production budgets. (Older free-form string ids are rejected by the
+API with code 10021.)
 
 ## 2. Secrets
 

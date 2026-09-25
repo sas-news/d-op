@@ -65,27 +65,27 @@
     // staging traffic can never consume production budgets.
     {
       "name": "RATE_LIMIT_API",
-      "namespace_id": "dop-staging-api",
+      "namespace_id": "2101",
       "simple": { "limit": 600, "period": 60 }
     },
     {
       "name": "RATE_LIMIT_CREATE",
-      "namespace_id": "dop-staging-create",
+      "namespace_id": "2102",
       "simple": { "limit": 5, "period": 60 }
     },
     {
       "name": "RATE_LIMIT_MUTATION",
-      "namespace_id": "dop-staging-mutation",
+      "namespace_id": "2103",
       "simple": { "limit": 30, "period": 60 }
     },
     {
       "name": "RATE_LIMIT_IMPORT",
-      "namespace_id": "dop-staging-import",
+      "namespace_id": "2104",
       "simple": { "limit": 30, "period": 60 }
     },
     {
       "name": "RATE_LIMIT_READ",
-      "namespace_id": "dop-staging-read",
+      "namespace_id": "2105",
       "simple": { "limit": 120, "period": 60 }
     }
   ],
@@ -93,11 +93,10 @@
     {
       "binding": "DB",
       "database_name": "dop_share_staging",
-      // PLACEHOLDER — never a real id. Replace with the id printed by
-      // `bunx wrangler d1 create dop_share_staging` during provisioning
-      // (docs/staging.md step 2). Same all-zero convention as wrangler.jsonc;
-      // real database ids are authorized provisioning output, never guessed.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Real staging id from `bunx wrangler d1 create dop_share_staging`
+      // (docs/staging.md step 2). Ids are not secrets; production keeps its
+      // own all-zero placeholder in wrangler.jsonc until provisioned.
+      "database_id": "b9b38b68-16e1-40ae-8efe-3a64a1029505",
       "migrations_dir": "./migrations"
     }
   ]
