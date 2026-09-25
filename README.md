@@ -67,6 +67,15 @@ bun run verify:artifacts   # 生成物の同一性・権限・必須ファイル
 
 設定は拡張機能の **オプションページ**（ツールバーアイコン右クリック → オプション）から行えます。
 
+### プレイリストの共有（任意）
+
+1. オプションの「設定」にある **「共有機能」** 行で「有効にする」（初回のみ・いつでも無効化可）
+2. プレイリストの **「共有」** ボタン → 公開範囲・説明・タグを入力して公開 → 共有URLが発行されます
+3. 共有URLを知っている人はブラウザで内容を確認し、「d-OP で開く」で自分のリストに取り込めます
+4. 公開リストは [d-op.sasnews.dev/explore](https://d-op.sasnews.dev/explore) からも探せます
+
+※ 共有は完全に任意です。同意しない限り外部通信は一切発生しません。
+
 ## ファイル構成
 
 v2 は WXT + TypeScript のモノレポ構成です。ブラウザに読み込ませる生成物は
@@ -83,6 +92,7 @@ v2 は WXT + TypeScript のモノレポ構成です。ブラウザに読み込�
 | `packages/shared/` | 拡張機能と Web で共有する Zod スキーマ・ドメインロジック |
 | `tests/e2e/` `tests/browser/` | Playwright E2E とネイティブブラウザ証跡ハーネス（[docs/testing.md](docs/testing.md)） |
 | `docs/` | アーキテクチャ・共有API契約・テスト・リリース手順・要件トレース（[docs/traceability.md](docs/traceability.md)） |
+| `STORE_LISTING.md` / `PRIVACY.md` | ストア掲載文面・権限正当化・審査手順（CWS/AMO）とプライバシーポリシー |
 
 > 旧 v1（ルートの素 JS ランタイム）は task 25 で削除されました。履歴ソースは git タグ `v1.0.0`（ベースライン `fc9d7fd`）を参照してください。
 

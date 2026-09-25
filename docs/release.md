@@ -58,7 +58,7 @@ is no `wxt submit`, no store API call, no main-push publish anywhere.
 ## Manual store submission checklist
 
 All listing copy, permission justifications and privacy declarations live in
-`docs/store-listing.md` — review it before transcribing into the consoles.
+`STORE_LISTING.md` (repo root) — review it before transcribing into the consoles.
 
 - Chrome Web Store dashboard → upload `d-op-<version>-chrome.zip`.
 - AMO → upload `d-op-<version>-firefox.zip`; attach

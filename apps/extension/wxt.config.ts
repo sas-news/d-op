@@ -21,7 +21,7 @@ export default defineConfig({
   },
   manifest: ({ browser, mode }) => ({
     name: "d-OP",
-    // Store listing text lives in docs/store-listing.md — keep this summary
+    // Store listing text lives in STORE_LISTING.md (repo root) — keep this summary
     // in sync with it (the same sentence is the stores' short description).
     description:
       "dアニメストアの動画からOP/EDを抽出して連続再生。劇中歌や好きなシーンのプレイリスト化に加え、作成したリストの公開・共有にも対応しています！",
