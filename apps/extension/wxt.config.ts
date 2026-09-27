@@ -25,7 +25,10 @@ export default defineConfig({
     // in sync with it (the same sentence is the stores' short description).
     description:
       "dアニメストアの動画からOP/EDを抽出して連続再生。劇中歌や好きなシーンのプレイリスト化に加え、作成したリストの公開・共有にも対応しています！",
-    homepage_url: "https://github.com/sas-news/d-op",
+    // No homepage_url: when set, Chrome's extension context menu links the
+    // extension name to it instead of the Chrome Web Store listing. Leaving
+    // it unset makes store-installed builds point at the store page (and
+    // Firefox resolves to the AMO listing the same way).
     // Task 25: ship the same icon set the v1 listing used (copied from the
     // historical root icons/ into public/icons/ so WXT emits them).
     icons: {

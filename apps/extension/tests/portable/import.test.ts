@@ -222,7 +222,16 @@ describe("portable import", () => {
     const bad = {
       id: "bad-pl",
       name: "Bad",
-      items: [{ ...VALID_ITEM, id: "bad-item", range: { start: 9_000, end: 1_000 } }],
+      // Unrecoverable under the lenient parser: empty partId and a url with
+      // no partId parameter to rescue it from.
+      items: [
+        {
+          ...VALID_ITEM,
+          id: "bad-item",
+          partId: "",
+          url: "https://animestore.docomo.ne.jp/animestore/sc_d_pc",
+        },
+      ],
     }
     const pending = runImport(
       harness,

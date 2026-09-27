@@ -165,8 +165,18 @@ export const LEGACY_PLAYLISTS: readonly Record<string, unknown>[] = [
         range: { start: 0, end: 90_000, name: "OP" },
       },
       {
+        // v2.0.1: reversed ranges demote to range:null (範囲未設定) instead of
+        // quarantining the whole clip — v1 rendered such items fine.
+        id: "salv1",
+        partId: "pt_salv",
+        title: "逆行区間(救済)",
+        episodeTitle: "第2話",
+        range: { start: 90_000, end: 1_000, name: "BAD" },
+      },
+      {
+        // Truly unrecoverable under the lenient importer: no partId and no
+        // url to derive one from — stays quarantined with its original bytes.
         id: "bad1",
-        partId: "pt_bad",
         title: "逆行区間",
         episodeTitle: "第2話",
         range: { start: 90_000, end: 1_000, name: "BAD" },
@@ -218,7 +228,7 @@ export const EXPECTED = {
     "pl-baditem",
     "pl-empty",
   ] as const,
-  migratedItemCount: 13,
+  migratedItemCount: 14,
   quarantinedCount: 2,
   repairedIdCount: 4,
   fanoutIds: ["clip", "clip-c1", "clip-c2"] as const,

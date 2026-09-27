@@ -71,6 +71,15 @@ import / management flows), `ui/` (options/popup/store-page controllers).
   (`browser.storage.local`). Only the background repository
   (`src/storage/`) writes it, via revision-checked commands dispatched
   over runtime messaging. UI pages use `UiStorageClient`/`runMutation`.
+  The v1 importer is intentionally lenient about the shapes v1 actually
+  persisted (empty `workId`, missing `partId` rescued from the stored
+  URL, non-integer or reversed ranges demoted to `range: null`, blank
+  playlist names, stringified JSON payloads) and never rejects an upgrade:
+  unreadable payloads park in `migrationRecovery.quarantined` instead of
+  failing closed with an empty library. `migrationRecovery.parserVersion`
+  stamps the importer ruleset — a stale state re-imports its quarantined
+  legacy entries once, merging them back while never resurrecting
+  playlists or items the user deleted after migrating.
 - **Share traffic is background-only and consent-gated**: `src/share/`
   holds the API clients, the management handler (options-only senders),
   the import handler, and the consent gate. See `docs/share.md` for the

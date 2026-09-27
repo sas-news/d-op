@@ -560,9 +560,57 @@ export async function runUpgradeScenario({
     "migrate",
     "quarantine-keeps-bytes",
     quarantined.some(
-      (q) => q.playlistIndex === 5 && q.itemIndex === 1 && q.originalJson.includes("逆行区間"),
+      (q) => q.playlistIndex === 5 && q.itemIndex === 2 && q.originalJson.includes("逆行区間"),
     ) && quarantined.some((q) => q.playlistIndex === 7 && q.originalJson.includes("壊れたリスト")),
     "corrupt item + corrupt playlist carry originalJson",
+  )
+  // v2.0.0 regression probe: the STRICT importer these seeds were built
+  // against must have quarantined real data, otherwise the rehearsal proves
+  // nothing about the data-loss fix. Replaying the identical strict gate —
+  // valid entry + array items + declared name — counts exactly the entries
+  // today's lenient importer still cannot migrate (plus the user-authored
+  // deletion case that never migrates by design).
+  const STRICT = { source: "upgrade-rehearsal", playlists: [], quarantined: [] }
+  for (const [p, raw] of LEGACY_PLAYLISTS.entries()) {
+    const items = raw && typeof raw === "object" ? raw.items : undefined
+    const name = raw && typeof raw === "object" ? raw.name : undefined
+    if (!Array.isArray(items) || typeof name !== "string" || name.length < 1 || name.length > 200) {
+      STRICT.quarantined.push({ playlistIndex: p })
+      continue
+    }
+    const kept = []
+    for (const [i, item] of items.entries()) {
+      const it = item && typeof item === "object" ? item : {}
+      const partId = typeof it.partId === "string" ? it.partId : ""
+      const workId = it.workId
+      const range = it.range
+      const strictRange =
+        range === null || range === undefined
+          ? (range ?? null)
+          : typeof range === "object" &&
+              Number.isSafeInteger(range.start) &&
+              range.start >= 0 &&
+              Number.isSafeInteger(range.end) &&
+              range.end >= 0 &&
+              range.start < range.end
+            ? range
+            : "quarantine"
+      const valid =
+        partId.length >= 1 &&
+        partId.length <= 512 &&
+        (workId === undefined ||
+          (typeof workId === "string" && workId.length >= 1 && workId.length <= 512)) &&
+        strictRange !== "quarantine"
+      if (!valid) STRICT.quarantined.push({ playlistIndex: p, itemIndex: i })
+      else kept.push(i)
+    }
+    STRICT.playlists.push({ playlistIndex: p, kept })
+  }
+  check(
+    "migrate",
+    "v200-strict-importer-actually-dropped-data",
+    STRICT.quarantined.length >= EXPECTED.quarantinedCount,
+    `${STRICT.quarantined.length} strict-quarantined vs ${EXPECTED.quarantinedCount} current`,
   )
   check(
     "migrate",

@@ -9,6 +9,10 @@ import { z } from "zod"
 export const LOCAL_SCHEMA_VERSION = 2 as const
 export const SHARE_SCHEMA_VERSION = 1 as const
 export const LEGACY_MIGRATION_VERSION = 1 as const
+/** Bumped whenever the legacy importer gains new salvage rules; persisted on
+ *  migrationRecovery so a stale v2.0.0-era state re-imports its quarantined
+ *  entries exactly once (repair) instead of losing them forever. */
+export const MIGRATION_PARSER_VERSION = 2 as const
 
 // --- Local storage ---------------------------------------------------------
 

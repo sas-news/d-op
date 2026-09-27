@@ -70,7 +70,7 @@ describe("upgrade-rehearsal / happy path", () => {
     // Quarantine carries the original bytes with indexed locations.
     expect(state.migrationRecovery?.quarantined).toHaveLength(EXPECTED.quarantinedCount)
     const [itemEntry, playlistEntry] = state.migrationRecovery?.quarantined ?? []
-    expect(itemEntry).toMatchObject({ playlistIndex: 5, itemIndex: 1 })
+    expect(itemEntry).toMatchObject({ playlistIndex: 5, itemIndex: 2 })
     expect(itemEntry?.originalJson).toContain("逆行区間")
     expect(playlistEntry).toMatchObject({ playlistIndex: 7 })
     expect(playlistEntry?.originalJson).toContain("壊れたリスト")

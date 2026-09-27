@@ -29,12 +29,55 @@ export type LegacyImportResult = {
   readonly playlists: readonly LocalPlaylist[]
   readonly quarantined: readonly QuarantineEntry[]
   readonly repairedIdCount: number
+  /** Original array index of every migrated playlist (repair needs it to map
+   *  recovered entries back onto the playlists the first migration created). */
+  readonly playlistOrigins: readonly number[]
+  /** Per migrated playlist, the source item index of every migrated item —
+   *  parallel to `playlists[i].items`. Repair merges back only items whose
+   *  source entry was actually quarantined, so user deletions stay deleted. */
+  readonly itemOrigins: readonly (readonly number[])[]
+}
+
+/** Extracts the raw playlist array from a legacy payload. Accepts the plain
+ *  root array, the v2 export envelope, and either form as a JSON string —
+ *  devtools edits and some export channels have been observed to persist
+ *  `dop_playlists` stringified, which previously made the whole migration
+ *  fail closed with an unreadable library. */
+export function legacyPlaylistArray(input: unknown): readonly unknown[] | undefined {
+  let value = input
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      return undefined
+    }
+  }
+  if (Array.isArray(value)) return value
+  if (typeof value === "object" && value !== null) {
+    const playlists = (value as { readonly playlists?: unknown }).playlists
+    if (Array.isArray(playlists)) return playlists
+  }
+  return undefined
+}
+
+function safeOriginalJson(raw: unknown): string {
+  const json = JSON.stringify(raw)
+  const text = json === undefined || json.length === 0 ? "null" : json
+  return text.slice(0, 65536) || "null"
 }
 
 export function parseLegacyLibrary(input: unknown): LegacyImportResult {
-  if (Array.isArray(input)) return importPlaylists(input, "root-array")
-  if (typeof input !== "object" || input === null) throw new MalformedExportError("root")
-  const envelope = input as { readonly schemaVersion?: unknown; readonly playlists?: unknown }
+  let value = input
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      throw new MalformedExportError("root")
+    }
+  }
+  if (Array.isArray(value)) return importPlaylists(value, "root-array")
+  if (typeof value !== "object" || value === null) throw new MalformedExportError("root")
+  const envelope = value as { readonly schemaVersion?: unknown; readonly playlists?: unknown }
   if (envelope.schemaVersion !== LOCAL_SCHEMA_VERSION)
     throw new FutureExportVersionError(envelope.schemaVersion)
   if (!Array.isArray(envelope.playlists)) throw new MalformedExportError("playlists")
@@ -55,6 +98,8 @@ function importPlaylists(
     throw new OversizePayloadError("local-import", totalItems, LOCAL_IMPORT_MAX_ITEMS, "items")
   const playlists: LocalPlaylist[] = []
   const quarantined: QuarantineEntry[] = []
+  const playlistOrigins: number[] = []
+  const itemOrigins: number[][] = []
   let repairedIdCount = 0
   const usedPlaylistIds = new Set<string>()
   const usedItemIds = new Set<string>()
@@ -63,7 +108,7 @@ function importPlaylists(
     if (!candidate.success || !Array.isArray(candidate.data.items)) {
       quarantined.push({
         playlistIndex: p,
-        originalJson: JSON.stringify(raw).slice(0, 65536),
+        originalJson: safeOriginalJson(raw),
         issues: [`playlists.${p}.items`],
         reason: "playlist entry or items is invalid",
       })
@@ -77,13 +122,14 @@ function importPlaylists(
         "items",
       )
     const items: LocalItem[] = []
+    const origins: number[] = []
     candidate.data.items.forEach((rawItem, i) => {
       const item = ItemInputSchema.safeParse(rawItem)
       if (!item.success) {
         quarantined.push({
           playlistIndex: p,
           itemIndex: i,
-          originalJson: JSON.stringify(rawItem).slice(0, 65536),
+          originalJson: safeOriginalJson(rawItem),
           issues: [`items.${i}`],
           reason: "item entry is invalid",
         })
@@ -109,7 +155,7 @@ function importPlaylists(
           quarantined.push({
             playlistIndex: p,
             itemIndex: i,
-            originalJson: JSON.stringify(rawItem).slice(0, 65536),
+            originalJson: safeOriginalJson(rawItem),
             issues: parsed.error.issues.map(
               (issue) => `items.${i}.${issue.path.map(String).join(".")}`,
             ),
@@ -119,6 +165,7 @@ function importPlaylists(
         }
         usedItemIds.add(parsed.data.id)
         items.push(parsed.data)
+        origins.push(i)
       })
     })
     const playlistId = allocateId(
@@ -126,15 +173,24 @@ function importPlaylists(
       `dop-v${LEGACY_MIGRATION_VERSION}-playlist-${p}`,
       usedPlaylistIds,
     )
+    // v1 allowed empty/blank playlist names; the strict schema does not, so
+    // recover with a deterministic fallback rather than losing the playlist.
+    const coercedName =
+      typeof candidate.data.name === "number" && Number.isFinite(candidate.data.name)
+        ? String(candidate.data.name)
+        : typeof candidate.data.name === "string"
+          ? candidate.data.name
+          : ""
+    const trimmedName = coercedName.trim().slice(0, 200)
     const playlist = LocalPlaylistSchema.safeParse({
       id: playlistId.id,
-      name: candidate.data.name,
+      name: trimmedName.length > 0 ? trimmedName : `プレイリスト ${p + 1}`,
       items,
     })
     if (!playlist.success) {
       quarantined.push({
         playlistIndex: p,
-        originalJson: JSON.stringify(raw).slice(0, 65536),
+        originalJson: safeOriginalJson(raw),
         issues: playlist.error.issues.map((issue) => issue.path.map(String).join(".")),
         reason: playlist.error.issues[0]?.message ?? "invalid playlist",
       })
@@ -143,6 +199,8 @@ function importPlaylists(
     usedPlaylistIds.add(playlist.data.id)
     if (playlistId.repaired) repairedIdCount += 1
     playlists.push(playlist.data)
+    playlistOrigins.push(p)
+    itemOrigins.push(origins)
   })
-  return { source, playlists, quarantined, repairedIdCount }
+  return { source, playlists, quarantined, repairedIdCount, playlistOrigins, itemOrigins }
 }

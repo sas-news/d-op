@@ -106,6 +106,10 @@ export const MigrationRecoverySchema = z.strictObject({
   migratedAt: IsoDateTimeSchema,
   migrationVersion: z.number().int().min(1),
   sourceKeys: z.array(z.string().min(1)),
+  // v2.0.1+: importer ruleset that produced quarantined. States written by
+  // v2.0.0 lack the field (below MIGRATION_PARSER_VERSION) and get a
+  // one-shot repair pass that re-imports quarantined legacy entries.
+  parserVersion: z.number().int().min(1).optional(),
 })
 export type MigrationRecovery = z.infer<typeof MigrationRecoverySchema>
 export const LocalV2StateSchema = z.strictObject({

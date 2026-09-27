@@ -236,13 +236,13 @@ describe("legacy import parsing", () => {
   }, 1000)
 
   it("quarantines invalid entries with original bytes and field paths", () => {
-    // Given: one valid and one end-before-start item.
+    // Given: one valid and one unrecoverable item (no partId and no url to
+    // derive it from — the lenient importer cannot reconstruct playback).
     // When: imported.
     // Then: the bad entry is quarantined (original JSON + issue paths),
     // the good entry imports, nothing is silently dropped.
     const bad = {
       id: "bad-1",
-      partId: "pt_bad",
       title: "壊",
       episodeTitle: "第1話",
       range: { start: 5000, end: 5000 },
@@ -254,6 +254,78 @@ describe("legacy import parsing", () => {
     expect(result.quarantined).toHaveLength(1)
     expect(result.quarantined[0]?.originalJson).toContain("bad-1")
     expect(result.quarantined[0]?.issues.length).toBeGreaterThan(0)
+  })
+
+  it("salvages v1-authored quirks instead of quarantining whole clips", () => {
+    // Given: items in the shapes v1 actually persisted — empty workId (the
+    // writer stored data.workId || ''), an empty partId recoverable from the
+    // stored url, a numeric episodeNumber, and a reversed range.
+    // When: imported.
+    // Then: nothing is quarantined; empty workId drops, partId is rescued
+    // from the url, the reversed range demotes to 範囲未設定 (range: null).
+    const result = parseLegacyLibrary([
+      {
+        id: "pl-v1",
+        name: "実際のv1データ",
+        items: [
+          {
+            id: "i1",
+            partId: "pt_ok",
+            workId: "",
+            title: "作品A",
+            episodeTitle: "第1話",
+            episodeNumber: 9,
+            url: "https://animestore.docomo.ne.jp/animestore/sc_d_pc?partId=pt_ok",
+            range: { start: 90_000, end: 180_000, name: "OP" },
+          },
+          {
+            id: "i2",
+            partId: "",
+            title: "作品B",
+            episodeTitle: "第3話",
+            url: "https://animestore.docomo.ne.jp/animestore/sc_d_pc?partId=pt_rescued",
+            range: null,
+          },
+          {
+            id: "i3",
+            partId: "pt_rev",
+            title: "作品C",
+            episodeTitle: "第5話",
+            range: { start: 90_000, end: 1_000, name: "BAD" },
+          },
+        ],
+      },
+    ])
+    expect(result.quarantined).toHaveLength(0)
+    const items = result.playlists[0]?.items ?? []
+    expect(items).toHaveLength(3)
+    expect(items[0]?.workId).toBeUndefined()
+    expect(items[0]?.episodeNumber).toBe("9")
+    expect(items[1]?.partId).toBe("pt_rescued")
+    expect(items[2]?.range).toBeNull()
+  })
+
+  it("accepts a stringified JSON root array (stored dop_playlists edge)", () => {
+    // Given: dop_playlists persisted as a JSON string (devtools edits and
+    // some export channels have produced this).
+    // When: imported.
+    // Then: it parses like the array form instead of failing closed.
+    const result = parseLegacyLibrary(JSON.stringify([MODERN_PLAYLIST]))
+    expect(result.source).toBe("root-array")
+    expect(result.quarantined).toHaveLength(0)
+    expect(result.playlists[0]?.id).toBe(MODERN_PLAYLIST.id)
+  })
+
+  it("recovers playlists with blank names instead of quarantining them", () => {
+    // Given: a playlist whose name v1 left empty.
+    // When: imported.
+    // Then: a deterministic fallback name keeps the playlist alive.
+    const result = parseLegacyLibrary([
+      { id: "pl-noname", name: "", items: [MODERN_PLAYLIST.items[0]] },
+    ])
+    expect(result.quarantined).toHaveLength(0)
+    expect(result.playlists[0]?.id).toBe("pl-noname")
+    expect(result.playlists[0]?.name).toBe("プレイリスト 1")
   })
 
   it("rejects unknown future export versions without downgrading", () => {
