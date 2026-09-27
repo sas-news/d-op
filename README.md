@@ -36,14 +36,14 @@ dアニメストアの動画から OP/ED のみを抽出して再生するブラ
 
 #### Chrome
 
-1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-chrome.zip` をダウンロード・解凍（v2 の ZIP はリリースワークフロー実行後に発行。またはソースから `bun run build` で `apps/extension/.output/chrome-mv3/` を生成）
+1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-chrome.zip` をダウンロード・解凍（またはソースから `bun run build` で `apps/extension/.output/chrome-mv3/` を生成）
 2. Chrome で `chrome://extensions` を開く
 3. 右上の「デベロッパーモード」を ON
 4. 「パッケージ化されていない拡張機能を読み込む」→ 解凍したフォルダ（または `.output/chrome-mv3/`）を選択
 
 #### Firefox
 
-1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-firefox.zip` をダウンロード・解凍（v2 の ZIP は同上。または `bun run build` で `apps/extension/.output/firefox-mv3/` を生成）
+1. [Releases](https://github.com/sas-news/d-op/releases) から `d-op-*-firefox.zip` をダウンロード・解凍（または `bun run build` で `apps/extension/.output/firefox-mv3/` を生成）
 2. Firefox で `about:debugging` を開く
 3. 「この Firefox」→「一時的なアドオンを読み込む」→ 解凍したフォルダの `manifest.json`（または `.output/firefox-mv3/manifest.json`）を選択
 

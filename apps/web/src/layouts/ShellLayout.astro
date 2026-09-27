@@ -1,5 +1,6 @@
 ---
 import "../styles/tokens.css"
+import { SITE_VERSION } from "../site-version"
 
 interface Props {
   title: string
@@ -27,7 +28,7 @@ const { title, description } = Astro.props
     <header class="site-header" data-testid="site-header">
       <a class="brand" href="/" aria-label="d-OP ホーム">
         <img class="brand-icon" src="/assets/d-OP-icon.png" width="40" height="40" alt="" />
-        <span class="brand-copy"><span class="brand-name">d-OP</span><span class="brand-version">v1.0.0</span></span>
+        <span class="brand-copy"><span class="brand-name">d-OP</span><span class="brand-version">v{SITE_VERSION}</span></span>
       </a>
       <nav class="site-nav" aria-label="サイト内メニュー">
         <a href="/#gallery">できること</a>

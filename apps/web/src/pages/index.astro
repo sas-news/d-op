@@ -6,13 +6,29 @@ import SupportCards from "../components/SupportCards.astro"
 import ShellLayout from "../layouts/ShellLayout.astro"
 import { SHARE_SITE_ORIGIN } from "../server/services/share-page"
 
+import { SITE_VERSION } from "../site-version"
+
 // Landing page ported from the preserved gh-pages revision (task 21): same
 // copy, same section anchors (#top/#gallery/#download/#support/#developer),
 // same store/support/developer links, and the canonical d-op.sasnews.dev
-// origin. Version truth follows the published extension manifest (1.0.0) —
-// the legacy JSON-LD's stale 0.9.2 is updated here.
+// origin. Version truth is apps/web/package.json (kept equal to the extension
+// manifest version by verify:artifacts) via SITE_VERSION.
 const SITE_URL = `${SHARE_SITE_ORIGIN}/`
 const OG_IMAGE_URL = `${SHARE_SITE_ORIGIN}/assets/ogp.png`
+
+const softwareLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "d-OP",
+  applicationCategory: "BrowserApplication",
+  operatingSystem: "Chrome, Firefox",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "JPY" },
+  author: { "@type": "Person", name: "sasnews", url: "https://sasnews.dev" },
+  url: "https://d-op.sasnews.dev/",
+  downloadUrl: "https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc",
+  description: "dアニメストアの動画からOP/EDを抽出して連続再生するブラウザ拡張機能。",
+  softwareVersion: SITE_VERSION,
+}
 
 const xIntent = new URL("https://x.com/intent/post")
 xIntent.searchParams.set("text", "d-OP | dアニメストアでOPだけ再生する拡張機能")
@@ -43,21 +59,7 @@ const xIntentUrl = xIntent.toString()
     <meta name="twitter:title" content="d-OP | dアニメストアでOPだけ再生する拡張機能" />
     <meta name="twitter:description" content="作品一覧からワンクリックでOP/ED区間を選択し、プレイリストを作成して連続再生。" />
     <meta name="twitter:image" content={OG_IMAGE_URL} />
-    <script is:inline type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "d-OP",
-        "applicationCategory": "BrowserApplication",
-        "operatingSystem": "Chrome, Firefox",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" },
-        "author": { "@type": "Person", "name": "sasnews", "url": "https://sasnews.dev" },
-        "url": "https://d-op.sasnews.dev/",
-        "downloadUrl": "https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc",
-        "description": "dアニメストアの動画からOP/EDを抽出して連続再生するブラウザ拡張機能。",
-        "softwareVersion": "1.0.0"
-      }
-    </script>
+    <script type="application/ld+json" set:html={JSON.stringify(softwareLd)} />
   </Fragment>
 
   <section class="hero" id="top" aria-labelledby="page-title">
