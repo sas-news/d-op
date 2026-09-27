@@ -66,7 +66,20 @@
     {
       "binding": "DB",
       "database_name": "dop_share",
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_id": "a20c7baa-9d58-4867-b1ec-be881ded94f0"
+    }
+  ],
+  // Keep the workers.dev origin enabled for health checks / rollback
+  // rehearsal even after the custom domain attaches (docs/cutover.md §3).
+  "workers_dev": true,
+  // Canonical site cutover (docs/cutover.md §3-4): attach d-op.sasnews.dev
+  // as a Workers custom domain at deploy time so the intent lives in the
+  // repo. Requires the sasnews.dev zone on this account and the obsolete
+  // GitHub Pages CNAME removed (§4a) if the attach reports a conflict.
+  "routes": [
+    {
+      "pattern": "d-op.sasnews.dev",
+      "custom_domain": true
     }
   ]
 }
