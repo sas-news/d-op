@@ -80,12 +80,12 @@ prerequisite; nothing below is claimed or waived.
 | Unit/worker/e2e suites + native 4-browser matrix (Chrome 153/152, Firefox 153.0.1/140.16.0esr) | DONE | task-23, `docs/testing.md` |
 | v1→v2 upgrade + rollback rehearsal on real binaries (unpacked-path identity) | DONE | task-26 |
 | Staging deploy + `verify:staging` remote run | DONE — `d-op-share-staging.sasshinbun0655.workers.dev`, 19-step PASS on the live Worker/D1 | task-28, `docs/staging.md` |
-| Production deploy + `d-op.sasnews.dev` cutover + `verify:cutover` green | **PENDING** — owner go/authorization + DNS; remote cutover rehearsal PASS (16 checks) on staging | task-29, `docs/cutover.md` |
-| Archive-tag push, Pages disable, `gh-pages`/`dev` retirement | **PENDING** — gated on the cutover above; local tags verified | task-29 checklist |
+| Production deploy + `d-op.sasnews.dev` cutover + `verify:cutover` green | DONE — `d-op-share` worker serves the canonical domain; 16-check PASS + disposable public/unlisted publish→delete QA on production D1 | task-29, `docs/cutover.md` |
+| Archive-tag push, Pages disable, `gh-pages`/`dev` retirement | DONE — 5 archive tags remote, Pages disabled (GET /pages → 404), all 14 stale branches deleted; only `main` remains | task-29 checklist |
 | Real logged-in d-Anime smoke | **BLOCKED — production Extension release gate** (2FA, no static accounts) | `docs/cutover.md` §9 |
 | Store uploads (CWS + AMO) | **PENDING** — manual draft/review gate; never automated | this file |
 | Signed-store update continuity | **PENDING** — distinct from rehearsed unpacked-path identity | task-26 |
-| `RATE_LIMIT_HMAC_KEY` secret | staging DONE; **prod PENDING at deploy** — `wrangler secret put` on prod | `docs/staging.md` §2 |
+| `RATE_LIMIT_HMAC_KEY` secret | DONE — staging and prod both provisioned via `wrangler secret put` | `docs/staging.md` §2 |
 | `scheduled()` export + `triggers.crons` TTL pruning | **NOT WIRED** — `runScheduledCleanup` ready; lazy per-request expiry covers pending provisionals | `docs/staging.md` §9 |
 
 Until the BLOCKED rows carry receipts, overall release status is
