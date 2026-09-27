@@ -25,8 +25,8 @@ Release/artifact commands (see `docs/release.md`):
 Deployment/upgrade gates (runbooks in `docs/staging.md` / `docs/cutover.md`):
 
 - `bun run verify:upgrade -- --browser=chromium|firefox` — installed-profile v1→v2 rehearsal (below).
-- `bun run verify:staging -- --base-url=<staging-origin>` — disposable-resource API flow against a deployed staging Worker; remote run is BLOCKED until Cloudflare auth exists.
-- `bun run verify:cutover -- --base-url=https://d-op.sasnews.dev` — non-mutating production gate; correctly fails while the domain still serves GitHub Pages.
+- `bun run verify:staging -- --base-url=<staging-origin>` — disposable-resource API flow against a deployed staging Worker; remote run PASSED against `d-op-share-staging.workers.dev` (19 steps). Refuses the production origin by design.
+- `bun run verify:cutover -- --base-url=https://d-op.sasnews.dev` — non-mutating production gate; PASSED 16 checks on the live cutover (2026-09-27). Re-run after every production deploy.
 
 Playwright projects:
 
