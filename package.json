@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "node ./scripts/prepare-og-assets.mjs",
     "dev:extension": "cd apps/extension && bunx wxt dev --browser chrome",
     "dev:extension:firefox": "cd apps/extension && bunx wxt dev --browser firefox",
     "dev:web": "cd apps/web && bunx astro dev",

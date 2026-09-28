@@ -6,7 +6,6 @@ import {
   formatDateJa,
   formatDurationJa,
   loadSharePage,
-  SHARE_OG_IMAGE_URL,
   SHARE_SITE_ORIGIN,
 } from "../../src/server/services/share-page.js"
 import {
@@ -101,7 +100,8 @@ describe("loadSharePage view model", () => {
     expect(view.xIntentUrl).toContain(encodeURIComponent(view.canonicalUrl))
     expect(view.publishedAtLabel).toMatch(/^\d{4}年\d{1,2}月\d{1,2}日$/)
     expect(view.sourceUrl).toBeNull()
-    expect(SHARE_OG_IMAGE_URL.startsWith(SHARE_SITE_ORIGIN)).toBe(true)
+    // Crawler-facing card is the per-playlist PNG endpoint, not a shared SVG.
+    expect(view.ogImageUrl).toBe(`${view.canonicalUrl}/og.png`)
   })
 
   it("carries unlisted visibility through to the view", async () => {

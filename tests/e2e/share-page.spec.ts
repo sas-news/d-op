@@ -341,7 +341,7 @@ test("public share page renders metadata, 8 clips and exact total duration", asy
   expect(ogDescription).toContain(EIGHT_CLIP_TOTAL_LABEL)
   await expect(page.locator("meta[property='og:image']")).toHaveAttribute(
     "content",
-    `${PROD_ORIGIN}/og-share.svg`,
+    `${PROD_ORIGIN}/p/${publicId}/og.png`,
   )
 
   // The page must not be a noindex target and must carry no secrets.

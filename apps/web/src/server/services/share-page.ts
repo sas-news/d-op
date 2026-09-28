@@ -29,7 +29,8 @@ import { parentIsPublic } from "./publication"
 // (fail-closed 503), never to a guessed page.
 
 export const SHARE_SITE_ORIGIN = "https://d-op.sasnews.dev" as const
-export const SHARE_OG_IMAGE_URL = `${SHARE_SITE_ORIGIN}/og-share.svg` as const
+/** Per-playlist OGP card endpoint: crawlers get a PNG, not the SVG fallback. */
+export const shareOgImageUrl = (canonicalUrl: string): string => `${canonicalUrl}/og.png`
 
 export type SharePageItemView = {
   readonly index: number
@@ -39,6 +40,7 @@ export type SharePageItemView = {
   readonly rangeName: string | null
   readonly rangeLabel: string
   readonly durationLabel: string
+  readonly durationMs: number
 }
 
 /** One direct Remix child (task 20): title + link + counts, nothing more. */
@@ -70,6 +72,8 @@ export type SharePageView = {
   readonly tags: readonly string[]
   readonly items: readonly SharePageItemView[]
   readonly clipCount: number
+  /** Per-playlist PNG card URL served from /p/:shareId/og.png. */
+  readonly ogImageUrl: string
   /** Exact milliseconds — sum(end - start) over items, no tolerance padding. */
   readonly totalDurationMs: number
   readonly totalDurationLabel: string
@@ -175,6 +179,7 @@ function buildView(
       rangeName: item.range.name ?? null,
       rangeLabel: `${formatClockMs(item.range.start)} – ${formatClockMs(item.range.end)}`,
       durationLabel: formatDurationJa(durationMs),
+      durationMs,
     }
   })
   const totalDurationMs = playlist.items.reduce(
@@ -215,6 +220,7 @@ function buildView(
     sourceUrl: source === null ? null : `/p/${source.shareId}`,
     ogTitle,
     ogDescription,
+    ogImageUrl: shareOgImageUrl(canonicalUrl),
     xIntentUrl: intent.toString(),
     remix: {
       items: remixItems,
