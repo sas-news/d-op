@@ -19,7 +19,7 @@ const PROD_ORIGIN = "https://d-op.sasnews.dev"
 
 // JSON-LD softwareVersion mirrors apps/web/package.json via SITE_VERSION.
 const WEB_PKG_VERSION = JSON.parse(
-  readFileSync(join(__dirname, "..", "apps", "web", "package.json"), "utf8"),
+  readFileSync(join(__dirname, "..", "..", "apps", "web", "package.json"), "utf8"),
 ).version as string
 
 const CWS_URL = "https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc"
