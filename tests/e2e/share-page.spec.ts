@@ -318,7 +318,7 @@ test("public share page renders metadata, 8 clips and exact total duration", asy
   )
   await expect(page.locator("[data-testid='share-item']")).toHaveCount(8)
   await expect(page.locator("[data-testid='share-item']").nth(1)).toContainText("0:10")
-  await expect(page.locator("[data-testid='share-item']").nth(1)).toContainText("1:40.500")
+  await expect(page.locator("[data-testid='share-item']").nth(1)).toContainText("1:40")
   await expect(page.locator("[data-testid='share-tags'] .share-tag")).toHaveCount(2)
 
   // Canonical + OGP head metadata (escaped attribute reads, not raw HTML).

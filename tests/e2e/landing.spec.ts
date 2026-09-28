@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { expect, test } from "@playwright/test"
 
 // Task-21 landing/port verification against the real built Worker preview
@@ -14,6 +16,11 @@ import { expect, test } from "@playwright/test"
 const WEB_PORT = process.env["DOP_WEB_PORT"] ?? "4321"
 const WEB_ORIGIN = `http://127.0.0.1:${WEB_PORT}`
 const PROD_ORIGIN = "https://d-op.sasnews.dev"
+
+// JSON-LD softwareVersion mirrors apps/web/package.json via SITE_VERSION.
+const WEB_PKG_VERSION = JSON.parse(
+  readFileSync(join(__dirname, "..", "apps", "web", "package.json"), "utf8"),
+).version as string
 
 const CWS_URL = "https://chromewebstore.google.com/detail/d-op/mcjkaoagedekadnimbcbkhdkgpbnnodc"
 const AMO_URL = "https://addons.mozilla.org/ja/firefox/addon/d-op/"
@@ -142,7 +149,7 @@ test("canonical, OGP and JSON-LD reflect the current product truth", async ({ pa
     name: "d-OP",
     url: `${PROD_ORIGIN}/`,
     downloadUrl: CWS_URL,
-    softwareVersion: "1.0.0",
+    softwareVersion: WEB_PKG_VERSION,
   })
 
   const xHref = (await page.locator("[data-testid='share-x-link']").getAttribute("href")) ?? ""
