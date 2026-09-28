@@ -1,0 +1,307 @@
+name: Deploy (main)
+
+# Automated deploy pipeline gated on CI: it fires when the "CI (Linux full
+# matrix)" workflow completes on main and deploys only commits that passed
+# it — a failing or unverified build never reaches production. The Windows
+# workflow does not gate web deploys (it adds platform coverage for the
+# extension, not the worker).
+#
+# Change detection decides what ships (docs/cutover.md / docs/staging.md
+# own the manual runbooks this replaces for routine deploys). It diffs
+# head_sha against its first parent — squash-merged and merge-commit PRs
+# see the full change; a direct push of several commits to main sees only
+# the last one (edge case; PR flow is the norm):
+#
+#   Site-relevant paths      -> build + D1 migrate + `wrangler deploy` of the
+#      (apps/web/,             production worker d-op-share (d-op.sasnews.dev),
+#      packages/shared/,       then the read-only verify:cutover smoke gate.
+#      scripts/, root
+#      package.json/bun.lock)
+#
+#   Extension-relevant paths -> `bun run build` + `bun run verify:artifacts`
+#      (apps/extension/,       and the release zips are uploaded as a run
+#      packages/shared/,       artifact. There is deliberately NO store
+#      scripts/, root          submission: CWS/AMO publishing stays a manual
+#      package.json/bun.lock)  human step via release.yml (docs/release.md).
+#
+#   docs/, tests/, .github/, and other paths -> nothing deploys.
+#
+# Version handling: the top-left site badge (apps/web/src/site-version.ts)
+# reads apps/web/package.json, and verify-artifacts requires the workspace
+# package.json versions to be equal. The `version` job computes the next
+# patch version; the deploy/package jobs apply it locally (so the built
+# artifact carries it) and, only after a successful deploy/verify, push a
+# `chore(release): vX.Y.Z` commit back to main — a failed run never records
+# a version it did not ship. If both jobs record the same version, the
+# second push sees it already landed. If main is protected and the push is
+# rejected, the deploy still succeeded — the repo simply catches up on the
+# next deploy.
+#
+# Required GitHub secrets (repo-level or the `production`/`staging`
+# environments): CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN. Token scope
+# per docs/staging.md §0 — Workers Scripts Edit, D1 Edit, Workers
+# Observability Read on the account, plus Workers Routes Edit on the
+# sasnews.dev zone so the d-op.sasnews.dev custom domain stays attached.
+# RATE_LIMIT_HMAC_KEY is a Worker-side secret managed by `wrangler secret
+# put` — it is NOT needed (and must not live) here.
+#
+# Manual dispatch redeploys main on demand; target=staging deploys to
+# d-op-share-staging instead of production and skips the version bump.
+on:
+  workflow_run:
+    workflows: ["CI (Linux full matrix)"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
+
+permissions:
+  contents: read # jobs fetch the tree; deploy/package jobs opt into write
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false # never cancel a deploy mid-flight
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.detect.outputs.web }}
+      extension: ${{ steps.detect.outputs.extension }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
+          fetch-depth: 0
+      - name: Detect affected areas
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            echo "extension=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "CI concluded '$CONCLUSION' on $HEAD_SHA — nothing deploys"
+            echo "web=false" >> "$GITHUB_OUTPUT"
+            echo "extension=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base="$HEAD_SHA^1"
+          if git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+            changed=$(git diff --name-only "$base" "$HEAD_SHA")
+          else
+            changed=$(git ls-tree -r --name-only "$HEAD_SHA")
+          fi
+          echo "changed paths:"
+          echo "$changed"
+          web=false
+          extension=false
+          if echo "$changed" | grep -qE '^(apps/web/|packages/shared/|scripts/|package\.json$|bun\.lock)'; then
+            web=true
+          fi
+          if echo "$changed" | grep -qE '^(apps/extension/|packages/shared/|scripts/|package\.json$|bun\.lock)'; then
+            extension=true
+          fi
+          echo "web=$web" >> "$GITHUB_OUTPUT"
+          echo "extension=$extension" >> "$GITHUB_OUTPUT"
+
+  version:
+    needs: changes
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
+      - name: Compute the next release version
+        id: compute
+        env:
+          TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'production' }}
+          WEB: ${{ needs.changes.outputs.web }}
+          EXT: ${{ needs.changes.outputs.extension }}
+        run: |
+          if [ "$TARGET" = "staging" ] || { [ "$WEB" != "true" ] && [ "$EXT" != "true" ]; }; then
+            echo "version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "version=$(node scripts/bump-version.mjs --print)" >> "$GITHUB_OUTPUT"
+
+  deploy-web:
+    needs: [changes, version]
+    if: needs.changes.outputs.web == 'true'
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'production' }}
+    permissions:
+      contents: write # pushes the release-version commit after a successful deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22" # wrangler requires node >= 22
+      - name: Apply the release version locally
+        if: needs.version.outputs.version != ''
+        env:
+          NEW_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          node scripts/bump-version.mjs --to "$NEW_VERSION"
+          bun install # sync bun.lock workspace version entries
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build the web worker
+        working-directory: apps/web
+        run: bunx astro build
+      - name: Apply D1 migrations (production)
+        if: inputs.target != 'staging'
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: yes | bunx wrangler d1 migrations apply dop_share --remote --config wrangler.jsonc
+      - name: Deploy the production worker
+        if: inputs.target != 'staging'
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: bunx wrangler deploy --config dist/server/wrangler.json
+      - name: Apply D1 migrations (staging)
+        if: inputs.target == 'staging'
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: yes | bunx wrangler d1 migrations apply dop_share_staging --remote --config wrangler.staging.jsonc
+      - name: Deploy the staging worker
+        if: inputs.target == 'staging'
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -o pipefail
+          bunx wrangler deploy --config wrangler.staging.jsonc 2>&1 | tee staging-deploy.log
+      - name: Smoke check (production)
+        if: inputs.target != 'staging'
+        # Read-only production gate — creates/deletes nothing (docs/cutover.md).
+        run: bun run verify:cutover -- --base-url https://d-op.sasnews.dev --evidence deploy-evidence/cutover.json
+      - name: Smoke check (staging)
+        if: inputs.target == 'staging'
+        # The disposable-resource flow (docs/staging.md §5) against the
+        # workers.dev origin printed by the deploy step.
+        run: |
+          origin=$(grep -oE 'https://d-op-share-staging\.[A-Za-z0-9.-]+\.workers\.dev' apps/web/staging-deploy.log | head -1)
+          if [ -z "$origin" ]; then
+            echo "::error::could not parse the staging origin from wrangler deploy output"
+            exit 1
+          fi
+          bun run verify:staging -- --base-url "$origin"
+      - name: Record the release version on main
+        if: needs.version.outputs.version != ''
+        env:
+          NEW_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json apps/extension/package.json apps/web/package.json packages/shared/package.json bun.lock
+          if git diff --cached --quiet; then
+            echo "tree already at v$NEW_VERSION"
+          elif git commit -m "chore(release): v$NEW_VERSION" && git push origin HEAD:main; then
+            echo "recorded v$NEW_VERSION on main"
+          else
+            git fetch origin main
+            recorded=$(git show "origin/main:apps/web/package.json" | grep -m1 '"version"' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+            if [ "$recorded" = "$NEW_VERSION" ]; then
+              echo "v$NEW_VERSION was already recorded on main"
+            else
+              echo "::warning::deployed v$NEW_VERSION but could not record the bump on main (protected branch or a newer commit) — the repo catches up on the next deploy"
+            fi
+          fi
+      - name: Upload deploy evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-evidence
+          path: deploy-evidence/
+          if-no-files-found: warn
+
+  package-extension:
+    needs: [changes, version]
+    if: needs.changes.outputs.extension == 'true'
+    permissions:
+      contents: write # pushes the release-version commit after a successful verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
+          fetch-depth: 0 # verify-artifacts' self-test reads the v1.0.0 tag
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Apply the release version locally
+        if: needs.version.outputs.version != ''
+        env:
+          NEW_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          node scripts/bump-version.mjs --to "$NEW_VERSION"
+          bun install
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build release artifacts
+        run: bun run build
+      - name: Verify artifacts
+        run: bun run verify:artifacts
+      - name: Record the release version on main
+        if: needs.version.outputs.version != ''
+        env:
+          NEW_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json apps/extension/package.json apps/web/package.json packages/shared/package.json bun.lock
+          if git diff --cached --quiet; then
+            echo "tree already at v$NEW_VERSION"
+          elif git commit -m "chore(release): v$NEW_VERSION" && git push origin HEAD:main; then
+            echo "recorded v$NEW_VERSION on main"
+          else
+            git fetch origin main
+            recorded=$(git show "origin/main:apps/web/package.json" | grep -m1 '"version"' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+            if [ "$recorded" = "$NEW_VERSION" ]; then
+              echo "v$NEW_VERSION was already recorded on main"
+            else
+              echo "::warning::packaged v$NEW_VERSION but could not record the bump on main (protected branch or a newer commit)"
+            fi
+          fi
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-artifacts
+          path: apps/extension/.output/*.zip
+          if-no-files-found: error
+      - name: Store submission note
+        run: |
+          echo "Extension packaging is verified, but Chrome Web Store / AMO"
+          echo "submission is a manual human step by design — run the frozen"
+          echo "Release workflow (release.yml) when a release is due."
