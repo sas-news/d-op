@@ -315,6 +315,10 @@ test("options page: list, collapse persistence, create/rename/delete, edit, copy
     const list = firstCard.locator(".items-list")
     const grip = page.locator(".item-row[data-item-id='item-c'] .drag-grip")
     const target = page.locator(".item-row[data-item-id='item-a']")
+    // The items list re-renders after modal commits; wait for the rows to be
+    // laid out before taking boxes (boundingBox is null on a transient state).
+    await expect(grip).toBeVisible()
+    await expect(target).toBeVisible()
     const gripBox = await grip.boundingBox()
     const targetBox = await target.boundingBox()
     if (gripBox === null || targetBox === null) throw new Error("drag boxes missing")
