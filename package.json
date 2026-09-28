@@ -1,6 +1,6 @@
 {
   "name": "d-op-v2",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "private": true,
   "description": "d-OP v2 Bun workspace (extension + share web + shared). The legacy root runtime was removed in task 25 after parity evidence; v1 source stays reachable via git tag v1.0.0. See docs/decisions/001-toolchain.md.",
   "workspaces": [

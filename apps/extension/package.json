@@ -1,6 +1,6 @@
 {
   "name": "@d-op/extension",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "private": true,
   "description": "d-OP v2 browser extension (WXT). Manifest version is sourced from this package.json at build time.",
   "type": "module",
