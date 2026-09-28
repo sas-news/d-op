@@ -53,6 +53,34 @@ describe("GET /p/:shareId/og.png", () => {
     expect([...body.slice(0, 4)]).toEqual([...PNG_MAGIC])
   })
 
+  it("renders extreme-length content without breaking the card", async () => {
+    const playlist = SharedPlaylistSchema.parse({
+      schemaVersion: 1,
+      title: "極限文字数テスト用プレイリスト".repeat(10).slice(0, 120),
+      description: "",
+      author: "超長い作者名テスト".repeat(10).slice(0, 80),
+      tags: Array.from({ length: 10 }, (_, index) =>
+        `長いタグ${index}${"ABC".repeat(7)}`.slice(0, 24),
+      ),
+      visibility: "public",
+      items: Array.from({ length: 12 }, (_, index) => ({
+        partId: `part_${index}`,
+        workId: `work_${index}`,
+        title: `作品${index} ${"長いタイトル".repeat(60)}`.slice(0, 300),
+        episodeTitle: `第${index + 100}話 ${"長いエピソード名".repeat(60)}`.slice(0, 300),
+        episodeNumber: `${index + 100}`,
+        range: { start: 0, end: (index + 1) * 90_000, name: index % 2 ? "OP" : "ED" },
+      })),
+    })
+    const published = await publishPlaylist(playlist)
+    const response = await call(ogRoute, ogRequest(published.shareId), {
+      shareId: published.shareId,
+    })
+    expect(response.status).toBe(200)
+    const body = new Uint8Array(await response.arrayBuffer())
+    expect([...body.slice(0, 4)]).toEqual([...PNG_MAGIC])
+  })
+
   it("returns a bare 404 for unknown and malformed ids", async () => {
     for (const id of ["noplaylistneverexists0", "!!!bogus"]) {
       const response = await call(ogRoute, ogRequest(id), { shareId: id })
