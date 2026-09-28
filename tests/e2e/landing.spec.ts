@@ -209,9 +209,16 @@ test("every local href and src on public pages resolves without a 404", async ({
   }
   expect(localRefs.size).toBeGreaterThan(0)
 
+  // ~90 sequential reads share the project's rate-limit window — a 429 means
+  // throttled, not broken; wait out the advertised window once, then retry.
+  test.setTimeout(180_000)
   const failures: string[] = []
   for (const ref of localRefs) {
-    const response = await request.get(`${WEB_ORIGIN}${ref}`)
+    let response = await request.get(`${WEB_ORIGIN}${ref}`)
+    if (response.status() === 429) {
+      await new Promise((resolve) => setTimeout(resolve, 61_000))
+      response = await request.get(`${WEB_ORIGIN}${ref}`)
+    }
     if (!response.ok()) failures.push(`${ref} -> ${response.status()}`)
   }
   expect(failures).toEqual([])

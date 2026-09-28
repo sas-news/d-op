@@ -23,13 +23,23 @@ export default defineConfig({
       name: "web-chromium",
       testMatch:
         /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts|csp\.spec\.ts|share-page\.spec\.ts|landing\.spec\.ts|discover\.spec\.ts|accessibility\.spec\.ts/,
-      use: { browserName: "chromium" },
+      // The preview server's read rate limiter keys on cf-connecting-ip: give
+      // each project a distinct TEST-NET-2 address so the two web suites do
+      // not share one 120-req/60s bucket (the serial crawl in landing.spec
+      // alone approaches the cap).
+      use: {
+        browserName: "chromium",
+        extraHTTPHeaders: { "cf-connecting-ip": "198.51.100.23" },
+      },
     },
     {
       name: "web-firefox",
       testMatch:
         /web-shell\.spec\.ts|harness\.spec\.ts|adapter-bridge\.spec\.ts|share-page\.spec\.ts|landing\.spec\.ts|accessibility\.spec\.ts/,
-      use: { browserName: "firefox" },
+      use: {
+        browserName: "firefox",
+        extraHTTPHeaders: { "cf-connecting-ip": "198.51.100.24" },
+      },
     },
     {
       name: "extension-chromium",
