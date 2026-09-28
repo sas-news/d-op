@@ -162,6 +162,7 @@ type Launched = {
   readonly worker: Worker
   readonly extensionId: string
   readonly setFailChapterFetch: (fail: boolean) => void
+  readonly setAbortPlayerNav: (abort: boolean) => void
 }
 
 async function launchExtension(testInfo: TestInfo): Promise<Launched> {
@@ -173,9 +174,21 @@ async function launchExtension(testInfo: TestInfo): Promise<Launched> {
       `--disable-extensions-except=${EXTENSION_PATH}`,
       `--load-extension=${EXTENSION_PATH}`,
       "--autoplay-policy=no-user-gesture-required",
+      // Extension-created tab navigations bypass context.route interception
+      // and hit the real network (d-Anime geo-redirects to /CF/overseas_warn),
+      // which breaks isPlayerPageUrl-gated release. Fail DNS instead so the
+      // tab keeps its sc_d_pc URL — same outcome the catch-all abort intends.
+      "--host-resolver-rules=MAP * ~NOTFOUND",
     ],
   })
   let failChapterFetch = false
+  // Extension-created player tabs (chrome.tabs.create / windows.create) are
+  // not page.goto()s: when their document request escapes interception the
+  // real d-Anime geo-redirects to /CF/overseas_warn, and when it IS intercepted
+  // the content script strips dop* params before the test can poll the URL.
+  // Aborting the navigation keeps the tab at the requested dop-param URL —
+  // matching the isPlayerPageUrl release contract and removing both races.
+  let abortPlayerNav = false
   // Catch-all first (routes consult newest-first): nothing real leaves the box.
   await context.route("**/*", (route) => {
     const url = route.request().url()
@@ -183,6 +196,9 @@ async function launchExtension(testInfo: TestInfo): Promise<Launched> {
     return route.continue()
   })
   await context.route(/animestore\.docomo\.ne\.jp\/animestore\/sc_d_pc/, (route) => {
+    // Extension-created player tabs abort their navigation (see above);
+    // page.goto() navigations still get the fixture.
+    if (abortPlayerNav && route.request().isNavigationRequest()) return route.abort()
     // Work-page chapter fetch uses fetch(); navigations use 'document'. The
     // fallback test fails only the fetch half.
     if (failChapterFetch && route.request().resourceType() === "fetch") return route.abort()
@@ -211,6 +227,9 @@ async function launchExtension(testInfo: TestInfo): Promise<Launched> {
     extensionId,
     setFailChapterFetch: (fail) => {
       failChapterFetch = fail
+    },
+    setAbortPlayerNav: (abort) => {
+      abortPlayerNav = abort
     },
   }
 }
@@ -296,6 +315,10 @@ test("options page: list, collapse persistence, create/rename/delete, edit, copy
     const list = firstCard.locator(".items-list")
     const grip = page.locator(".item-row[data-item-id='item-c'] .drag-grip")
     const target = page.locator(".item-row[data-item-id='item-a']")
+    // The items list re-renders after modal commits; wait for the rows to be
+    // laid out before taking boxes (boundingBox is null on a transient state).
+    await expect(grip).toBeVisible()
+    await expect(target).toBeVisible()
     const gripBox = await grip.boundingBox()
     const targetBox = await target.boundingBox()
     if (gripBox === null || targetBox === null) throw new Error("drag boxes missing")
@@ -329,7 +352,8 @@ test("options page: list, collapse persistence, create/rename/delete, edit, copy
 
 // biome-ignore lint/correctness/noEmptyPattern: playwright requires object destructuring for fixtures
 test("popup: constrained width, playlist picker, item start, now-playing controls", async ({}, testInfo) => {
-  const { context, extensionId } = await launchExtension(testInfo)
+  const { context, extensionId, setAbortPlayerNav } = await launchExtension(testInfo)
+  setAbortPlayerNav(true)
   try {
     const page = await context.newPage()
     await page.goto(`chrome-extension://${extensionId}/popup.html`)
@@ -354,8 +378,15 @@ test("popup: constrained width, playlist picker, item start, now-playing control
     const opened = context.waitForEvent("page", { timeout: 15_000 })
     await page.locator(".playlist-card-item").nth(1).click()
     const playerTab = await opened
-    await expect.poll(() => playerTab.url()).toContain("dopPlaylistId=pl-1")
-    await expect.poll(() => playerTab.url()).toContain("dopIndex=1")
+    // Aborted navigations keep the attempted URL in chrome.tabs but
+    // page.url() reports chrome-error://chromewebdata/ — assert against the
+    // extension-facing URL via the popup page's chrome.tabs access.
+    const playerTabUrl = () =>
+      page.evaluate(
+        `chrome.tabs.query({}).then((ts) => ts.map((t) => t.url ?? "").find((u) => u.includes("/animestore/sc_d_pc")) ?? "")`,
+      ) as Promise<string>
+    await expect.poll(playerTabUrl).toContain("dopPlaylistId=pl-1")
+    await expect.poll(playerTabUrl).toContain("dopIndex=1")
     await expect
       .poll(
         async () =>
@@ -559,7 +590,16 @@ test("player: op-ed mode colors markers, keeps native controls, survives video r
 
 // biome-ignore lint/correctness/noEmptyPattern: playwright requires object destructuring for fixtures
 test("work page: OP/ED menu selects ranges, chapter failure falls back to dopRangeIndex=0", async ({}, testInfo) => {
-  const { context, setFailChapterFetch } = await launchExtension(testInfo)
+  const { context, setFailChapterFetch, setAbortPlayerNav } = await launchExtension(testInfo)
+  setAbortPlayerNav(true)
+  // Player tabs abort their navigation (see launchExtension): read the tab
+  // URL through chrome.tabs — page.url() reports the chrome-error page.
+  const playerTabUrl = () =>
+    context
+      .serviceWorkers()[0]
+      ?.evaluate(
+        `chrome.tabs.query({}).then((ts) => ts.map((t) => t.url ?? "").find((u) => u.includes("/animestore/sc_d_pc")) ?? "")`,
+      ) as Promise<string>
   try {
     const page = await context.newPage()
     await page.goto(WORK)
@@ -577,10 +617,13 @@ test("work page: OP/ED menu selects ranges, chapter failure falls back to dopRan
     const opened = context.waitForEvent("page", { timeout: 15_000 })
     await menuItems.nth(1).click()
     const playerTab = await opened
-    await expect.poll(() => playerTab.url()).toContain("dopRangeIndex=1")
-    await expect.poll(() => playerTab.url()).toContain("partId=p1")
+    await expect.poll(playerTabUrl).toContain("dopRangeIndex=1")
+    await expect.poll(playerTabUrl).toContain("partId=p1")
     await expect
-      .poll(() => new URL(playerTab.url()).searchParams.get("dopTitle"))
+      .poll(async () => {
+        const url = await playerTabUrl()
+        return url === "" ? null : new URL(url).searchParams.get("dopTitle")
+      })
       .toBe("Fixture Work Title")
     await playerTab.close().catch(() => {})
     await expect(page.locator("#d-op-store-range-menu")).toHaveCount(0)
@@ -590,8 +633,8 @@ test("work page: OP/ED menu selects ranges, chapter failure falls back to dopRan
     const openedFallback = context.waitForEvent("page", { timeout: 15_000 })
     await buttons.nth(1).click()
     const fallbackTab = await openedFallback
-    await expect.poll(() => fallbackTab.url()).toContain("partId=p2")
-    await expect.poll(() => fallbackTab.url()).toContain("dopRangeIndex=0")
+    await expect.poll(playerTabUrl).toContain("partId=p2")
+    await expect.poll(playerTabUrl).toContain("dopRangeIndex=0")
     await fallbackTab.close().catch(() => {})
   } finally {
     await context.close()

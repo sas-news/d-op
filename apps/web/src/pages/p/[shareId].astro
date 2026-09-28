@@ -3,7 +3,7 @@ import ErrorShell from "../../components/ErrorShell.astro"
 import ShareItems from "../../components/ShareItems.astro"
 import ShellLayout from "../../layouts/ShellLayout.astro"
 import { newRequestId } from "../../server/services/respond"
-import { loadSharePage, SHARE_OG_IMAGE_URL } from "../../server/services/share-page"
+import { loadSharePage } from "../../server/services/share-page"
 
 // GET /p/:shareId — the public snapshot page (task 16). Fully server-rendered:
 // every state (found / notfound / unavailable) is decided here and works with
@@ -45,8 +45,12 @@ const description =
         <meta property="og:title" content={result.view.ogTitle} />
         <meta property="og:description" content={result.view.ogDescription} />
         <meta property="og:url" content={result.view.canonicalUrl} />
-        <meta property="og:image" content={SHARE_OG_IMAGE_URL} />
+        <meta property="og:image" content={result.view.ogImageUrl} />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
         <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content={result.view.ogImageUrl} />
         <meta name="twitter:title" content={result.view.ogTitle} />
         <meta name="twitter:description" content={result.view.ogDescription} />
       </>

@@ -12,6 +12,8 @@ apps/extension/.output/
 apps/extension/.wxt/
 apps/web/dist/
 apps/web/.astro/
+# Regenerated OGP font binaries (scripts/prepare-og-assets.mjs)
+apps/web/public/assets/og/
 apps/web/.wrangler/
 .dev.vars
 test-results/

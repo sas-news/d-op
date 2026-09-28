@@ -64,7 +64,9 @@ describe("security header set", () => {
   })
 
   it("middleware applies the set to SSR and API-shaped responses", async () => {
-    const context = {} as unknown as APIContext
+    const context = {
+      request: new Request("https://d-op.sasnews.dev/"),
+    } as unknown as APIContext
     const next: MiddlewareNext = () => Promise.resolve(new Response("{}", { status: 200 }))
     // MiddlewareHandler's public type allows `void`; this handler always returns.
     const response = (await onRequest(context, next)) as Response

@@ -8,5 +8,13 @@
   // tests ran alongside a Playwright webServer build.
   "name": "d-op-test",
   "compatibility_date": "2026-09-01",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"]
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // Serves public/ through the ASSETS binding so the /p/:shareId/og.png
+  // suite can load OGP fonts and the d-OP icon exactly like production.
+  // public/ is source-controlled and never rebuilt mid-test, so it does not
+  // reintroduce the dist directory-lock problem noted above.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  }
 }
