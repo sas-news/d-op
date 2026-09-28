@@ -101,7 +101,9 @@ describe("loadSharePage view model", () => {
     expect(view.publishedAtLabel).toMatch(/^\d{4}年\d{1,2}月\d{1,2}日$/)
     expect(view.sourceUrl).toBeNull()
     // Crawler-facing card is the per-playlist PNG endpoint, not a shared SVG.
-    expect(view.ogImageUrl).toBe(`${view.canonicalUrl}/og.png`)
+    // ?v=<content-hash prefix> busts caches when the playlist is republished.
+    expect(view.ogImageUrl.startsWith(`${view.canonicalUrl}/og.png?v=`)).toBe(true)
+    expect(new URL(view.ogImageUrl).searchParams.get("v")).toMatch(/^[0-9a-f]{12}$/)
   })
 
   it("carries unlisted visibility through to the view", async () => {

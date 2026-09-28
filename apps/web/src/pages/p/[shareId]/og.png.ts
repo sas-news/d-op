@@ -57,10 +57,11 @@ export const GET: APIRoute = async ({ params, request }) => {
     return new Response(png as unknown as BodyInit, {
       headers: {
         "content-type": "image/png",
-        // Snapshots are replaced in place on republish: a short max-age keeps
-        // cards fresh, stale-while-revalidate keeps crawler fetches off the
-        // hot path.
-        "cache-control": "public, max-age=600, stale-while-revalidate=86400",
+        // Snapshots are updated and deleted in place: keep the stale window
+        // at max-age so a blocked playlist's card stops propagating quickly.
+        // The ?v= content-hash token (see shareOgImageUrl) busts caches on
+        // republish, so a short TTL costs little freshness-wise.
+        "cache-control": "public, max-age=600",
       },
     })
   } catch {

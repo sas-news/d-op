@@ -339,10 +339,10 @@ test("public share page renders metadata, 8 clips and exact total duration", asy
     (await page.locator("meta[property='og:description']").getAttribute("content")) ?? ""
   expect(ogDescription).toContain("8クリップ")
   expect(ogDescription).toContain(EIGHT_CLIP_TOTAL_LABEL)
-  await expect(page.locator("meta[property='og:image']")).toHaveAttribute(
-    "content",
-    `${PROD_ORIGIN}/p/${publicId}/og.png`,
-  )
+  // og:image is the versioned PNG endpoint — ?v=<content-hash prefix> busts
+  // crawler caches on republish.
+  const ogImageContent = await page.locator("meta[property='og:image']").getAttribute("content")
+  expect(ogImageContent?.startsWith(`${PROD_ORIGIN}/p/${publicId}/og.png?v=`)).toBe(true)
 
   // The page must not be a noindex target and must carry no secrets.
   expect(await page.locator("meta[name='robots']").count()).toBe(0)

@@ -146,7 +146,9 @@ function wrapTitle(
   size: number,
   maxWidth: number,
 ): [string, string] {
-  const clean = sanitize(text)
+  // A title made only of unsupported glyphs (e.g. an emoji-only title) would
+  // vanish entirely while the page still shows it — fall back to a label.
+  const clean = sanitize(text) || "プレイリスト"
   if (measure(font, clean, size) <= maxWidth) {
     return [clean, ""]
   }
@@ -329,9 +331,14 @@ function trackRow(
 
 /** Card markup — a pure function of the share-page view model. */
 export function shareOgSvg(view: SharePageView, resources: OgResources): string {
-  const shown = view.items.slice(0, MAX_TRACK_ROWS)
-  const overflow = view.clipCount - shown.length
-  const rows = overflow > 0 ? shown.slice(0, MAX_TRACK_ROWS - 1) : shown
+  // The overflow note occupies the last row slot, so truncate first and then
+  // count what is left out — counting against MAX_TRACK_ROWS understates the
+  // hidden clips by one whenever the note itself renders.
+  const rows = view.items.slice(
+    0,
+    view.clipCount > MAX_TRACK_ROWS ? MAX_TRACK_ROWS - 1 : MAX_TRACK_ROWS,
+  )
+  const overflow = view.clipCount - rows.length
   const { bold, black, regular, monoBold, monoMedium } = resources.measure
 
   const parts: string[] = [

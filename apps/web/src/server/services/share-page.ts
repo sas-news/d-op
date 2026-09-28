@@ -29,8 +29,11 @@ import { parentIsPublic } from "./publication"
 // (fail-closed 503), never to a guessed page.
 
 export const SHARE_SITE_ORIGIN = "https://d-op.sasnews.dev" as const
-/** Per-playlist OGP card endpoint: crawlers get a PNG, not the SVG fallback. */
-export const shareOgImageUrl = (canonicalUrl: string): string => `${canonicalUrl}/og.png`
+// Per-playlist OGP card endpoint: crawlers get a PNG, not the SVG fallback.
+// The ?v= token is the content hash — republishing in place yields a new URL,
+// so caches never pin a stale card to a fresh playlist.
+export const shareOgImageUrl = (canonicalUrl: string, contentHash: string): string =>
+  `${canonicalUrl}/og.png?v=${encodeURIComponent(contentHash.slice(0, 12))}`
 
 export type SharePageItemView = {
   readonly index: number
@@ -220,7 +223,7 @@ function buildView(
     sourceUrl: source === null ? null : `/p/${source.shareId}`,
     ogTitle,
     ogDescription,
-    ogImageUrl: shareOgImageUrl(canonicalUrl),
+    ogImageUrl: shareOgImageUrl(canonicalUrl, snapshot.contentHash),
     xIntentUrl: intent.toString(),
     remix: {
       items: remixItems,
