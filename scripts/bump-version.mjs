@@ -9,6 +9,7 @@
 //
 //   node scripts/bump-version.mjs           # patch bump: 2.0.1 -> 2.0.2
 //   node scripts/bump-version.mjs --to 2.0.5
+//   node scripts/bump-version.mjs --print   # print the next patch version without writing
 //
 // `--to` sets an explicit version; the deploy workflow uses it to replay a
 // bump inside a later job when the bump commit could not be pushed (e.g. a
@@ -42,6 +43,11 @@ if (toIndex !== -1) {
     process.exit(2)
   }
   next = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`
+}
+
+if (process.argv.includes("--print")) {
+  console.log(next)
+  process.exit(0)
 }
 
 for (const file of PACKAGE_JSONS) {

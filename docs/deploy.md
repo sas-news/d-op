@@ -1,14 +1,28 @@
 # Automated deploys (deploy.yml)
 
-Routine deploys are automated by `.github/workflows/deploy.yml` on every
-push to `main`. The manual runbooks (`cutover.md`, `staging.md`,
-`release.md`) remain the reference for provisioning, incident recovery,
-and store submission — this page is the operator's cheat sheet for the
-automation itself.
+Routine deploys are automated by `.github/workflows/deploy.yml`. The
+manual runbooks (`cutover.md`, `staging.md`, `release.md`) remain the
+reference for provisioning, incident recovery, and store submission —
+this page is the operator's cheat sheet for the automation itself.
+
+## Trigger
+
+The workflow fires on `workflow_run`: when the **CI (Linux full matrix)**
+workflow completes on `main` with `conclusion == success`. A commit that
+failed CI never reaches production. (The Windows CI workflow does not
+gate deploys — it adds platform coverage for the extension, not the
+worker.)
+
+Manual redeploy: Actions → "Deploy (main)" → Run workflow, with `target`
+`production` (default) or `staging` (deploys `d-op-share-staging` via
+`wrangler.staging.jsonc` + `dop_share_staging`, runs the `verify:staging`
+disposable-resource flow, and skips the version bump). Dispatch always
+deploys the `main` head.
 
 ## What runs when
 
-The `changes` job diffs the pushed commits and fans out:
+The `changes` job diffs the verified commit against its first parent —
+squash-merged and merge-commit PRs are seen in full — and fans out:
 
 | Changed paths | Job | Effect |
 |---|---|---|
@@ -20,25 +34,21 @@ Extension pushes rebuild and re-verify release artifacts only — Chrome Web
 Store / AMO submission is a manual human step by design (`release.yml`,
 `docs/release.md`).
 
-Manual redeploy: Actions → "Deploy (main)" → Run workflow, with `target`
-`production` (default) or `staging` (deploys `d-op-share-staging` via
-`wrangler.staging.jsonc` + `dop_share_staging`, runs the `verify:staging`
-disposable-resource flow, and skips the version bump).
-
 ## Version bumps
 
 The site badge (`apps/web/src/site-version.ts`) reads
 `apps/web/package.json`, and `verify-artifacts` requires the workspace
-versions equal — so every production deploy runs
-`scripts/bump-version.mjs`, which patch-bumps **all four** workspace
-package.jsons together, syncs `bun.lock`, and pushes a
-`chore(release): vX.Y.Z` commit to main. The badge on the deployed site
-always reflects the running release.
+versions equal — so `scripts/bump-version.mjs` patch-bumps **all four**
+workspace package.jsons together (plus `bun.lock`). The `version` job only
+computes the next version; the deploy/package jobs apply it locally so the
+shipped artifact carries it, and push the `chore(release): vX.Y.Z` commit
+to main **after** the deploy/verify succeeds — a failed run never records
+a version it did not ship. When both jobs ship the same version, the
+second push observes it already landed.
 
-If `main` is protected and the bump push is rejected, the deploy still
-proceeds — the bumped version is replayed inside the job so the deployed
-site shows it — and the run emits a warning. The repository records the
-version on the next deploy where pushing is allowed.
+If `main` is protected and the record push is rejected, the deploy still
+succeeded — the repository simply catches up on the next deploy (a
+warning is emitted either way it resolves).
 
 ## Required GitHub secrets
 
