@@ -20,7 +20,7 @@ export const OG_WIDTH = 1200 as const
 export const OG_HEIGHT = 630 as const
 
 const OG_ASSET_PATHS = {
-  icon: "/assets/d-OP-icon.png",
+  icon: "/assets/d-OP-small.png",
   fontRegular: "/assets/og/NotoSansJP-Regular.ttf",
   fontBold: "/assets/og/NotoSansJP-Bold.ttf",
   fontBlack: "/assets/og/NotoSansJP-Black.ttf",
@@ -70,10 +70,10 @@ const MONO = "IBM Plex Mono"
 const PAD = 56 as const
 const RIGHT = OG_WIDTH - PAD
 const CONTENT_W = OG_WIDTH - PAD * 2
-const MAX_TRACK_ROWS = 5 as const
-const ROW_H = 44 as const
-const ROWS_TOP = 386 as const
-const DURATION_W = 72 as const
+const MAX_TRACK_ROWS = 6 as const
+const ROW_H = 40 as const
+const ROWS_TOP = 336 as const
+const DURATION_W = 64 as const
 
 /**
  * BMP-less emoji and symbol planes that Noto Sans JP does not cover — without
@@ -233,14 +233,14 @@ function trackRow(
   resources: OgResources,
 ): string {
   const { bold, regular, monoBold } = resources.measure
-  const baseline = top + 29
+  const baseline = top + 27
   const parts: string[] = [
     `<rect x="${PAD}" y="${top}" width="${CONTENT_W}" height="1" fill="${C.line}"/>`,
     textElement({
       x: PAD,
       y: baseline,
       text: String(item.index).padStart(2, "0"),
-      size: 15,
+      size: 13,
       weight: 700,
       family: MONO,
       fill: C.accentBright,
@@ -254,7 +254,7 @@ function trackRow(
       x: RIGHT,
       y: baseline,
       text: duration,
-      size: 14,
+      size: 12,
       weight: 500,
       family: MONO,
       fill: C.subtle,
@@ -263,20 +263,20 @@ function trackRow(
   )
 
   // Badge sits immediately left of the duration column.
-  let badgeX = RIGHT - DURATION_W - 16
+  let badgeX = RIGHT - DURATION_W - 14
   if (item.rangeName !== null) {
-    const label = ellipsize(monoBold, sanitize(item.rangeName).toUpperCase(), 12, 120, 1)
-    const badgeW = measure(monoBold, label, 12, 1) + 18
+    const label = ellipsize(monoBold, sanitize(item.rangeName).toUpperCase(), 11, 120, 1)
+    const badgeW = measure(monoBold, label, 11, 1) + 16
     const rectX = badgeX - badgeW
     parts.push(
-      `<rect x="${rectX}" y="${top + 9}" width="${badgeW}" height="26" rx="4" fill="${
+      `<rect x="${rectX}" y="${top + 9}" width="${badgeW}" height="22" rx="4" fill="${
         label === "OP" ? C.accent : C.raised
       }" stroke="${label === "OP" ? C.accent : C.line}"/>`,
       textElement({
         x: rectX + badgeW / 2,
-        y: top + 27,
+        y: top + 25,
         text: label,
-        size: 12,
+        size: 11,
         weight: 700,
         family: MONO,
         fill: label === "OP" ? "#ffffff" : C.muted,
@@ -287,15 +287,15 @@ function trackRow(
     badgeX = rectX
   }
 
-  const titleX = PAD + 52
-  const titleMaxW = badgeX - 16 - titleX
-  const title = ellipsize(bold, item.title, 19, titleMaxW)
+  const titleX = PAD + 48
+  const titleMaxW = badgeX - 14 - titleX
+  const title = ellipsize(bold, item.title, 17, titleMaxW)
   parts.push(
     textElement({
       x: titleX,
       y: baseline,
       text: title,
-      size: 19,
+      size: 17,
       weight: 700,
       fill: C.ink,
     }),
@@ -308,16 +308,16 @@ function trackRow(
         : item.episodeTitle
       : item.episodeTitle
   if (episode !== "") {
-    const titleW = measure(bold, title, 19)
-    const episodeX = titleX + titleW + 10
-    const episodeMaxW = badgeX - 16 - episodeX
+    const titleW = measure(bold, title, 17)
+    const episodeX = titleX + titleW + 8
+    const episodeMaxW = badgeX - 14 - episodeX
     if (episodeMaxW > 40) {
       parts.push(
         textElement({
           x: episodeX,
           y: baseline,
-          text: ellipsize(regular, episode, 14, episodeMaxW),
-          size: 14,
+          text: ellipsize(regular, episode, 12, episodeMaxW),
+          size: 12,
           weight: 400,
           fill: C.subtle,
         }),
@@ -340,25 +340,36 @@ export function shareOgSvg(view: SharePageView, resources: OgResources): string 
     `<rect width="${OG_WIDTH}" height="${OG_HEIGHT}" fill="url(#glow)"/>`,
   ]
 
-  // Header: icon + wordmark, domain on the right.
-  const wordmark = "D-OP SHARE"
+  // Header: small d-mark + lowercase-leaning wordmark, domain on the right.
+  const brand = "d-OP"
+  const brandW = measure(monoBold, brand, 22, 1)
   parts.push(
-    `<image href="${resources.iconDataUri}" x="${PAD}" y="44" width="56" height="56" clip-path="url(#iconClip)"/>`,
+    `<image href="${resources.iconDataUri}" x="${PAD}" y="42" width="48" height="48" clip-path="url(#iconClip)"/>`,
     textElement({
-      x: PAD + 56 + 18,
-      y: 82,
-      text: wordmark,
-      size: 21,
+      x: PAD + 48 + 16,
+      y: 76,
+      text: brand,
+      size: 22,
       weight: 700,
       family: MONO,
       fill: C.accentBright,
-      letterSpacing: 6,
+      letterSpacing: 1,
+    }),
+    textElement({
+      x: PAD + 48 + 16 + brandW + 10,
+      y: 76,
+      text: "shared playlist",
+      size: 14,
+      weight: 500,
+      family: MONO,
+      fill: C.subtle,
+      letterSpacing: 2,
     }),
     textElement({
       x: RIGHT,
-      y: 80,
+      y: 74,
       text: "d-op.sasnews.dev",
-      size: 15,
+      size: 13,
       weight: 500,
       family: MONO,
       fill: C.subtle,
@@ -368,60 +379,60 @@ export function shareOgSvg(view: SharePageView, resources: OgResources): string 
   )
 
   // Eyebrow + visibility pill.
-  const eyebrow = "SHARED PLAYLIST"
-  const eyebrowW = measure(monoBold, eyebrow, 14, 4)
+  const eyebrow = "PLAYLIST"
+  const eyebrowW = measure(monoBold, eyebrow, 12, 4)
   const visibility = view.visibility === "public" ? "公開" : "限定公開"
-  const pillW = measure(bold, visibility, 13) + 20
+  const pillW = measure(bold, visibility, 12) + 18
   parts.push(
     textElement({
       x: PAD,
-      y: 150,
+      y: 140,
       text: eyebrow,
-      size: 14,
+      size: 12,
       weight: 700,
       family: MONO,
       fill: C.subtle,
       letterSpacing: 4,
     }),
-    `<rect x="${PAD + eyebrowW + 12}" y="131" width="${pillW}" height="26" rx="13" fill="${C.surface}" stroke="${C.line}"/>`,
+    `<rect x="${PAD + eyebrowW + 10}" y="122" width="${pillW}" height="24" rx="12" fill="${C.surface}" stroke="${C.line}"/>`,
     textElement({
-      x: PAD + eyebrowW + 12 + pillW / 2,
-      y: 149,
+      x: PAD + eyebrowW + 10 + pillW / 2,
+      y: 138,
       text: visibility,
-      size: 13,
+      size: 12,
       weight: 700,
       fill: C.muted,
       anchor: "middle",
     }),
   )
 
-  // Title — up to two measured lines at 45px black.
-  const [line1, line2] = wrapTitle(black, view.title, 45, CONTENT_W)
-  parts.push(textElement({ x: PAD, y: 218, text: line1, size: 45, weight: 900, fill: C.ink }))
+  // Title — up to two measured lines at 36px black.
+  const [line1, line2] = wrapTitle(black, view.title, 36, CONTENT_W)
+  parts.push(textElement({ x: PAD, y: 198, text: line1, size: 36, weight: 900, fill: C.ink }))
   if (line2 !== "") {
-    parts.push(textElement({ x: PAD, y: 273, text: line2, size: 45, weight: 900, fill: C.ink }))
+    parts.push(textElement({ x: PAD, y: 244, text: line2, size: 36, weight: 900, fill: C.ink }))
   }
 
   // Meta line: author · published … tags.
   const metaParts: string[] = []
   let metaX = PAD
   if (view.author !== "") {
-    const authorText = `by ${ellipsize(regular, view.author, 16, 260)}`
+    const authorText = `by ${ellipsize(regular, view.author, 14, 260)}`
     metaParts.push(
-      textElement({ x: metaX, y: 316, text: authorText, size: 16, weight: 400, fill: C.subtle }),
+      textElement({ x: metaX, y: 286, text: authorText, size: 14, weight: 400, fill: C.subtle }),
     )
-    metaX += measure(regular, authorText, 16)
+    metaX += measure(regular, authorText, 14)
     metaParts.push(
-      textElement({ x: metaX, y: 316, text: " · ", size: 16, weight: 400, fill: C.subtle }),
+      textElement({ x: metaX, y: 286, text: "  ·  ", size: 14, weight: 400, fill: C.subtle }),
     )
-    metaX += measure(regular, " · ", 16)
+    metaX += measure(regular, "  ·  ", 14)
   }
   metaParts.push(
     textElement({
       x: metaX,
-      y: 316,
+      y: 286,
       text: `${view.publishedAtLabel} 公開`,
-      size: 16,
+      size: 14,
       weight: 400,
       fill: C.subtle,
     }),
@@ -429,14 +440,14 @@ export function shareOgSvg(view: SharePageView, resources: OgResources): string 
   if (view.tags.length > 0) {
     const tags = view.tags
       .slice(0, 3)
-      .map((tag) => `#${ellipsize(monoMedium, tag, 13, 160)}`)
+      .map((tag) => `#${ellipsize(monoMedium, tag, 12, 160)}`)
       .join("  ")
     metaParts.push(
       textElement({
         x: RIGHT,
-        y: 315,
+        y: 285,
         text: tags,
-        size: 13,
+        size: 12,
         weight: 500,
         family: MONO,
         fill: C.subtle,
@@ -451,9 +462,9 @@ export function shareOgSvg(view: SharePageView, resources: OgResources): string 
   parts.push(
     textElement({
       x: PAD,
-      y: 368,
+      y: 320,
       text: "TRACKLIST",
-      size: 14,
+      size: 12,
       weight: 700,
       family: MONO,
       fill: C.accentBright,
@@ -461,9 +472,9 @@ export function shareOgSvg(view: SharePageView, resources: OgResources): string 
     }),
     textElement({
       x: RIGHT,
-      y: 368,
+      y: 320,
       text: stats,
-      size: 15,
+      size: 13,
       weight: 400,
       fill: C.subtle,
       anchor: "end",
@@ -481,19 +492,19 @@ export function shareOgSvg(view: SharePageView, resources: OgResources): string 
       `<rect x="${PAD}" y="${top}" width="${CONTENT_W}" height="1" fill="${C.line}"/>`,
       textElement({
         x: PAD,
-        y: top + 29,
+        y: top + 27,
         text: "…",
-        size: 15,
+        size: 13,
         weight: 700,
         family: MONO,
         fill: C.accentBright,
         letterSpacing: 1,
       }),
       textElement({
-        x: PAD + 52,
-        y: top + 29,
+        x: PAD + 48,
+        y: top + 27,
         text: `+${overflow} クリップ`,
-        size: 15,
+        size: 13,
         weight: 500,
         family: MONO,
         fill: C.subtle,
@@ -509,17 +520,17 @@ export function shareOgSvg(view: SharePageView, resources: OgResources): string 
   parts.push(
     textElement({
       x: PAD,
-      y: 618,
+      y: 612,
       text: "dアニメストアのOP/EDクリップをまとめて再生・共有",
-      size: 14,
+      size: 13,
       weight: 400,
       fill: C.subtle,
     }),
     textElement({
       x: RIGHT,
-      y: 618,
+      y: 612,
       text: "OPだけ見てやろうってんだ",
-      size: 14,
+      size: 13,
       weight: 700,
       fill: C.accentBright,
       anchor: "end",
@@ -537,7 +548,7 @@ export function shareOgSvg(view: SharePageView, resources: OgResources): string 
       <stop offset="0" stop-color="${C.accent}" stop-opacity="0.38"/>
       <stop offset="1" stop-color="${C.accent}" stop-opacity="0"/>
     </radialGradient>
-    <clipPath id="iconClip"><rect x="${PAD}" y="44" width="56" height="56" rx="14"/></clipPath>
+    <clipPath id="iconClip"><rect x="${PAD}" y="42" width="48" height="48" rx="12"/></clipPath>
   </defs>
   ${parts.join("\n  ")}
 </svg>`
