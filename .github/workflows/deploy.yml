@@ -299,6 +299,8 @@ jobs:
         with:
           name: extension-artifacts
           path: apps/extension/.output/*.zip
+          # `.output` is a dot-directory — without this the glob finds nothing.
+          include-hidden-files: true
           if-no-files-found: error
       - name: Store submission note
         run: |
