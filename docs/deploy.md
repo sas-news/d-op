@@ -15,9 +15,9 @@ worker.)
 
 Manual redeploy: Actions → "Deploy (main)" → Run workflow, with `target`
 `production` (default) or `staging` (deploys `d-op-share-staging` via
-`wrangler.staging.jsonc` + `dop_share_staging`, runs the `verify:staging`
-disposable-resource flow, and skips the version bump). Dispatch always
-deploys the `main` head.
+`wrangler.staging.jsonc` + `dop_share_staging` and runs the
+`verify:staging` disposable-resource flow). Dispatch always deploys the
+`main` head.
 
 ## What runs when
 
@@ -36,19 +36,15 @@ Store / AMO submission is a manual human step by design (`release.yml`,
 
 ## Version bumps
 
-The site badge (`apps/web/src/site-version.ts`) reads
-`apps/web/package.json`, and `verify-artifacts` requires the workspace
-versions equal — so `scripts/bump-version.mjs` patch-bumps **all four**
-workspace package.jsons together (plus `bun.lock`). The `version` job only
-computes the next version; the deploy/package jobs apply it locally so the
-shipped artifact carries it, and push the `chore(release): vX.Y.Z` commit
-to main **after** the deploy/verify succeeds — a failed run never records
-a version it did not ship. When both jobs ship the same version, the
-second push observes it already landed.
+The version is the extension's release version — a human bumps all four
+workspace package.jsons in a normal PR (`docs/release.md` step 1;
+`scripts/bump-version.mjs` keeps them in lockstep). The deploy workflow
+never bumps versions itself and never pushes to main.
 
-If `main` is protected and the record push is rejected, the deploy still
-succeeded — the repository simply catches up on the next deploy (a
-warning is emitted either way it resolves).
+The site badge (`apps/web/src/site-version.ts`) reads
+`apps/web/package.json`, and `package.json`/`bun.lock` already count as
+site-relevant paths — so merging a version-bump PR redeploys the site and
+the badge follows automatically.
 
 ## Required GitHub secrets
 

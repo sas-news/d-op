@@ -1,6 +1,6 @@
 {
   "name": "@d-op/web",
-  "version": "2.0.2",
+  "version": "2.0.1",
   "private": true,
   "description": "d-OP v2 share web (Astro + Cloudflare Workers/D1 skeleton, task 2).",
   "type": "module",
