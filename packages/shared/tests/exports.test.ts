@@ -133,6 +133,7 @@ const EXPECTED_EXPORTS = [
   "collapseWhitespace",
   "contentHashOf",
   "describeExtensionMessage",
+  "episodeLeadLabel",
   "isDirty",
   "isPrivilegedSurface",
   "issuePaths",

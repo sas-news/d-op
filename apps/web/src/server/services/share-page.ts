@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers"
 import {
   collapseWhitespace,
   type DerivedFrom,
+  episodeLeadLabel,
   projectPublicPlaylist,
   type SharedPlaylist,
 } from "../../../../../packages/shared/src/index"
@@ -178,8 +179,7 @@ function buildView(
     const durationMs = item.range.end - item.range.start
     return {
       index: index + 1,
-      primaryLabel:
-        [item.episodeNumber ?? "", item.episodeTitle].filter(Boolean).join(" ") || item.title,
+      primaryLabel: episodeLeadLabel(item),
       title: item.title,
       episodeTitle: item.episodeTitle,
       episodeNumber: item.episodeNumber ?? null,

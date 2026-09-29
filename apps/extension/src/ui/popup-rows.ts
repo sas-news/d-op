@@ -1,6 +1,7 @@
 // Shared popup row helpers — item text projection used by both the picker
 // cards and the now-playing list, plus the inline shuffle SVG icon.
 
+import { episodeLeadLabel } from "../../../../packages/shared/src/index"
 import type { LocalItem } from "../../../../packages/shared/src/local-model"
 import { decodeHtmlEntities, formatRangeName, formatSec } from "./format"
 
@@ -32,7 +33,11 @@ export function itemRowTexts(item: LocalItem): ItemRowTexts {
   const epTitle = decodeHtmlEntities(item.episodeTitle)
   const workTitle = decodeHtmlEntities(item.title)
   return {
-    title: [epNum, epTitle].filter(Boolean).join(" ") || workTitle || "(タイトル不明)",
+    title: episodeLeadLabel({
+      title: workTitle,
+      episodeTitle: epTitle,
+      episodeNumber: epNum,
+    }),
     sub: workTitle,
     range: item.range !== null ? formatRangeName(item.range) : "範囲未設定",
     time:
