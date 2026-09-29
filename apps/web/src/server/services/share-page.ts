@@ -37,6 +37,8 @@ export const shareOgImageUrl = (canonicalUrl: string, contentHash: string): stri
 
 export type SharePageItemView = {
   readonly index: number
+  /** Popup-style lead line: `episodeNumber episodeTitle`, work title last resort. */
+  readonly primaryLabel: string
   readonly title: string
   readonly episodeTitle: string
   readonly episodeNumber: string | null
@@ -176,6 +178,8 @@ function buildView(
     const durationMs = item.range.end - item.range.start
     return {
       index: index + 1,
+      primaryLabel:
+        [item.episodeNumber ?? "", item.episodeTitle].filter(Boolean).join(" ") || item.title,
       title: item.title,
       episodeTitle: item.episodeTitle,
       episodeNumber: item.episodeNumber ?? null,
