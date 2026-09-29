@@ -38,7 +38,9 @@ zero — byte equality is expected).
 ## Release flow (`.github/workflows/release.yml`)
 
 1. Bump versions in a normal PR (`package.json`, `apps/extension/package.json`,
-   lockfile via `bun install`), get it green, merge.
+   `apps/web/package.json`, `packages/shared/package.json` — all four in
+   lockstep; `node scripts/bump-version.mjs` + `bun install` for the lockfile),
+   get it green, merge.
 2. A maintainer dispatches **Release (immutable tag)** with `version` +
    `confirm: RELEASE`. The job binds to the `release` environment — configure
    required reviewers (Settings → Environments → release) so every release is
