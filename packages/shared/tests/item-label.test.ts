@@ -39,6 +39,23 @@ describe("episodeLeadLabel", () => {
     )
   })
 
+  it("drops the number before punctuation, not just whitespace", () => {
+    expect(
+      episodeLeadLabel({
+        title: "作品",
+        episodeTitle: "第3話「始まり」",
+        episodeNumber: "第3話",
+      }),
+    ).toBe("第3話「始まり」")
+    expect(
+      episodeLeadLabel({
+        title: "作品",
+        episodeTitle: "第3話（前編）",
+        episodeNumber: "3",
+      }),
+    ).toBe("第3話（前編）")
+  })
+
   it("does not claim a different leading number as a duplicate", () => {
     expect(
       episodeLeadLabel({ title: "作品", episodeTitle: "10話 特別編", episodeNumber: "1" }),

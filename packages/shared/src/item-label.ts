@@ -21,9 +21,12 @@ export function episodeLeadLabel(item: ItemLabelFields): string {
 /** The title already opens with the episode number: `第{n}話`, `{n}…`, `{n}話…`. */
 function episodeNumberLeads(episodeTitle: string, episodeNumber: string): boolean {
   if (episodeTitle === episodeNumber) return true
+  // The number counts as a repeated prefix when a separator follows it
+  // ("第3話「始まり」", "3: 出発") but not when the title merely continues
+  // the token ("第3話後編", "10話").
   if (
-    episodeTitle.startsWith(`${episodeNumber} `) ||
-    episodeTitle.startsWith(`${episodeNumber}　`)
+    episodeTitle.startsWith(episodeNumber) &&
+    /^[\p{P}\p{S}\p{Z}]/u.test(episodeTitle.slice(episodeNumber.length))
   ) {
     return true
   }
