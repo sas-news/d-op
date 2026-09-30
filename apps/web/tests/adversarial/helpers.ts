@@ -74,10 +74,10 @@ export function getViaRoute(shareId: string): Promise<Response> {
 }
 
 /** Import notification POST through the real route. */
-export function importViaRoute(shareId: string, eventId: unknown): Promise<Response> {
+export function importViaRoute(shareId: string, eventId: unknown, ip?: string): Promise<Response> {
   return call(
     importRoute as APIRoute,
-    apiRequest({ method: "POST", path: `/${shareId}/import`, body: { eventId } }),
+    apiRequest({ method: "POST", path: `/${shareId}/import`, body: { eventId }, ip }),
     { shareId },
   )
 }

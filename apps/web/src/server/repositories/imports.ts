@@ -7,21 +7,29 @@ import type { ImportRecordResult } from "./types"
 
 // Import accounting (atomic exactly-once within the 48 h receipt window).
 //
-// Statement 1 clears an EXPIRED receipt for the same event hash — the
-// expiry check at ingestion, so a post-TTL resend behaves identically whether
-// or not the scheduled sweep has already run (the receipt window is the only
-// dedupe horizon). Statement 2 inserts the event receipt only for an eligible
-// share (active + public + not blocked) and only when the event hash is
-// unseen; statements 3-4 increment the daily bucket and lifetime counter but
-// ONLY when the receipt row carries THIS attempt's nonce. A losing concurrent
-// duplicate or an in-window replay finds the receipt with a foreign nonce and
-// its increments no-op — there is no SELECT-then-increment anywhere, so counts
-// move exactly once per 48 h window.
+// Statements 1-2 clear EXPIRED receipts for this attempt's event hash and
+// actor hash — the expiry check at ingestion, so a post-TTL resend behaves
+// identically whether or not the scheduled sweep has already run (the receipt
+// window is the only dedupe horizon). Statement 3 inserts the actor dedup
+// receipt only for an eligible share (active + public + not blocked) and only
+// when the actor key is unseen; statement 4 inserts the event receipt only
+// when THIS attempt minted the actor receipt; statements 5-6 increment the
+// daily bucket and lifetime counter but ONLY when the event receipt carries
+// THIS attempt's nonce. A losing concurrent duplicate, an in-window replay,
+// or a second event id from the same actor all no-op — there is no
+// SELECT-then-increment anywhere, so a share's counters move at most once
+// per event and once per actor per 48 h window.
 
 export type ImportEventInput = {
   readonly shareId: string
   /** SHA-256 hex of the client's random event id (never the raw id). */
   readonly eventHash: string
+  /**
+   * SHA-256 hex of `dop-import-actor:<actorDigest>:<shareId>` — the actor
+   * dedup key. actorDigest is the rate-limit module's daily-rotating HMAC of
+   * the connecting IP; only its re-hashed form is persisted, never the IP.
+   */
+  readonly actorHash: string
   readonly now: Date
 }
 
@@ -67,14 +75,19 @@ function buildStatements(
   expiresAt: string,
 ): readonly D1PreparedStatement[] {
   return [
-    // 1. Ingestion expiry check: drop a receipt for this event hash whose TTL
-    //    has already passed so the dedupe window is exactly 48 h regardless of
-    //    when the scheduled prune last ran. Live receipts are untouched.
+    // 1-2. Ingestion expiry checks: drop receipts for this event hash and this
+    //    actor key whose TTL has already passed so each dedupe window is
+    //    exactly 48 h regardless of when the scheduled prune last ran. Live
+    //    receipts are untouched.
     db
       .prepare(`DELETE FROM import_receipts WHERE event_hash = ?1 AND expires_at <= ?2`)
       .bind(input.eventHash, nowIso),
-    // 2. Receipt insert: yields a row only for an eligible share with an unseen
-    //    event hash. ON CONFLICT keeps a concurrent duplicate at zero rows.
+    db
+      .prepare(`DELETE FROM import_receipts WHERE event_hash = ?1 AND expires_at <= ?2`)
+      .bind(input.actorHash, nowIso),
+    // 3. Actor dedup receipt: yields a row only for an eligible share with an
+    //    unseen actor key. ON CONFLICT keeps a live duplicate at zero rows —
+    //    its foreign nonce then fails this attempt's event gate below.
     db
       .prepare(
         `INSERT INTO import_receipts (event_hash, share_id, attempt_nonce, created_at, expires_at)
@@ -85,9 +98,21 @@ function buildStatements(
            AND p.blocked = 0)
        ON CONFLICT (event_hash) DO NOTHING`,
       )
-      .bind(input.eventHash, input.shareId, nonce, nowIso, expiresAt),
-    // 3. Daily bucket upsert — both the insert and the conflict-update branch
-    //    require the receipt to carry this attempt's nonce.
+      .bind(input.actorHash, input.shareId, nonce, nowIso, expiresAt),
+    // 4. Event receipt: only when this attempt minted the actor receipt —
+    //    eligibility is inherited transitively through that gate.
+    db
+      .prepare(
+        `INSERT INTO import_receipts (event_hash, share_id, attempt_nonce, created_at, expires_at)
+       SELECT ?1, ?2, ?3, ?4, ?5
+       WHERE EXISTS (
+         SELECT 1 FROM import_receipts ar
+         WHERE ar.event_hash = ?6 AND ar.attempt_nonce = ?3)
+       ON CONFLICT (event_hash) DO NOTHING`,
+      )
+      .bind(input.eventHash, input.shareId, nonce, nowIso, expiresAt, input.actorHash),
+    // 5. Daily bucket upsert — both the insert and the conflict-update branch
+    //    require the event receipt to carry this attempt's nonce.
     db
       .prepare(
         `INSERT INTO import_daily (share_id, day, count)
@@ -101,7 +126,7 @@ function buildStatements(
          WHERE r.event_hash = ?3 AND r.attempt_nonce = ?4)`,
       )
       .bind(input.shareId, day, input.eventHash, nonce),
-    // 4. Lifetime counter on the playlist row, same nonce gate.
+    // 6. Lifetime counter on the playlist row, same nonce gate.
     db
       .prepare(
         `UPDATE playlists SET import_count = import_count + 1

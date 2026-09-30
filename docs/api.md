@@ -83,7 +83,7 @@ times are non-negative safe integers in **milliseconds** with
 | `GET /api/v1/playlists/:shareId` | none | `200` `{data:{shareId,revision,publishedAt,updatedAt,contentHash,playlist,itemCount,totalDurationMs,importCount,source}}`. Only `active` records; `404` for absent/pending/deleted/blocked. `source` is the projected public parent or `null`. |
 | `PATCH /api/v1/playlists/:shareId` | Bearer + `{operation:"activate",expectedRevision:1}` or `{operation:"replace",expectedRevision,playlist}` + `Idempotency-Key` | `200` `{data:{shareId,revision,contentHash,publishedAt,updatedAt}}`. `activate` moves pending → active at revision 2; replaying activate on the unchanged active publication returns current state. `replace` is full-snapshot replacement; revision increments once. |
 | `DELETE /api/v1/playlists/:shareId` | Bearer + `{expectedRevision}` + `Idempotency-Key` | `204` (no-store). Authenticated replay returns `204`; stale revision `409`; unknown record `404`. Local data unaffected. |
-| `POST /api/v1/playlists/:shareId/import` | `{eventId: <uuid>}` | `204` always for a well-formed body — including unknown/unlisted/deleted ids — so the endpoint is never an existence oracle. Only public active snapshots increment counts. |
+| `POST /api/v1/playlists/:shareId/import` | `{eventId: <uuid>}` | `204` always for a well-formed body — including unknown/unlisted/deleted ids — so the endpoint is never an existence oracle. Only public active snapshots increment counts. Counting is deduplicated per event id AND per actor×share: a single actor can move a share's counters at most once per 48 h receipt window, so regenerating event ids cannot inflate `importCount`. |
 | `GET /api/v1/playlists` | query `sort=new\|popular`, `q` (1–100), `tag` (1–24), `limit` (1–50, default 20), `cursor` | `200` `{data:{items:[GetPlaylistResponse…],nextCursor?,truncated?,ranking:{mode,effectiveWindow,asOf,fallbackReason?}}}`. Public active only. Invalid cursor `400`; expired `410`. |
 | `GET /api/v1/playlists/tags` | none | `200` `{data:{tags:[{tag,count}]}}` — public-only tag dictionary for Explore filters. |
 
@@ -177,10 +177,12 @@ Error envelope (every non-2xx):
 | `503 TRANSIENT_FAILURE` | storage/limiter/misconfiguration failure — protection fails closed, never silently unlimited |
 
 Rate-limit defaults (Workers binding, per-PoP approximate, period 60 s):
-creates 5/min, authenticated mutations 30/min per share, import
+creates 5/min, authenticated mutations 30/min per actor per share, import
 notifications 30/min per actor, reads 120/min per actor, plus the
 route-wide `dop-api` bucket. Actor keys are a daily-rotating HMAC of the
-connecting IP that never leaves the limiter.
+connecting IP that never leaves the limiter. Mutation keys include the
+actor digest AND the shareId: failed-auth floods against a public shareId
+drain only the attacker's budget, never the share owner's.
 
 ## Consent and callers
 

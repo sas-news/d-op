@@ -42,21 +42,32 @@ async function eventHash(): Promise<string> {
   return sha256Hex(`dop-import:${crypto.randomUUID()}`)
 }
 
+async function actorHash(): Promise<string> {
+  return sha256Hex(`dop-import-actor:test:${crypto.randomUUID()}`)
+}
+
 describe("import batch atomicity", () => {
   beforeAll(async () => {
     await migratedDb()
   })
 
   it.each([
-    // [0] expired-receipt cleanup, [1] receipt insert, [2] day bucket, [3] lifetime
-    { name: "day-bucket upsert", failIndex: 2 },
-    { name: "lifetime increment", failIndex: 3 },
+    // [0-1] expired-receipt cleanup, [2] actor receipt, [3] event receipt,
+    // [4] day bucket, [5] lifetime
+    { name: "day-bucket upsert", failIndex: 4 },
+    { name: "lifetime increment", failIndex: 5 },
   ])("a failing $name statement rolls back the whole batch", async ({ failIndex }) => {
     const published = await publishPlaylist(makePlaylist({}))
     const hash = await eventHash()
+    const actor = await actorHash()
     const failing = sabotagedDb(db(), failIndex)
     await expect(
-      recordImportEvent(failing, { shareId: published.shareId, eventHash: hash, now: new Date() }),
+      recordImportEvent(failing, {
+        shareId: published.shareId,
+        eventHash: hash,
+        actorHash: actor,
+        now: new Date(),
+      }),
     ).rejects.toThrow(SnapshotRepositoryError)
 
     // Nothing survived: no receipt, no bucket, no lifetime increment.
@@ -69,6 +80,7 @@ describe("import batch atomicity", () => {
     const retry = await recordImportEvent(db(), {
       shareId: published.shareId,
       eventHash: hash,
+      actorHash: actor,
       now: new Date(),
     })
     expect(retry.counted).toBe(true)
@@ -87,28 +99,30 @@ describe("import artifact pruning", () => {
     const old = new Date(now.getTime() - 100 * DAY_MS)
     const recent = new Date(now.getTime() - 10 * 3_600_000)
 
-    // Expired receipt + a day bucket older than the retention window.
+    // Expired receipts + a day bucket older than the retention window.
     const stale = await recordImportEvent(db(), {
       shareId: published.shareId,
       eventHash: await eventHash(),
+      actorHash: await actorHash(),
       now: old,
     })
     expect(stale.counted).toBe(true)
-    // Live receipt + a bucket inside the retention window.
+    // Live receipts + a bucket inside the retention window.
     const fresh = await recordImportEvent(db(), {
       shareId: published.shareId,
       eventHash: await eventHash(),
+      actorHash: await actorHash(),
       now: recent,
     })
     expect(fresh.counted).toBe(true)
-    expect(await receiptCount(db(), published.shareId)).toBe(2)
+    expect(await receiptCount(db(), published.shareId)).toBe(4)
     expect(await lifetimeCount(db(), published.shareId)).toBe(2)
 
     const report = await runScheduledCleanup(db(), now)
 
-    expect(report.expiredImportReceipts).toBe(1)
+    expect(report.expiredImportReceipts).toBe(2)
     expect(report.prunedDayBuckets).toBe(1)
-    expect(await receiptCount(db(), published.shareId)).toBe(1)
+    expect(await receiptCount(db(), published.shareId)).toBe(2)
     // The recent bucket survives; the 100-day-old bucket is gone. The
     // lifetime count is never decremented by retention.
     const buckets = await bucketRows(db(), published.shareId)
@@ -124,12 +138,13 @@ describe("import artifact pruning", () => {
     await recordImportEvent(db(), {
       shareId: published.shareId,
       eventHash: await eventHash(),
+      actorHash: await actorHash(),
       now,
     })
     const report = await runScheduledCleanup(db(), now)
     expect(report.expiredImportReceipts).toBe(0)
     expect(report.prunedDayBuckets).toBe(0)
-    expect(await receiptCount(db(), published.shareId)).toBe(1)
+    expect(await receiptCount(db(), published.shareId)).toBe(2)
     expect(await dailyCount(db(), published.shareId, now.toISOString().slice(0, 10))).toBe(1)
     expect(await lifetimeCount(db(), published.shareId)).toBe(1)
   })

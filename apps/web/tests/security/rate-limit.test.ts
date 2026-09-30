@@ -154,7 +154,7 @@ describe("rate-limit admission", () => {
     expect(response.status).toBe(201)
   })
 
-  it("limits authenticated mutations per share, not per actor", async () => {
+  it("keys authenticated mutations per actor AND share", async () => {
     const api = fakeLimiter(true)
     const mutation = fakeLimiter(true)
     restore = withLimiters({ api: api.binding, mutation: mutation.binding })
@@ -175,7 +175,58 @@ describe("rate-limit admission", () => {
       { shareId: published.shareId },
     )
     expect(response.status).toBe(200)
-    expect(mutation.calls.slice(baseline)).toEqual([`mutation:${published.shareId}`])
+    expect(mutation.calls.slice(baseline)).toEqual([
+      expect.stringMatching(new RegExp(`^mutation:[0-9a-f]{64}:${published.shareId}$`)),
+    ])
+    expect(mutation.calls[baseline]).not.toContain(SENTINEL_IP)
+  })
+
+  it("isolates mutation budgets per actor: a flood on one IP cannot drain the owner's key", async () => {
+    // The issue-#36 lockout scenario: attacker IPs and the owner's IP map to
+    // distinct limiter keys on the same share, so 429s on the attacker key
+    // never consume the owner's allowance.
+    const api = fakeLimiter(true)
+    const mutation = fakeLimiter(true)
+    restore = withLimiters({ api: api.binding, mutation: mutation.binding })
+    const published = await publishPlaylist(makePlaylist({}))
+    const baseline = mutation.calls.length
+    const attacker = () =>
+      call(
+        patchRoute as APIRoute,
+        secureRequest({
+          method: "PATCH",
+          path: `/${published.shareId}`,
+          body: { operation: "activate", expectedRevision: 1 },
+          bearer: `${"A".repeat(43)}`,
+          idempotencyKey: crypto.randomUUID(),
+          ip: "198.51.100.9",
+        }),
+        { shareId: published.shareId },
+      )
+    const owner = () =>
+      call(
+        patchRoute as APIRoute,
+        secureRequest({
+          method: "PATCH",
+          path: `/${published.shareId}`,
+          body: { operation: "activate", expectedRevision: 1 },
+          bearer: published.manageSecret,
+          idempotencyKey: crypto.randomUUID(),
+          ip: SENTINEL_IP,
+        }),
+        { shareId: published.shareId },
+      )
+    const flooded = await attacker()
+    const ownersOwn = await owner()
+    expect(flooded.status).toBe(401)
+    // Repeat-activate at the activation successor revision is the contract's
+    // idempotent 200 ack — the key point is the owner is NOT 429'd.
+    expect(ownersOwn.status).toBe(200)
+    const keys = mutation.calls.slice(baseline)
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toMatch(new RegExp(`^mutation:[0-9a-f]{64}:${published.shareId}$`))
+    expect(keys[1]).toMatch(new RegExp(`^mutation:[0-9a-f]{64}:${published.shareId}$`))
+    expect(keys[0]).not.toBe(keys[1])
   })
 
   it("bounds repeated auth failures: wrong secrets 401 until the limiter 429s", async () => {

@@ -62,7 +62,10 @@ export default defineConfig({
     {
       // Astro 7 detects agent environments and otherwise auto-backgrounds preview.
       // --ignore-lock explicitly keeps the foreground server under Playwright ownership.
-      command: `bun run build && bunx astro preview --ignore-lock --host 127.0.0.1 --port ${WEB_PORT}`,
+      // .dev.vars (gitignored) enables the /fixtures/shell demo page, which
+      // production never exposes. The Cloudflare vite plugin folds it into
+      // dist/server/.dev.vars at BUILD time, so it must exist before `build`.
+      command: `printf 'DOP_FIXTURE_PAGE=true\\n' > .dev.vars && bun run build && bunx astro preview --ignore-lock --host 127.0.0.1 --port ${WEB_PORT}`,
       url: WEB_URL,
       cwd: "apps/web",
       // Cold `astro build` (types + two vite passes) plus preview startup can

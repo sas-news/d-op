@@ -30,10 +30,14 @@ export const CONTENT_SECURITY_POLICY = [
 // Referrer-Policy: no-referrer keeps share URLs (incl. unlisted shareIds) out
 // of outbound referrers; nosniff prevents content sniffing of JSON/text
 // payloads; frame-ancestors 'none' + X-Frame-Options DENY refuse embedding;
-// Permissions-Policy turns off every feature surface this site never uses.
+// Permissions-Policy turns off every feature surface this site never uses;
+// HSTS pins the canonical https origin for two years so a first plaintext
+// visit cannot be stripped. The `preload` token is deliberately absent —
+// submission is a separate, permanent decision.
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "content-security-policy": CONTENT_SECURITY_POLICY,
   "referrer-policy": "no-referrer",
+  "strict-transport-security": "max-age=63072000; includeSubDomains",
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
   "permissions-policy":

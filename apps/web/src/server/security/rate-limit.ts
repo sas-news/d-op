@@ -8,9 +8,9 @@ import {
 //
 // Each route class consults its own binding plus a route-wide protective
 // binding, per the plan's defaults: creates 5/min and reads 120/min per actor,
-// authenticated mutations 30/min per share, import notifications 30/min per
-// actor. Period is always 60s and limits are approximate per-PoP (the binding
-// contract), so no global-quota claim is made anywhere.
+// authenticated mutations 30/min per actor per share, import notifications
+// 30/min per actor. Period is always 60s and limits are approximate per-PoP
+// (the binding contract), so no global-quota claim is made anywhere.
 //
 // Fail-safe contract:
 //   - limiter call throws            -> "unavailable" -> service maps 503
@@ -82,7 +82,9 @@ export async function consultLimiter(
 
 /**
  * Admission decision for one request: route-wide protective limit first, then
- * the per-class limit. `shareId` scopes the mutation class per the contract.
+ * the per-class limit. The mutation class is keyed per actor AND share, so a
+ * flood of unauthenticated attempts against a public shareId only drains the
+ * attacker's own budget — never the share owner's.
  */
 export async function enforceRateLimit(
   env: RateLimitEnv,
@@ -95,13 +97,11 @@ export async function enforceRateLimit(
   if (classBinding === undefined || apiBinding === undefined) {
     return env.DOP_RATE_LIMIT_REQUIRED === "true" ? unavailable : allowed
   }
-  const apiKey = `api:${await actorDigest(env, request)}`
-  const apiVerdict = await consultLimiter(apiBinding, apiKey)
+  const actor = await actorDigest(env, request)
+  const apiVerdict = await consultLimiter(apiBinding, `api:${actor}`)
   if (!apiVerdict.allowed) return apiVerdict
   const classKey =
-    cls === "mutation"
-      ? `mutation:${shareId ?? "unknown-share"}`
-      : `${cls}:${await actorDigest(env, request)}`
+    cls === "mutation" ? `mutation:${actor}:${shareId ?? "unknown-share"}` : `${cls}:${actor}`
   return consultLimiter(classBinding, classKey)
 }
 
@@ -110,9 +110,11 @@ export async function enforceRateLimit(
  * deployment secret when RATE_LIMIT_HMAC_KEY is provisioned; otherwise a
  * domain-separated SHA-256 (the digest still never leaves the limiter and is
  * never logged — the secret additionally resists dictionary reversal of the
- * small IPv4 space, which is why production should provision it).
+ * small IPv4 space, which is why production should provision it). Exported for
+ * the import-notification actor dedup: the same key scopes "one count per
+ * actor per share" without ever storing a raw IP.
  */
-async function actorDigest(env: RateLimitEnv, request: Request): Promise<string> {
+export async function actorDigest(env: RateLimitEnv, request: Request): Promise<string> {
   const ip = request.headers.get("cf-connecting-ip") ?? "no-actor-ip"
   const day = new Date().toISOString().slice(0, 10)
   const message = `dop-rl:${day}:${ip}`

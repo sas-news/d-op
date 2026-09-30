@@ -77,14 +77,14 @@ Vault-only fields are never rendered, logged, or exported. Legacy v1 keys are re
 | `playlists` | published snapshot JSON + denormalized metadata (title/author/tags/visibility/counts/`secret_hash`/`content_hash`); `pending → active`, hard delete | until deleted |
 | `tags`, `playlist_tags` | canonical tag dictionary + join | with playlist |
 | `publication_operations` | idempotency receipts: `operation_key`, `request_hash`, `secret_hash`, nonce, outcome — never raw secrets | ~24 h (`expires_at`) |
-| `import_receipts` | SHA-256 `event_hash` + nonce | ~48 h |
+| `import_receipts` | SHA-256 `event_hash` + nonce, plus a per-actor×share dedup hash (HMAC'd IP digest, never the raw IP) | ~48 h |
 | `import_daily` | per-day import counts | ~90 days |
 | `discovery_snapshots` | ranked `[shareId, score]` pages + per-snapshot HMAC `cursor_key` | ~15 min |
 | `operator_takedowns` | actor label, shareId, reason, removed flag — operator-only, no public endpoint | durable audit |
 | `write_asserts` | assertion sink; must stay empty (trigger aborts) | — |
 | `schema_migrations` | wrangler bookkeeping of applied migration ids | durable |
 
-Operational logging: `request-log.ts` emits only `{event, requestId, route-template, status, durationMs}` — no URLs, IPs, bodies, or headers. Rate limiting (`security/rate-limit.ts`) uses daily-rotating HMAC'd IP digests that live only inside the limiter. Deletes are hard deletes; operator takedown is a deployment-credential CLI (`bun run takedown`), never a public endpoint.
+Operational logging: `request-log.ts` emits only `{event, requestId, route-template, status, durationMs}` — no URLs, IPs, bodies, or headers. Rate limiting (`security/rate-limit.ts`) uses daily-rotating HMAC'd IP digests that live only inside the limiter; the import actor-dedup key is the same digest re-hashed per share, stored as a SHA-256 receipt — never a raw IP. Deletes are hard deletes; operator takedown is a deployment-credential CLI (`bun run takedown`), never a public endpoint.
 
 ## Whitelist summary (what may leave the browser)
 

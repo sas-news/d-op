@@ -41,9 +41,22 @@ describe("import notifications", () => {
     expect(dup.status).toBe(204)
     expect(await importCount(published.shareId)).toBe(1)
 
-    const second = await call(importRoute, importNotify(published.shareId, crypto.randomUUID()), {
-      shareId: published.shareId,
-    })
+    // A fresh event id from the SAME actor does not count again — the
+    // actor×share dedup caps one actor at one count per 48 h window.
+    const sameActor = await call(
+      importRoute,
+      importNotify(published.shareId, crypto.randomUUID()),
+      { shareId: published.shareId },
+    )
+    expect(sameActor.status).toBe(204)
+    expect(await importCount(published.shareId)).toBe(1)
+
+    // A different actor's event still counts.
+    const second = await call(
+      importRoute,
+      importNotify(published.shareId, crypto.randomUUID(), "198.51.100.20"),
+      { shareId: published.shareId },
+    )
     expect(second.status).toBe(204)
     expect(await importCount(published.shareId)).toBe(2)
   })

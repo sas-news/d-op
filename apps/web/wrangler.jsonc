@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "d-op-share",
-  "main": "@astrojs/cloudflare/entrypoints/server",
+  "main": "./src/worker.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -69,6 +69,10 @@
       "database_id": "a20c7baa-9d58-4867-b1ec-be881ded94f0"
     }
   ],
+  // Daily retention sweep: src/worker.ts exports a `scheduled` handler that
+  // runs runScheduledCleanup — pending provisionals, expired mutation/import
+  // receipts, discovery snapshots and >90-day import buckets.
+  "triggers": { "crons": ["0 3 * * *"] },
   // Keep the workers.dev origin enabled for health checks / rollback
   // rehearsal even after the custom domain attaches (docs/cutover.md §3).
   "workers_dev": true,
