@@ -91,6 +91,11 @@ describe("loadSharePage view model", () => {
     expect(view.totalDurationMs).toBe(EXPECTED_TOTAL_MS)
     expect(view.totalDurationLabel).toBe(formatDurationJa(EXPECTED_TOTAL_MS))
     expect(view.items).toHaveLength(8)
+    // Popup-style priority: the episode line leads, the work title is the sub.
+    // The fixture's `episodeNumber: "2"` is already spelled out by `第2話`, so
+    // the lead does not repeat it.
+    expect(view.items[1]?.primaryLabel).toBe("第2話")
+    expect(view.items[1]?.title).toBe("作品1")
     expect(view.items[1]?.durationLabel).toBe(formatDurationJa(90_500))
     expect(view.items[1]?.rangeLabel).toBe(`${formatClockMs(10_000)} – ${formatClockMs(100_500)}`)
     expect(view.ogTitle).toBe("8クリップの共有リスト")

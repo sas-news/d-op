@@ -3,6 +3,7 @@
 // copy-target picker modal. Mutations go through runMutation
 // (replace-library built from fresh state) so retries stay correct.
 
+import { episodeLeadLabel } from "../../../../packages/shared/src/index"
 import type { LocalItem, LocalPlaylist } from "../../../../packages/shared/src/local-model"
 import { copyItem, removeItem, replaceItem } from "../domain/playlist"
 import type { ModalHost } from "../player/modal"
@@ -93,7 +94,11 @@ export function buildItemRow(
 
   const title = doc.createElement("div")
   title.className = "item-episode"
-  title.textContent = [epNum, epTitle].filter(Boolean).join(" ") || workTitle || "(タイトル不明)"
+  title.textContent = episodeLeadLabel({
+    title: workTitle,
+    episodeTitle: epTitle,
+    episodeNumber: epNum,
+  })
   const episodeSub = doc.createElement("div")
   episodeSub.className = "item-work"
   episodeSub.textContent = workTitle

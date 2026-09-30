@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers"
 import {
   collapseWhitespace,
   type DerivedFrom,
+  episodeLeadLabel,
   projectPublicPlaylist,
   type SharedPlaylist,
 } from "../../../../../packages/shared/src/index"
@@ -37,6 +38,8 @@ export const shareOgImageUrl = (canonicalUrl: string, contentHash: string): stri
 
 export type SharePageItemView = {
   readonly index: number
+  /** Popup-style lead line: `episodeNumber episodeTitle`, work title last resort. */
+  readonly primaryLabel: string
   readonly title: string
   readonly episodeTitle: string
   readonly episodeNumber: string | null
@@ -176,6 +179,7 @@ function buildView(
     const durationMs = item.range.end - item.range.start
     return {
       index: index + 1,
+      primaryLabel: episodeLeadLabel(item),
       title: item.title,
       episodeTitle: item.episodeTitle,
       episodeNumber: item.episodeNumber ?? null,

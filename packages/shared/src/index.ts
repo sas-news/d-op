@@ -73,6 +73,8 @@ export {
   SENDER_SURFACES,
   VAULT_PRIVILEGED_SURFACES,
 } from "./bridge"
+export type { ItemLabelFields } from "./item-label"
+export { episodeLeadLabel } from "./item-label"
 export type {
   ContentHashHex,
   IsoDateTime,
