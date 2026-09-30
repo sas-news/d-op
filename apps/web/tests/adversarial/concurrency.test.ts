@@ -174,18 +174,25 @@ describe("concurrent mutations and duplicate effects", () => {
       .prepare("SELECT COUNT(*) AS n FROM import_receipts WHERE share_id = ?1")
       .bind(pub.shareId)
       .first<{ n: number }>()
-    expect(receipts?.n).toBe(1)
+    // Two rows: the per-actor dedup receipt plus the per-event receipt.
+    expect(receipts?.n).toBe(2)
     // Public GET reflects exactly one count — no phantom popularity.
     const getRes = await getViaRoute(pub.shareId)
     const data = (await dataOf(getRes)) as { importCount: number }
     expect(data.importCount).toBe(1)
   })
 
-  it("distinct eventIds each count; malformed eventIds are rejected without writes", async () => {
+  it("distinct eventIds from distinct actors each count; same-actor regeneration does not", async () => {
     const pub = await publishPlaylist(makePlaylist({}))
+    // One count per actor per share — three counts need three actors.
     for (let i = 0; i < 3; i += 1) {
-      expect((await importViaRoute(pub.shareId, crypto.randomUUID())).status).toBe(204)
+      const res = await importViaRoute(pub.shareId, crypto.randomUUID(), `198.51.100.${i + 1}`)
+      expect(res.status).toBe(204)
     }
+    // Fresh event ids from an already-counted actor add nothing.
+    expect((await importViaRoute(pub.shareId, crypto.randomUUID(), "198.51.100.1")).status).toBe(
+      204,
+    )
     expect((await playlistRow(pub.shareId))?.import_count).toBe(3)
     // Hostile/invalid event ids: bounded rejection, no counter movement.
     for (const bad of ["", "x".repeat(300), 42, null, { evil: true }]) {

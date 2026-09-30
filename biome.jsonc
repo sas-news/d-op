@@ -82,7 +82,8 @@
         "**/wxt.config.ts",
         "**/astro.config.mjs",
         "**/apps/extension/entrypoints/**",
-        "**/apps/web/src/pages/**"
+        "**/apps/web/src/pages/**",
+        "**/apps/web/src/worker.ts"
       ],
       "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
     }

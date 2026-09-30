@@ -20,7 +20,9 @@ import {
 // pending and deleted ids are deliberately indistinguishable. Only active +
 // public + unblocked snapshots move the UTC-day bucket and the lifetime
 // counter, and the receipt insert gates both increments exactly once per 48 h
-// window — including under concurrency.
+// window — including under concurrency. Each counted event writes two
+// receipts (the per-actor dedup row and the per-event row), and a single actor
+// can move a share's counters at most once per window.
 
 const today = (): string => new Date().toISOString().slice(0, 10)
 
@@ -38,13 +40,14 @@ describe("import aggregate counters", () => {
     for (const res of responses) expect(res.status).toBe(204)
     expect(await dailyCount(db(), published.shareId, today())).toBe(1)
     expect(await lifetimeCount(db(), published.shareId)).toBe(1)
-    expect(await receiptCount(db(), published.shareId)).toBe(1)
+    expect(await receiptCount(db(), published.shareId)).toBe(2)
   })
 
   it("accumulates distinct eventIds into daily and lifetime totals", async () => {
     const published = await publishPlaylist(makePlaylist({}))
+    // One count per actor per share: four events need four distinct actors.
     for (let i = 0; i < 4; i += 1) {
-      const res = await postImport(published.shareId, crypto.randomUUID())
+      const res = await postImport(published.shareId, crypto.randomUUID(), `198.51.100.${i + 1}`)
       expect(res.status).toBe(204)
     }
     expect(await dailyCount(db(), published.shareId, today())).toBe(4)
@@ -56,6 +59,19 @@ describe("import aggregate counters", () => {
     expect(await dailyCount(db(), other.shareId, today())).toBe(1)
     expect(await lifetimeCount(db(), other.shareId)).toBe(1)
     expect(await dailyCount(db(), published.shareId, today())).toBe(4)
+  })
+
+  it("caps one actor at a single count per share per window", async () => {
+    // Issue #36: regenerating event ids from the same actor must not inflate
+    // the counters — only the first fresh eventId counts.
+    const published = await publishPlaylist(makePlaylist({}))
+    for (let i = 0; i < 4; i += 1) {
+      const res = await postImport(published.shareId, crypto.randomUUID(), "198.51.100.9")
+      expect(res.status).toBe(204)
+    }
+    expect(await dailyCount(db(), published.shareId, today())).toBe(1)
+    expect(await lifetimeCount(db(), published.shareId)).toBe(1)
+    expect(await receiptCount(db(), published.shareId)).toBe(2)
   })
 
   it("returns the generic 204 with no count for unlisted, deleted, pending and unknown ids", async () => {
@@ -114,6 +130,7 @@ describe("import aggregate counters", () => {
     expect((await postImport(published.shareId, eventId)).status).toBe(204)
     expect(await lifetimeCount(db(), published.shareId)).toBe(2)
     expect(await dailyCount(db(), published.shareId, today())).toBe(2)
-    expect(await receiptCount(db(), published.shareId)).toBe(1)
+    // Both receipts (actor + event) expired together and were re-minted.
+    expect(await receiptCount(db(), published.shareId)).toBe(2)
   })
 })

@@ -48,16 +48,16 @@
     // Non-secret staging marker so dashboards/`wrangler deployments list`
     // output and any future env introspection can never confuse this worker
     // with the production deployment. The worker code does not read it.
-    "DOP_DEPLOYMENT_LABEL": "staging"
+    "DOP_DEPLOYMENT_LABEL": "staging",
+    // The /fixtures/shell demo page renders only when this var is "true" —
+    // enabled on staging and in local dev/preview, absent in production.
+    "DOP_FIXTURE_PAGE": "true"
   },
-  // TTL pruning note (task-28 finding): every API read/write already runs
-  // expirePendingProvisionals lazily, and server/services/maintenance.ts
-  // exports runScheduledCleanup covering pending provisionals + expired
-  // mutation/import receipts + discovery snapshots + 90-day day buckets.
-  // There is intentionally NO `triggers.crons` block here: the generated
-  // worker entry exports only `fetch` — no `scheduled` handler exists yet,
-  // so a cron trigger would fire into nothing. Recorded as a wiring gap in
-  // task-28 evidence; add `triggers` only after a scheduled export ships.
+  // Daily retention sweep — the deployed worker entry (dist/server/entry.mjs,
+  // built from src/worker.ts) exports a `scheduled` handler that runs
+  // runScheduledCleanup: pending provisionals, expired mutation/import
+  // receipts, discovery snapshots and >90-day import buckets.
+  "triggers": { "crons": ["0 3 * * *"] },
   "ratelimits": [
     // Route-class bindings (Workers rate-limit binding, period 60s; limits are
     // approximate per-PoP). Binding NAMES must match

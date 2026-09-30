@@ -1,9 +1,17 @@
 ---
+import { env } from "cloudflare:workers"
 import Button from "../../components/Button.astro"
 import Card from "../../components/Card.astro"
 import DialogShell from "../../components/DialogShell.astro"
 import Notice from "../../components/Notice.astro"
 import ShellLayout from "../../layouts/ShellLayout.astro"
+
+// Demo-only fixture page: production never enables DOP_FIXTURE_PAGE, so this
+// route 404s there; local dev/preview (.dev.vars) and staging turn it on.
+const flags = env as { readonly DOP_FIXTURE_PAGE?: string }
+if (flags.DOP_FIXTURE_PAGE !== "true") {
+  return new Response("Not Found", { status: 404 })
+}
 
 const longTitle =
   "静かな夜の向こう側で見つけた、何度でも再生したくなる長いタイトルのサンプル作品です"

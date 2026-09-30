@@ -158,23 +158,21 @@ is itself a signal. Record the notification ids in the deploy log.
   --output backup.sql --config wrangler.staging.jsonc` for a portable dump;
   staging holds only disposable data, so export cadence is operator choice
   (before any destructive maintenance at minimum).
-- **Row retention by design** (pruned by `runScheduledCleanup` once a
-  scheduled handler exists, and lazily on every request for pending rows):
-  `publication_operations` ~24 h, `import_receipts` ~48 h, `import_daily`
-  ~90 days, `discovery_snapshots` ~15 min, `playlists`/`tags` until delete.
+- **Row retention by design** (pruned daily by `runScheduledCleanup` via
+  the worker's `scheduled` handler + `triggers.crons`, and lazily on
+  every request for pending rows): `publication_operations` ~24 h,
+  `import_receipts` ~48 h, `import_daily` ~90 days,
+  `discovery_snapshots` ~15 min, `playlists`/`tags` until delete.
 
-## 9. Scheduled pruning — current state (task-28 finding)
+## 9. Scheduled pruning
 
 Every API read/write already calls `expirePendingProvisionals` (lazy
-expiry of pending provisionals), and `server/services/maintenance.ts`
-exports `runScheduledCleanup` covering pending provisionals + expired
-mutation/import receipts + discovery snapshots + 90-day day buckets.
-**However the generated worker entry exports only `fetch` — there is no
-`scheduled` handler, so no `triggers.crons` is configured.** Enabling cron
-requires a `scheduled` export wired to `runScheduledCleanup` (follow-up
-code task); until then TTL pruning relies on the lazy per-request sweep.
-When a scheduled export ships, add `"triggers": { "crons": ["*/15 * * * *"] }`
-here and to the production config.
+expiry of pending provisionals). On top of that, the worker entry
+(`src/worker.ts`) exports a `scheduled` handler wired to
+`runScheduledCleanup`, and both `wrangler.jsonc` and
+`wrangler.staging.jsonc` declare `triggers.crons` (`0 3 * * *`, daily
+03:00 UTC) covering pending provisionals + expired mutation/import
+receipts + discovery snapshots + 90-day day buckets.
 
 ## 10. Rollback runbook
 

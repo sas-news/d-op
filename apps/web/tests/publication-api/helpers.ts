@@ -49,11 +49,14 @@ export type ApiRequestInit = {
   readonly contentType?: string | null
   readonly idempotencyKey?: string | null
   readonly bearer?: string | null
+  /** cf-connecting-ip value; distinguishes actors for import/rate-limit keys. */
+  readonly ip?: string | null | undefined
 }
 
 /** Builds a Request; `body` objects are JSON-stringified, strings sent raw. */
 export function apiRequest(init: ApiRequestInit): Request {
   const headers = new Headers()
+  if (init.ip != null) headers.set("cf-connecting-ip", init.ip)
   if (init.bearer != null) headers.set("authorization", `Bearer ${init.bearer}`)
   if (init.idempotencyKey != null) headers.set("idempotency-key", init.idempotencyKey)
   if (init.contentType != null) headers.set("content-type", init.contentType)
@@ -137,8 +140,8 @@ export function deleteShare(
   })
 }
 
-export function importNotify(shareId: string, eventId: unknown): Request {
-  return apiRequest({ method: "POST", path: `/${shareId}/import`, body: { eventId } })
+export function importNotify(shareId: string, eventId: unknown, ip?: string): Request {
+  return apiRequest({ method: "POST", path: `/${shareId}/import`, body: { eventId }, ip })
 }
 
 export function makePlaylist(overrides: {

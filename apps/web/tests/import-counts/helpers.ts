@@ -18,8 +18,8 @@ export {
 } from "../publication-api/helpers.js"
 
 /** POST /:shareId/import through the real route handler. */
-export function postImport(shareId: string, eventId: string): Promise<Response> {
-  return call(importRoute, importNotify(shareId, eventId), { shareId })
+export function postImport(shareId: string, eventId: string, ip?: string): Promise<Response> {
+  return call(importRoute, importNotify(shareId, eventId, ip), { shareId })
 }
 
 /** DELETE /:shareId through the real route handler (owner-authenticated). */

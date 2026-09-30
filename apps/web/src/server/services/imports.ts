@@ -4,6 +4,7 @@ import { requireDb } from "../env"
 import { sha256Hex } from "../repositories/hashing"
 import { recordImportEvent } from "../repositories/imports"
 import { readJsonBody } from "../security/http"
+import { actorDigest } from "../security/rate-limit"
 import { checkAdmission } from "./admission"
 import { expirePendingProvisionals } from "./maintenance"
 import { fieldPaths } from "./publication"
@@ -16,7 +17,9 @@ import { errorResponse, noContentResponse, transientFailure } from "./respond"
 // active + public + unblocked snapshots move counters, inside the
 // repository's exactly-once guarded batch. No importer identity is stored:
 // the random event id arrives as a UUID and only its domain-separated SHA-256
-// hash is persisted for the 48 h receipt window.
+// hash is persisted for the 48 h receipt window. A second receipt keyed on
+// the rate-limit actor digest caps one actor to a single count per share per
+// window, so regenerating event ids cannot inflate the counters.
 
 export async function notifyImport(
   shareIdParam: string | undefined,
@@ -41,11 +44,13 @@ export async function notifyImport(
     const db = requireDb(env)
     const now = new Date()
     await expirePendingProvisionals(db, now)
+    const shareId = shareIdParam ?? ""
     await recordImportEvent(db, {
       // Raw param is bound into an EXISTS predicate; a malformed or unknown id
       // simply matches nothing and still yields the same 204.
-      shareId: shareIdParam ?? "",
+      shareId,
       eventHash: await sha256Hex(`dop-import:${parsed.data.eventId}`),
+      actorHash: await sha256Hex(`dop-import-actor:${await actorDigest(env, request)}:${shareId}`),
       now,
     })
     return noContentResponse()
