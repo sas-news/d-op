@@ -70,6 +70,7 @@ export const COLLECTION_QUERY_MAX = 100 as const
 export const MUTATION_RECEIPT_TTL_MS = 86400000 as const
 export const IMPORT_RECEIPT_TTL_MS = 172800000 as const
 export const DAY_BUCKET_RETENTION_DAYS = 90 as const
+export const TAG_WORK_META_TTL_MS = 2592000000 as const // 30 days
 export const DISCOVERY_SNAPSHOT_TTL_MS = 900000 as const
 export const DISCOVERY_SNAPSHOT_MAX_IDS = 1000 as const
 export const FIRST_PAGE_SNAPSHOT_REUSE_MS = 60000 as const

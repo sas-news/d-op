@@ -12,9 +12,15 @@ import {
   ContentHashSchema,
   IsoDateTimeSchema,
   ManageSecretSchema,
+  normalizedStringSchema,
+  opaqueIdSchema,
   SERVER_REVISION_START,
+  SHARE_ITEM_TITLE_MAX,
+  SHARE_ITEMS_MAX,
+  SHARE_PART_ID_MAX,
   SHARE_TAG_MAX,
   SHARE_TAG_MIN,
+  SHARE_TAGS_MAX,
   ShareIdSchema,
 } from "./limits"
 import { DerivedFromSchema, SharedPlaylistSchema } from "./share"
@@ -197,3 +203,34 @@ export const TagListResponseSchema = z.strictObject({
   tags: z.array(TagCountSchema),
 })
 export type TagListResponse = z.infer<typeof TagListResponseSchema>
+
+// --- POST /api/v1/tag-suggestions -------------------------------------------------
+// Tag-candidate suggestions: the body carries ONLY work titles (+ optional
+// opaque work ids) — no local ids, secrets or page URLs, matching the share
+// payload whitelist rule. The response is server-resolved canonical tags, the
+// titles that could not be matched upstream, and a per-work breakdown.
+
+export const TagSuggestionWorkSchema = z.strictObject({
+  title: normalizedStringSchema({ min: 1, max: SHARE_ITEM_TITLE_MAX }),
+  workId: opaqueIdSchema(SHARE_PART_ID_MAX).optional(),
+})
+export type TagSuggestionWork = z.infer<typeof TagSuggestionWorkSchema>
+
+export const TagSuggestionRequestSchema = z.strictObject({
+  works: z.array(TagSuggestionWorkSchema).min(1).max(SHARE_ITEMS_MAX),
+})
+export type TagSuggestionRequest = z.infer<typeof TagSuggestionRequestSchema>
+
+export const TagSuggestionPerWorkSchema = z.strictObject({
+  title: normalizedStringSchema({ min: 1, max: SHARE_ITEM_TITLE_MAX }),
+  matched: z.boolean(),
+  tags: z.array(z.string().min(SHARE_TAG_MIN).max(SHARE_TAG_MAX)),
+})
+export type TagSuggestionPerWork = z.infer<typeof TagSuggestionPerWorkSchema>
+
+export const TagSuggestionResponseSchema = z.strictObject({
+  tags: z.array(z.string().min(SHARE_TAG_MIN).max(SHARE_TAG_MAX)).max(SHARE_TAGS_MAX),
+  unmatched: z.array(z.string().min(1).max(SHARE_ITEM_TITLE_MAX)),
+  perWork: z.array(TagSuggestionPerWorkSchema).min(1).max(SHARE_ITEMS_MAX),
+})
+export type TagSuggestionResponse = z.infer<typeof TagSuggestionResponseSchema>

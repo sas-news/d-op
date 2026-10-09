@@ -21,6 +21,10 @@ export type {
   Revision,
   TagCount,
   TagListResponse,
+  TagSuggestionPerWork,
+  TagSuggestionRequest,
+  TagSuggestionResponse,
+  TagSuggestionWork,
 } from "./api"
 export {
   ActivateOperationSchema,
@@ -47,6 +51,10 @@ export {
   RevisionSchema,
   TagCountSchema,
   TagListResponseSchema,
+  TagSuggestionPerWorkSchema,
+  TagSuggestionRequestSchema,
+  TagSuggestionResponseSchema,
+  TagSuggestionWorkSchema,
 } from "./api"
 export type {
   BackgroundRequest,
@@ -138,6 +146,7 @@ export {
   ShareIdSchema,
   SUPPORTED_ORIGINS,
   sortCanonicalTags,
+  TAG_WORK_META_TTL_MS,
   TRANSIENT_STATE_KEY,
 } from "./limits"
 export type {
@@ -225,3 +234,15 @@ export {
   toPublishProjection,
   UnpublishablePlaylistError,
 } from "./share"
+export type { WorkTagMeta } from "./tag-taxonomy"
+export {
+  BROADCASTER_CANONICAL,
+  DEMOGRAPHIC_MAP,
+  GENRE_JP_MAP,
+  normalizeWorkTitleKey,
+  SOURCE_MAP,
+  STUDIO_SHORT_MAP,
+  stripTitleDecorations,
+  suggestPlaylistTags,
+  workTagSet,
+} from "./tag-taxonomy"
