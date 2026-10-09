@@ -85,6 +85,17 @@ export type ShareManageSourceRequest = {
   readonly playlistId: string
 }
 
+/**
+ * Tag-suggestion lookup for the share dialog's 候補 button — intent only.
+ * The background builds the works list from the canonical playlist itself
+ * (same projection publish uses), re-checks consent before fetching, and
+ * replies with the merged suggestion payload; no metadata crosses.
+ */
+export type ShareManageSuggestTagsRequest = {
+  readonly kind: "share-manage-suggest-tags"
+  readonly playlistId: string
+}
+
 export type ShareManageRequest =
   | ShareManagePublishRequest
   | ShareManageActivateRequest
@@ -92,6 +103,7 @@ export type ShareManageRequest =
   | ShareManageDeleteRequest
   | ShareManageInspectRequest
   | ShareManageSourceRequest
+  | ShareManageSuggestTagsRequest
 
 function parseMetadata(input: unknown): ShareManageMetadata | undefined {
   if (!isRecord(input)) return undefined
@@ -180,6 +192,15 @@ export function parseShareManageMessage(input: unknown): ShareManageRequest | un
         return undefined
       }
       return input as unknown as ShareManageSourceRequest
+    case "share-manage-suggest-tags":
+      if (
+        typeof input["playlistId"] !== "string" ||
+        input["playlistId"].length === 0 ||
+        input["playlistId"].length > 256
+      ) {
+        return undefined
+      }
+      return input as unknown as ShareManageSuggestTagsRequest
     default:
       return undefined
   }
@@ -220,6 +241,7 @@ export type ShareManageStatus =
   | "failed"
   | "inspect"
   | "source"
+  | "tags"
 
 export const SHARE_MANAGE_STATUSES: readonly ShareManageStatus[] = [
   "published",
@@ -241,6 +263,7 @@ export const SHARE_MANAGE_STATUSES: readonly ShareManageStatus[] = [
   "failed",
   "inspect",
   "source",
+  "tags",
 ]
 
 export type ShareManageReason = { readonly path: string; readonly message: string }
@@ -261,6 +284,10 @@ export type ShareManageReply = {
   readonly sourceState?: ShareManageSourceState
   /** Local import-record title (private; never a remote lookup result). */
   readonly sourceTitle?: string
+  /** "tags" replies: canonical suggestion payload from the tag API. */
+  readonly tags?: readonly string[]
+  /** "tags" replies: work titles the API could not match (warning only). */
+  readonly unmatched?: readonly string[]
   readonly reasons?: readonly ShareManageReason[]
   readonly message?: string
 }
@@ -286,6 +313,9 @@ export type ShareManageClient = {
   ) => Promise<ShareManageReply>
   readonly inspect: (request: Omit<ShareManageInspectRequest, "kind">) => Promise<ShareManageReply>
   readonly source: (request: Omit<ShareManageSourceRequest, "kind">) => Promise<ShareManageReply>
+  readonly suggestTags: (
+    request: Omit<ShareManageSuggestTagsRequest, "kind">,
+  ) => Promise<ShareManageReply>
 }
 
 const MALFORMED: ShareManageReply = { kind: "share-manage-result", status: "failed" }
@@ -310,5 +340,6 @@ export function createShareManageClient(sendMessage: SendMessage): ShareManageCl
     deleteRemote: (request) => call(sendMessage, { kind: "share-manage-delete", ...request }),
     inspect: (request) => call(sendMessage, { kind: "share-manage-inspect", ...request }),
     source: (request) => call(sendMessage, { kind: "share-manage-source", ...request }),
+    suggestTags: (request) => call(sendMessage, { kind: "share-manage-suggest-tags", ...request }),
   }
 }

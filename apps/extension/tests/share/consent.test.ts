@@ -230,6 +230,7 @@ describe("management handler consent gate", () => {
       },
       { kind: "share-manage-inspect", shareId: SHARE_ID },
       { kind: "share-manage-source", playlistId: "p1" },
+      { kind: "share-manage-suggest-tags", playlistId: "p1" },
     ]) {
       expect(await handler(message, OPTIONS)).toEqual({
         kind: "share-manage-result",

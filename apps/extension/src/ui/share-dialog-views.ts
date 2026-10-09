@@ -273,6 +273,51 @@ export function statusBlock(
   return nodes
 }
 
+/** Sidecar state for the tags field's 候補 button + its status line. */
+export type TagSuggestAccessory = {
+  readonly busy: boolean
+  readonly note: string
+  readonly error: boolean
+  readonly onClick: () => void
+}
+
+/**
+ * Tags field + the タグ候補を取得 button (text-labeled — never icon-only).
+ * The button asks the background for tag suggestions; the note line carries
+ * the unmatched count or a non-fatal fetch failure. When no suggestion
+ * accessory is supplied the plain field is returned unchanged.
+ */
+export function tagsField(
+  doc: Document,
+  draft: ShareManageMetadata,
+  onInput: () => void,
+  suggest: TagSuggestAccessory | undefined,
+): HTMLElement {
+  const field = metaField(
+    doc,
+    "タグ（空白・カンマ区切り）",
+    "share-tags",
+    (draft.tags ?? []).join(" "),
+    false,
+    onInput,
+  )
+  if (suggest === undefined) return field
+  const wrap = doc.createElement("div")
+  wrap.className = "share-tags-field"
+  wrap.append(
+    field,
+    actionButton(
+      doc,
+      "タグ候補を取得",
+      "btn-text share-tags-suggest",
+      suggest.onClick,
+      suggest.busy,
+    ),
+  )
+  wrap.appendChild(line(doc, `share-tags-note${suggest.error ? " error" : ""}`, suggest.note))
+  return wrap
+}
+
 /** Metadata form section: visibility radios + description/author/tags + preview. */
 export function metadataSection(
   doc: Document,
@@ -281,19 +326,13 @@ export function metadataSection(
   fallbackVisibility: "public" | "unlisted" | undefined,
   onVisibility: (visibility: "public" | "unlisted") => void,
   onInput: () => void,
+  suggest?: TagSuggestAccessory,
 ): HTMLElement[] {
   return [
     visibilityFieldset(doc, draft, onVisibility),
     metaField(doc, "説明", "share-description", draft.description ?? "", true, onInput),
     metaField(doc, "作者", "share-author", draft.author ?? "", false, onInput),
-    metaField(
-      doc,
-      "タグ（空白・カンマ区切り）",
-      "share-tags",
-      (draft.tags ?? []).join(" "),
-      false,
-      onInput,
-    ),
+    tagsField(doc, draft, onInput, suggest),
     line(doc, "share-preview", publishPreviewText(playlist, draft, fallbackVisibility)),
   ]
 }

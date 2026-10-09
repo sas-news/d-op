@@ -60,6 +60,7 @@ function manageStub(overrides: Partial<ShareManageClient> = {}): ShareManageClie
       reply("inspect", { shareId: SHARE_ID, remote: "active", remoteRevision: 2 }),
     ),
     source: vi.fn(async () => reply("source", { sourceState: "none" })),
+    suggestTags: vi.fn(async () => reply("tags", { tags: ["2006年", "少年"], unmatched: [] })),
     ...overrides,
   }
 }
@@ -212,6 +213,52 @@ describe("share-dialog", () => {
     await closeModal()
     await open
     fetchSpy.mockRestore()
+  })
+
+  it("タグ候補 merges API + local + typed tags into the input and notes unmatched", async () => {
+    const local = playlist("p1", ["a"])
+    const manage = manageStub({
+      suggestTags: vi.fn(async () =>
+        reply("tags", { tags: ["2006年", "少年"], unmatched: ["Work a"] }),
+      ),
+    })
+    const { dialog } = rig([local], [], manage)
+    const open = dialog.open("p1")
+    await vi.waitFor(() => expect(q(".share-tags-suggest")).not.toBeNull())
+    // User-typed tags survive the union merge.
+    const input = q<HTMLInputElement>(".share-tags")
+    input.value = "マイタグ"
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+    q<HTMLButtonElement>(".share-tags-suggest").click()
+    await vi.waitFor(() => expect(manage.suggestTags).toHaveBeenCalledOnce())
+    expect(manage.suggestTags).toHaveBeenCalledWith({ playlistId: "p1" })
+    await vi.waitFor(() => {
+      // sorted union: typed + api + local (Playlist p1 → "op" wait: name is
+      // "Playlist p1" — no kind marker; range.name "My OP" has no parens).
+      expect(q<HTMLInputElement>(".share-tags").value).toBe("2006年 マイタグ 少年")
+    })
+    expect(q(".share-tags-note").textContent).toBe("1作品が見つかりませんでした")
+    await closeModal()
+    await open
+  })
+
+  it("タグ候補 failure shows a non-fatal note and keeps publish usable", async () => {
+    const local = playlist("p1", ["a"])
+    const manage = manageStub({
+      suggestTags: vi.fn(async () => reply("offline")),
+    })
+    const { dialog } = rig([local], [], manage)
+    const open = dialog.open("p1")
+    await vi.waitFor(() => expect(q(".share-tags-suggest")).not.toBeNull())
+    q<HTMLButtonElement>(".share-tags-suggest").click()
+    await vi.waitFor(() =>
+      expect(q(".share-tags-note").textContent).toBe("候補を取得できませんでした"),
+    )
+    expect(q(".share-tags-note").className).toContain("error")
+    // Publishing is untouched — the field keeps its typed value.
+    expect(q<HTMLInputElement>(".share-tags").value).toBe("")
+    await closeModal()
+    await open
   })
 
   it("pending records offer the resume-activation action", async () => {

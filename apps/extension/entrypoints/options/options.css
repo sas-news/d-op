@@ -1045,6 +1045,31 @@ button:disabled {
   resize: vertical;
 }
 
+/* Tags field + 候補 button: input keeps flexible width, the button and the
+   note line wrap below on narrow dialogs. */
+.share-tags-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--dop-space-2) var(--dop-space-3);
+}
+
+.share-tags-field > .share-field {
+  flex: 1 1 220px;
+}
+
+.share-tags-note {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--dop-text-secondary);
+  margin: 0;
+  min-height: 14px;
+}
+
+.share-tags-note.error {
+  color: var(--dop-danger);
+}
+
 .share-actions {
   display: flex;
   flex-wrap: wrap;
