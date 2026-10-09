@@ -214,8 +214,8 @@ async function readFreshCachedMeta(
 
 type ResolvedWorkMeta = {
   readonly meta: WorkTagMeta
-  /** At least one primary upstream answered definitively (match or miss) —
-   *  only then is the outcome worth caching. */
+  /** Both primary upstreams answered definitively — only then is the
+   *  outcome worth persisting for the TTL window. */
   readonly cacheable: boolean
   readonly upstreamWorkId?: string | undefined
 }
@@ -228,11 +228,16 @@ async function resolveWorkMeta(
     resolveAniList(work.title, fetchImpl),
     resolveSyoboi(work.title, fetchImpl),
   ])
+  // Cache only when BOTH primary upstreams answered definitively — a hit or
+  // miss from a flaky/absent peer would otherwise freeze partial metadata
+  // (e.g. missing broadcasters) into the 30-day cache. Jikan is best-effort
+  // by design and never gates cacheability.
+  const complete = anilist.responded && syoboi.responded
   const matched = anilist.hit !== null || syoboi.hit !== null
   if (!matched) {
     return {
       meta: emptyMeta(work),
-      cacheable: anilist.responded || syoboi.responded,
+      cacheable: complete,
     }
   }
   const jikan = await resolveJikan(work.title, fetchImpl, anilist.hit?.source)
@@ -252,7 +257,7 @@ async function resolveWorkMeta(
       ...(jikan?.magazine !== undefined ? { magazine: jikan.magazine } : {}),
       genres: anilist.hit?.genres ?? [],
     },
-    cacheable: true,
+    cacheable: complete,
     upstreamWorkId: anilist.hit?.id !== undefined ? String(anilist.hit.id) : undefined,
   }
 }
@@ -281,7 +286,9 @@ async function fetchUpstreamJson(
     const response = await fetchImpl(url, {
       ...init,
       credentials: "omit",
-      redirect: "error",
+      // workerd does not implement redirect:"error" (it throws TypeError):
+      // "manual" plus the !response.ok gate below refuses redirects instead.
+      redirect: "manual",
       cache: "no-store",
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     })
