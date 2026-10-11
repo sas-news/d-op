@@ -39,6 +39,7 @@ export default defineConfig({
       "tests/import-counts/**/*.test.ts",
       "tests/discovery/**/*.test.ts",
       "tests/adversarial/**/*.test.ts",
+      "tests/tag-suggestions/**/*.test.ts",
     ],
     reporters: ["default"],
     passWithNoTests: false,

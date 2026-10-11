@@ -147,6 +147,21 @@ const EXPECTED_EXPORTS = [
   "sha256HexBytes",
   "sortCanonicalTags",
   "toPublishProjection",
+  // Tag-suggestion contract (taxonomy dictionaries, engine, schemas, TTL).
+  "BROADCASTER_CANONICAL",
+  "DEMOGRAPHIC_MAP",
+  "GENRE_JP_MAP",
+  "SOURCE_MAP",
+  "STUDIO_SHORT_MAP",
+  "TAG_WORK_META_TTL_MS",
+  "TagSuggestionPerWorkSchema",
+  "TagSuggestionRequestSchema",
+  "TagSuggestionResponseSchema",
+  "TagSuggestionWorkSchema",
+  "normalizeWorkTitleKey",
+  "stripTitleDecorations",
+  "suggestPlaylistTags",
+  "workTagSet",
 ]
 
 describe("shared package entrypoint", () => {
