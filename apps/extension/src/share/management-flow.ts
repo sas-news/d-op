@@ -4,6 +4,7 @@
 // revision-guarded update, conditional remote delete and the on-open remote
 // reconcile. No timers or background polling: every call answers an explicit
 // options-page action.
+import { SHARE_ITEMS_MAX } from "../../../../packages/shared/src/limits"
 import type { PublicationRecord } from "../../../../packages/shared/src/local-model"
 import { canonicalString, contentHashOf } from "../../../../packages/shared/src/share-canonical"
 import {
@@ -16,13 +17,20 @@ import { toPublishProjection } from "../../../../packages/shared/src/share-proje
 import type { StorageDriver } from "../storage/driver"
 import type { LocalRepository } from "../storage/repository"
 import { type FetchLike, fetchSharedPlaylist } from "./api-client"
+import { type DataPermissions, effectiveShareConsent } from "./consent"
 import { createVaultCommitter, networkFailure, reply, unpublishableReply } from "./flow-helpers"
-import { deletePublication, patchPublication } from "./management-client"
+import {
+  deletePublication,
+  fetchTagSuggestions,
+  patchPublication,
+  type TagSuggestionWork,
+} from "./management-client"
 import type {
   ShareManageDeleteRequest,
   ShareManagePublishRequest,
   ShareManageReply,
   ShareManageSourceState,
+  ShareManageSuggestTagsRequest,
   ShareManageUpdateRequest,
 } from "./management-protocol"
 import { shareApiOrigin, sharePageUrl } from "./origins"
@@ -33,6 +41,8 @@ export type ShareManagementFlowDeps = {
   readonly repository: LocalRepository
   /** Import-provenance store (dop_v2_imports) — powers derivedFrom resolve. */
   readonly driver?: StorageDriver
+  /** Task 22 consent surface — re-checked immediately before fetches. */
+  readonly dataPermissions?: DataPermissions
   readonly apiOrigin?: string
   readonly fetchImpl?: FetchLike
   readonly now?: () => string
@@ -239,6 +249,45 @@ export function createShareManagementFlow(deps: ShareManagementFlowDeps) {
     return discarded ? reply("deleted") : reply("persist-failed")
   }
 
+  /**
+   * Tag-suggestion lookup for the dialog's 候補 button. The works list is
+   * the same canonical publish projection — ranged items only, deduplicated
+   * per work (workId ?? title), capped at SHARE_ITEMS_MAX — and the request
+   * body carries `{works}` and nothing else: no secrets, no local ids beyond
+   * partId/workId values, no page URLs, no metadata. Consent is re-checked
+   * immediately before the fetch (it can flip after the handler gate).
+   */
+  async function suggestTags(input: ShareManageSuggestTagsRequest): Promise<ShareManageReply> {
+    const publicState = await deps.repository.readPublic()
+    const playlist = publicState.playlists.find((entry) => entry.id === input.playlistId)
+    if (playlist === undefined) return reply("invalid-state")
+    let projection: SharedPlaylist
+    try {
+      projection = toPublishProjection(playlist, { visibility: "unlisted" })
+    } catch (error) {
+      if (error instanceof UnpublishablePlaylistError) return unpublishableReply(error.reasons)
+      throw error
+    }
+    const seen = new Set<string>()
+    const works: TagSuggestionWork[] = []
+    for (const item of projection.items) {
+      const key = item.workId ?? item.title
+      if (seen.has(key)) continue
+      seen.add(key)
+      works.push({
+        title: item.title,
+        ...(item.workId === undefined ? {} : { workId: item.workId }),
+      })
+      if (works.length >= SHARE_ITEMS_MAX) break
+    }
+    if ((await effectiveShareConsent(deps.repository, deps.dataPermissions)) !== "granted") {
+      return reply("consent-required")
+    }
+    const suggested = await fetchTagSuggestions({ ...clientBase, works })
+    if (suggested.kind === "error") return networkFailure(suggested)
+    return reply("tags", { tags: suggested.tags, unmatched: suggested.unmatched })
+  }
+
   async function inspect(shareId: string): Promise<ShareManageReply> {
     const current = await deps.repository.readVault()
     const record = current.publications.find((entry) => entry.shareId === shareId)
@@ -259,7 +308,7 @@ export function createShareManagementFlow(deps: ShareManagementFlowDeps) {
     })
   }
 
-  return { publish, activate, update, deleteRemote, inspect, source }
+  return { publish, activate, update, deleteRemote, inspect, source, suggestTags }
 }
 
 export type ShareManagementFlow = ReturnType<typeof createShareManagementFlow>

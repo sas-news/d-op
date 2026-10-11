@@ -90,6 +90,8 @@ export function createShareManagementHandler(deps: ShareManagementHandlerDeps) {
           return flow.inspect(parsed.shareId)
         case "share-manage-source":
           return flow.source(parsed.playlistId)
+        case "share-manage-suggest-tags":
+          return flow.suggestTags(parsed)
       }
     }
     return run().catch(() => FAILED)

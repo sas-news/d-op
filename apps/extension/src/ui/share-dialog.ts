@@ -8,6 +8,7 @@
 // sub-views, not nested modals (the shared modal host replaces any open
 // dialog). manageSecret/snapshot internals are never rendered.
 // Pure DOM/text builders live in share-dialog-views.ts.
+import { SHARE_TAGS_MAX, sortCanonicalTags } from "../../../../packages/shared/src/limits"
 import type { LocalPlaylist, PublicationRecord } from "../../../../packages/shared/src/local-model"
 import type { ModalHost } from "../player/modal"
 import { type DataPermissions, writeShareConsent } from "../share/consent"
@@ -18,6 +19,7 @@ import type {
   ShareManageReply,
 } from "../share/management-protocol"
 import { sharePageUrl, shareSiteUrl } from "../share/origins"
+import { mergeTagSuggestions, suggestLocalTags } from "../share/tag-suggest"
 import {
   actionButton,
   confirmRow,
@@ -85,6 +87,14 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
     // gate rejects every management call with `consent-required` anyway, so
     // this is the UX surface, not the enforcement.
     let consentRequired = false
+    // タグ候補 button: own busy/notice state — never flows through run()'s
+    // global result line, and a failure must not block publishing. Candidates
+    // are shown as pick-one chips; nothing is written into the input until
+    // the user picks a tag.
+    let suggesting = false
+    let suggestNote = ""
+    let suggestError = false
+    let suggestCandidates: readonly string[] = []
     let closeModal: (value: string | null) => void = () => undefined
 
     const container = doc.createElement("div")
@@ -172,9 +182,72 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
       await reload()
     }
 
+    /**
+     * タグ候補を取得: asks the background for tag suggestions (options-only
+     * intent; the handler re-gates sender + consent) and renders them as a
+     * row of pick-one chips — API candidates first, then local heuristics,
+     * canonical-folded and deduped. Nothing is auto-applied: each chip click
+     * union-merges that one tag into the input. An unmatched count lands on
+     * the field's note line; every failure degrades to the same non-fatal
+     * line — publishing stays usable.
+     */
+    async function doSuggestTags(): Promise<void> {
+      if (playlist === undefined || suggesting) return
+      suggesting = true
+      suggestNote = ""
+      suggestError = false
+      render()
+      try {
+        const reply = await deps.manage.suggestTags({ playlistId })
+        if (reply.status === "tags") {
+          suggestCandidates = sortCanonicalTags([
+            ...(reply.tags ?? []),
+            ...suggestLocalTags(playlist),
+          ]).slice(0, SHARE_TAGS_MAX)
+          const unmatched = reply.unmatched ?? []
+          suggestNote = unmatched.length > 0 ? `${unmatched.length}作品が見つかりませんでした` : ""
+        } else if (reply.status === "consent-required") {
+          // Consent can be revoked while the dialog is open — swap to the
+          // prompt surface exactly like a management reply would.
+          consentRequired = true
+          resultText = describeShareReply(reply)
+          resultError = true
+        } else {
+          suggestNote = "候補を取得できませんでした"
+          suggestError = true
+        }
+      } catch (error) {
+        deps.log?.("share-suggest-tags-failed", error)
+        suggestNote = "候補を取得できませんでした"
+        suggestError = true
+      }
+      suggesting = false
+      render()
+    }
+
+    /**
+     * Picks one candidate chip: union-merges the tag into the input through
+     * the same input/change path as typing (draft + dirty state stay
+     * consistent). Already-applied chips are disabled by the view.
+     */
+    function doPickTag(tag: string): void {
+      if (playlist === undefined || suggesting || busy) return
+      const input = container.querySelector<HTMLInputElement>(".share-tags")
+      const current = readShareForm(container).tags ?? []
+      const merged = mergeTagSuggestions([...current], [tag], [])
+      if (input !== null) {
+        input.value = merged.join(" ")
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+      }
+      render()
+    }
+
     async function run(action: () => Promise<ShareManageReply>): Promise<void> {
       busy = true
       resultText = ""
+      suggestNote = ""
+      suggestError = false
+      suggestCandidates = []
       render()
       try {
         await applyReply(await action())
@@ -462,6 +535,15 @@ export function createShareDialog(deps: ShareDialogDeps): ShareDialog {
             },
             () => {
               draft = { ...draft, ...readForm() }
+            },
+            {
+              busy: suggesting || busy,
+              note: suggestNote,
+              error: suggestError,
+              candidates: suggestCandidates,
+              applied: sortCanonicalTags(draft.tags ?? []),
+              onClick: () => void doSuggestTags(),
+              onPick: (tag) => doPickTag(tag),
             },
           ),
         )

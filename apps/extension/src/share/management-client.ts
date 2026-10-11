@@ -14,7 +14,14 @@ import {
   IDEMPOTENCY_KEY_HEADER,
   PatchAckSchema,
 } from "../../../../packages/shared/src/api"
-import { SHARE_REQUEST_BODY_MAX_BYTES, ShareIdSchema } from "../../../../packages/shared/src/limits"
+import {
+  SHARE_ITEM_TITLE_MAX,
+  SHARE_ITEMS_MAX,
+  SHARE_REQUEST_BODY_MAX_BYTES,
+  SHARE_TAG_MAX,
+  SHARE_TAGS_MAX,
+  ShareIdSchema,
+} from "../../../../packages/shared/src/limits"
 import type { SharedPlaylist } from "../../../../packages/shared/src/share-model"
 import { checkShareBodySize } from "../../../../packages/shared/src/share-projection"
 import { type FetchLike, type FetchResponse, readBoundedBody } from "./api-client"
@@ -64,6 +71,9 @@ const DEFAULT_TIMEOUT_MS = 15_000
 const CreateEnvelopeSchema = apiSuccessSchema(CreateAckSchema)
 const PatchEnvelopeSchema = apiSuccessSchema(PatchAckSchema)
 
+const isRecord = (input: unknown): input is Record<string, unknown> =>
+  typeof input === "object" && input !== null && !Array.isArray(input)
+
 function invalidShareId(shareId: string): boolean {
   return !ShareIdSchema.safeParse(shareId).success
 }
@@ -74,7 +84,8 @@ async function send(
     readonly method: string
     readonly path: string
     readonly secret?: string
-    readonly idempotencyKey: string
+    /** Mutations carry a caller-minted key; read-only lookups omit it. */
+    readonly idempotencyKey?: string
     readonly body?: string
   },
 ): Promise<
@@ -90,7 +101,8 @@ async function send(
       return { kind: "error", reason: "too-large" }
     }
   }
-  const headers: Record<string, string> = { [IDEMPOTENCY_KEY_HEADER]: init.idempotencyKey }
+  const headers: Record<string, string> = {}
+  if (init.idempotencyKey !== undefined) headers[IDEMPOTENCY_KEY_HEADER] = init.idempotencyKey
   if (init.secret !== undefined) headers["authorization"] = `Bearer ${init.secret}`
   if (init.body !== undefined) headers["content-type"] = "application/json"
   let response: FetchResponse
@@ -236,6 +248,90 @@ export async function patchPublication(
   const parsed = parseSuccess(sent.response, sent.text, PatchEnvelopeSchema)
   if (parsed.kind === "error") return parsed
   return { kind: "ok", ack: parsed.data.data }
+}
+
+// --- POST /api/v1/tag-suggestions -------------------------------------------
+// Read-only lookup: no secret, no Idempotency-Key, body is `{works}` only
+// (work titles + optional workIds from the publish projection — never local
+// ids, partIds, page URLs or metadata). The wire schema is owned by the
+// worker-side PR, so the reply is hand-validated here until the shared
+// contract lands in packages/shared.
+
+export const TAG_SUGGESTIONS_PATH = "/api/v1/tag-suggestions" as const
+
+export type TagSuggestionWork = {
+  readonly title: string
+  readonly workId?: string | undefined
+}
+
+export type TagSuggestionsResult =
+  | {
+      readonly kind: "ok"
+      readonly tags: readonly string[]
+      readonly unmatched: readonly string[]
+    }
+  | ShareMutationError
+
+const isBoundedStringList = (
+  input: unknown,
+  maxItems: number,
+  maxLength: number,
+): input is string[] =>
+  Array.isArray(input) &&
+  input.length <= maxItems &&
+  input.every((entry) => typeof entry === "string" && entry.length <= maxLength)
+
+function parseTagSuggestions(
+  input: unknown,
+): { readonly tags: readonly string[]; readonly unmatched: readonly string[] } | undefined {
+  if (!isRecord(input) || !isRecord(input["data"])) return undefined
+  const data = input["data"]
+  if (!isBoundedStringList(data["tags"], SHARE_TAGS_MAX, SHARE_TAG_MAX)) return undefined
+  if (!isBoundedStringList(data["unmatched"], SHARE_ITEMS_MAX, SHARE_ITEM_TITLE_MAX)) {
+    return undefined
+  }
+  const perWork = data["perWork"]
+  if (
+    !Array.isArray(perWork) ||
+    perWork.length > SHARE_ITEMS_MAX ||
+    !perWork.every(
+      (entry) =>
+        isRecord(entry) &&
+        typeof entry["title"] === "string" &&
+        entry["title"].length <= SHARE_ITEM_TITLE_MAX &&
+        typeof entry["matched"] === "boolean" &&
+        isBoundedStringList(entry["tags"], SHARE_TAGS_MAX, SHARE_TAG_MAX),
+    )
+  ) {
+    return undefined
+  }
+  return { tags: data["tags"], unmatched: data["unmatched"] }
+}
+
+/** POST /api/v1/tag-suggestions — suggestion lookup for the dialog's 候補 button. */
+export async function fetchTagSuggestions(
+  options: ShareMutationOptions & {
+    readonly works: readonly TagSuggestionWork[]
+  },
+): Promise<TagSuggestionsResult> {
+  const sent = await send(options, {
+    method: "POST",
+    path: TAG_SUGGESTIONS_PATH,
+    body: JSON.stringify({ works: options.works }),
+  })
+  if (sent.kind === "error") return sent
+  if (!sent.response.ok) return errorResult(sent.response, sent.text)
+  let json: unknown
+  try {
+    json = JSON.parse(sent.text)
+  } catch {
+    return { kind: "error", reason: "invalid-response", status: sent.response.status }
+  }
+  const parsed = parseTagSuggestions(json)
+  if (parsed === undefined) {
+    return { kind: "error", reason: "invalid-response", status: sent.response.status }
+  }
+  return { kind: "ok", tags: parsed.tags, unmatched: parsed.unmatched }
 }
 
 /** DELETE /api/v1/playlists/:shareId — conditional remote delete (204). */

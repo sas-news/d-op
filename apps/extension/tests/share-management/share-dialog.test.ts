@@ -60,6 +60,7 @@ function manageStub(overrides: Partial<ShareManageClient> = {}): ShareManageClie
       reply("inspect", { shareId: SHARE_ID, remote: "active", remoteRevision: 2 }),
     ),
     source: vi.fn(async () => reply("source", { sourceState: "none" })),
+    suggestTags: vi.fn(async () => reply("tags", { tags: ["2006年", "少年"], unmatched: [] })),
     ...overrides,
   }
 }
@@ -212,6 +213,62 @@ describe("share-dialog", () => {
     await closeModal()
     await open
     fetchSpy.mockRestore()
+  })
+
+  it("タグ候補 renders pick-one chips — nothing auto-filled; a pick merges one tag", async () => {
+    const local = playlist("p1", ["a"])
+    const manage = manageStub({
+      suggestTags: vi.fn(async () =>
+        reply("tags", { tags: ["2006年", "少年"], unmatched: ["Work a"] }),
+      ),
+    })
+    const { dialog } = rig([local], [], manage)
+    const open = dialog.open("p1")
+    await vi.waitFor(() => expect(q(".share-tags-suggest")).not.toBeNull())
+    const input = q<HTMLInputElement>(".share-tags")
+    input.value = "マイタグ"
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+    q<HTMLButtonElement>(".share-tags-suggest").click()
+    await vi.waitFor(() => expect(manage.suggestTags).toHaveBeenCalledOnce())
+    expect(manage.suggestTags).toHaveBeenCalledWith({ playlistId: "p1" })
+    // Candidates land as pick-one chips; the typed tag is NOT clobbered.
+    await vi.waitFor(() => expect(q(".share-tags-candidates")).not.toBeNull())
+    const chipLabels = (): (string | null)[] =>
+      Array.from(document.querySelectorAll(".share-tag-chip")).map((chip) => chip.textContent)
+    expect(chipLabels()).toEqual(["+ 2006年", "+ 少年"])
+    expect(q<HTMLInputElement>(".share-tags").value).toBe("マイタグ")
+    expect(q(".share-tags-note").textContent).toBe("1作品が見つかりませんでした")
+    // Picking a chip union-merges just that tag via the normal input path.
+    document.querySelectorAll<HTMLButtonElement>(".share-tag-chip")[1]?.click()
+    await vi.waitFor(() => expect(q<HTMLInputElement>(".share-tags").value).toBe("マイタグ 少年"))
+    // The picked chip now renders applied/disabled.
+    await vi.waitFor(() =>
+      expect(document.querySelector<HTMLButtonElement>(".share-tag-chip.added")?.textContent).toBe(
+        "少年",
+      ),
+    )
+    expect(document.querySelector<HTMLButtonElement>(".share-tag-chip.added")?.disabled).toBe(true)
+    await closeModal()
+    await open
+  })
+
+  it("タグ候補 failure shows a non-fatal note and keeps publish usable", async () => {
+    const local = playlist("p1", ["a"])
+    const manage = manageStub({
+      suggestTags: vi.fn(async () => reply("offline")),
+    })
+    const { dialog } = rig([local], [], manage)
+    const open = dialog.open("p1")
+    await vi.waitFor(() => expect(q(".share-tags-suggest")).not.toBeNull())
+    q<HTMLButtonElement>(".share-tags-suggest").click()
+    await vi.waitFor(() =>
+      expect(q(".share-tags-note").textContent).toBe("候補を取得できませんでした"),
+    )
+    expect(q(".share-tags-note").className).toContain("error")
+    // Publishing is untouched — the field keeps its typed value.
+    expect(q<HTMLInputElement>(".share-tags").value).toBe("")
+    await closeModal()
+    await open
   })
 
   it("pending records offer the resume-activation action", async () => {
