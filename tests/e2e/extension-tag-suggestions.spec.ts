@@ -149,12 +149,21 @@ test("tag suggestions: 候補 button posts {works} and merges api + local + type
       works: [{ title: "Fixture Work", workId: "work-a" }, { title: "Fixture Work" }],
     })
 
-    // Canonical merge: typed + api + local (kind "op" from the OP title,
-    // artists "LiSA"/"Aimer" from range.name parens) — sortCanonicalTags
-    // folds to lowercase, dedups, sorts, caps at SHARE_TAGS_MAX.
-    await expect(tagsInput).toHaveValue("2006年 aimer lisa op マイタグ 少年", {
-      timeout: 15_000,
-    })
+    // Candidates render as pick-one chips (api + local: kind "op" from the
+    // OP title, artists "LiSA"/"Aimer" from range.name parens) — the typed
+    // tag is NOT clobbered and nothing is auto-filled.
+    await expect(dialog.locator(".share-tag-chip")).toHaveCount(5, { timeout: 15_000 })
+    await expect(tagsInput).toHaveValue("マイタグ")
+
+    // Picking a chip union-merges just that tag (folded + sorted).
+    await dialog.locator(".share-tag-chip", { hasText: "aimer" }).click()
+    await expect(tagsInput).toHaveValue("aimer マイタグ")
+    await expect(dialog.locator(".share-tag-chip.added")).toHaveText("aimer")
+    await expect(dialog.locator(".share-tag-chip.added")).toBeDisabled()
+
+    // Picking a second chip merges on top.
+    await dialog.locator(".share-tag-chip", { hasText: "少年" }).click()
+    await expect(tagsInput).toHaveValue("aimer マイタグ 少年")
 
     // The unmatched line reports works the API could not match.
     await expect(dialog.locator(".share-tags-note")).toContainText("1作品が見つかりませんでした")

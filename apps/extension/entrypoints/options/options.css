@@ -662,9 +662,7 @@ button:disabled {
 
   .share-dialog {
     width: auto;
-    height: auto;
     min-height: 0;
-    max-height: 60vh;
   }
 
   .share-url-row {
@@ -929,16 +927,18 @@ button:disabled {
   cursor: default;
 }
 
-/* Task 15 share-management dialog (options page). The fixed footprint matches
-   the published state so the panel does not jump when 公開する lands — the URL
-   row, dirty badge and extra actions that appear after publish already fit. */
+/* Task 15 share-management dialog (options page). The minimum footprint
+   matches the published state so the panel does not jump when 公開する lands —
+   the URL row, dirty badge and extra actions that appear after publish
+   already fit. The dialog itself never scrolls: content taller than the
+   footprint grows the box and the surrounding .d-op-modal-panel scrolls —
+   one scrollbar instead of two nested ones. */
 .share-dialog {
   display: flex;
   flex-direction: column;
   gap: var(--dop-space-3);
   width: min(480px, calc(100vw - 96px));
-  height: min(580px, calc(80vh - 140px));
-  overflow-y: auto;
+  min-height: min(580px, calc(80vh - 140px));
 }
 
 .share-state {
@@ -1056,6 +1056,35 @@ button:disabled {
 
 .share-tags-field > .share-field {
   flex: 1 1 220px;
+}
+
+.share-tags-candidates {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dop-space-2);
+}
+
+/* Candidate chips: text-labeled pill buttons, click-to-add one tag each.
+   Already-applied chips render disabled via .added — no icon-only states. */
+.share-tag-chip {
+  padding: var(--dop-space-1) var(--dop-space-4);
+  border: 1px solid var(--dop-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dop-text-primary);
+  cursor: pointer;
+  font-family: var(--dop-font);
+  font-size: 12px;
+}
+
+.share-tag-chip:hover:not(:disabled) {
+  background: var(--dop-bg-elevated);
+}
+
+.share-tag-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .share-tags-note {

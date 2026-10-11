@@ -273,19 +273,25 @@ export function statusBlock(
   return nodes
 }
 
-/** Sidecar state for the tags field's 候補 button + its status line. */
+/** Sidecar state for the tags field's 候補 button, candidate chips + status line. */
 export type TagSuggestAccessory = {
   readonly busy: boolean
   readonly note: string
   readonly error: boolean
+  /** Canonical-folded candidates — the user picks each one; nothing is auto-applied. */
+  readonly candidates: readonly string[]
+  /** Folded tags already in the draft — matching chips render disabled. */
+  readonly applied: readonly string[]
   readonly onClick: () => void
+  readonly onPick: (tag: string) => void
 }
 
 /**
  * Tags field + the タグ候補を取得 button (text-labeled — never icon-only).
- * The button asks the background for tag suggestions; the note line carries
- * the unmatched count or a non-fatal fetch failure. When no suggestion
- * accessory is supplied the plain field is returned unchanged.
+ * The button asks the background for tag suggestions which render as a row
+ * of pick-one chips; the note line carries the unmatched count or a
+ * non-fatal fetch failure. When no suggestion accessory is supplied the
+ * plain field is returned unchanged.
  */
 export function tagsField(
   doc: Document,
@@ -314,6 +320,24 @@ export function tagsField(
       suggest.busy,
     ),
   )
+  if (suggest.candidates.length > 0) {
+    const applied = new Set(suggest.applied)
+    const chips = doc.createElement("div")
+    chips.className = "share-tags-candidates"
+    for (const tag of suggest.candidates) {
+      const picked = applied.has(tag)
+      const chip = actionButton(
+        doc,
+        picked ? tag : `+ ${tag}`,
+        "share-tag-chip",
+        () => suggest.onPick(tag),
+        suggest.busy || picked,
+      )
+      if (picked) chip.classList.add("added")
+      chips.appendChild(chip)
+    }
+    wrap.appendChild(chips)
+  }
   wrap.appendChild(line(doc, `share-tags-note${suggest.error ? " error" : ""}`, suggest.note))
   return wrap
 }

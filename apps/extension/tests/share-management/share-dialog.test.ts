@@ -215,7 +215,7 @@ describe("share-dialog", () => {
     fetchSpy.mockRestore()
   })
 
-  it("タグ候補 merges API + local + typed tags into the input and notes unmatched", async () => {
+  it("タグ候補 renders pick-one chips — nothing auto-filled; a pick merges one tag", async () => {
     const local = playlist("p1", ["a"])
     const manage = manageStub({
       suggestTags: vi.fn(async () =>
@@ -225,19 +225,29 @@ describe("share-dialog", () => {
     const { dialog } = rig([local], [], manage)
     const open = dialog.open("p1")
     await vi.waitFor(() => expect(q(".share-tags-suggest")).not.toBeNull())
-    // User-typed tags survive the union merge.
     const input = q<HTMLInputElement>(".share-tags")
     input.value = "マイタグ"
     input.dispatchEvent(new Event("input", { bubbles: true }))
     q<HTMLButtonElement>(".share-tags-suggest").click()
     await vi.waitFor(() => expect(manage.suggestTags).toHaveBeenCalledOnce())
     expect(manage.suggestTags).toHaveBeenCalledWith({ playlistId: "p1" })
-    await vi.waitFor(() => {
-      // sorted union: typed + api + local (Playlist p1 → "op" wait: name is
-      // "Playlist p1" — no kind marker; range.name "My OP" has no parens).
-      expect(q<HTMLInputElement>(".share-tags").value).toBe("2006年 マイタグ 少年")
-    })
+    // Candidates land as pick-one chips; the typed tag is NOT clobbered.
+    await vi.waitFor(() => expect(q(".share-tags-candidates")).not.toBeNull())
+    const chipLabels = (): (string | null)[] =>
+      Array.from(document.querySelectorAll(".share-tag-chip")).map((chip) => chip.textContent)
+    expect(chipLabels()).toEqual(["+ 2006年", "+ 少年"])
+    expect(q<HTMLInputElement>(".share-tags").value).toBe("マイタグ")
     expect(q(".share-tags-note").textContent).toBe("1作品が見つかりませんでした")
+    // Picking a chip union-merges just that tag via the normal input path.
+    document.querySelectorAll<HTMLButtonElement>(".share-tag-chip")[1]?.click()
+    await vi.waitFor(() => expect(q<HTMLInputElement>(".share-tags").value).toBe("マイタグ 少年"))
+    // The picked chip now renders applied/disabled.
+    await vi.waitFor(() =>
+      expect(document.querySelector<HTMLButtonElement>(".share-tag-chip.added")?.textContent).toBe(
+        "少年",
+      ),
+    )
+    expect(document.querySelector<HTMLButtonElement>(".share-tag-chip.added")?.disabled).toBe(true)
     await closeModal()
     await open
   })
