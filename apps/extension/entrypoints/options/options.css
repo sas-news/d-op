@@ -474,6 +474,7 @@ button:disabled {
 .item-edit-row {
   display: none;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--dop-space-3);
   margin-top: var(--dop-space-4);
   font-size: 12px;
@@ -1175,4 +1176,99 @@ button:disabled {
   .footer-links a {
     transition: none !important;
   }
+}
+
+/* Playlist filter at the top of the playlist section. */
+.playlist-search {
+  margin-bottom: var(--dop-space-5);
+}
+
+/* Per-playlist bulk selection. */
+.item-select-toggle.active {
+  background: var(--dop-accent-subtle);
+  color: var(--dop-accent-text);
+}
+
+.item-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--dop-space-3);
+  padding: var(--dop-space-3) var(--dop-space-6);
+  border-bottom: 1px solid var(--dop-border);
+  background: var(--dop-bg-elevated);
+}
+
+.item-bulk-count {
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dop-text-secondary);
+}
+
+.item-bulk-bar button {
+  padding: var(--dop-space-2) var(--dop-space-4);
+  font-size: 12px;
+}
+
+.item-select {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  flex-shrink: 0;
+  accent-color: var(--dop-accent);
+  cursor: pointer;
+}
+
+.drag-clone-block {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.drag-clone-block .item-row {
+  padding: var(--dop-space-4) var(--dop-space-5);
+  border-bottom: 1px solid var(--dop-border);
+  background: var(--dop-bg-panel);
+}
+
+.drag-clone-block .item-row:last-child {
+  border-bottom: none;
+}
+
+/* Time steppers in the edit row (same shared helper as the player bar). */
+.d-op-time-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.d-op-time-step {
+  min-width: 28px;
+  padding: 2px 4px;
+  border: 1px solid var(--dop-border-strong);
+  border-radius: var(--dop-radius-sm);
+  background: var(--dop-bg-elevated);
+  color: var(--dop-text-primary);
+  font-family: var(--dop-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.d-op-time-step:hover:not(:disabled) {
+  background: var(--dop-border-strong);
+}
+
+.d-op-time-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.item-edit-row .d-op-time-step {
+  min-width: 26px;
+  padding: 2px 4px;
+  font-family: var(--dop-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
 }

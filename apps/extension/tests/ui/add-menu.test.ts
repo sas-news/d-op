@@ -75,6 +75,8 @@ function makeDeps(): Harness {
     beginCustomPreview: async () => true,
     getCustomDraft: () => null,
     endCustomPreview: async () => {},
+    testRange: async () => true,
+    endRangeTest: () => {},
     currentUrl: () => PLAYER_URL,
     schedule: (callback, ms) => {
       const timer = { callback, ms }
@@ -175,6 +177,56 @@ describe("player/add-menu", () => {
     expect(added?.workId).toBe("w9")
     expect(added?.range).toEqual({ start: 0, end: 90_000, name: "OP" })
     expect(state.public.playlists).toHaveLength(3)
+    menu.dispose()
+  })
+
+  it("試聴 auditions the adjusted range, keeps the picker open and ends on close", async () => {
+    const { deps, commands } = makeDeps()
+    const tested: { startMs: number; endMs: number }[] = []
+    let ended = 0
+    const modalDeps: AddMenuDeps = {
+      ...deps,
+      testRange: async (range) => {
+        tested.push(range)
+        return true
+      },
+      endRangeTest: () => {
+        ended += 1
+      },
+    }
+    const menu = createAddMenu(document, modalDeps)
+    menu.refresh()
+    await settle()
+    ;(document.querySelector(".d-op-popup-item") as HTMLElement).click()
+    await settle()
+
+    expect(document.querySelector(".d-op-modal-range-label")?.textContent).toBe("0:00.0 - 1:30.0")
+    const fine = [
+      ...document.querySelectorAll<HTMLButtonElement>(".d-op-modal-range .d-op-time-step"),
+    ].find((button) => button.textContent === "+0.1")
+    fine?.click()
+    expect(document.querySelector(".d-op-modal-range-label")?.textContent).toBe("0:00.1 - 1:30.0")
+
+    const testButton = document.querySelector<HTMLButtonElement>(".d-op-modal-range-test")
+    testButton?.click()
+    await settle()
+    expect(tested).toEqual([{ startMs: 100, endMs: 90_000 }])
+    // The picker stays open for the 試聴 → 微調整 → 試聴 loop.
+    expect(document.getElementById("d-op-modal")).not.toBeNull()
+
+    // Add still commits the adjusted range.
+    ;(document.querySelector(".d-op-modal-playlist-item") as HTMLElement).click()
+    document.querySelector<HTMLButtonElement>(".d-op-modal-footer button.primary")?.click()
+    await settle()
+    const replace = commands.find((c) => c.kind === "replace-library") as
+      | Extract<LocalCommand, { kind: "replace-library" }>
+      | undefined
+    const p1 = replace?.playlists.find((playlist) => playlist.id === "p1")
+    expect(p1?.items.at(-1)?.range).toEqual({ start: 100, end: 90_000, name: "OP" })
+
+    document.querySelector<HTMLButtonElement>(".d-op-modal-footer button.primary")?.click()
+    await settle()
+    expect(ended).toBe(1)
     menu.dispose()
   })
 

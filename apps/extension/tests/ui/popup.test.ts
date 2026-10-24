@@ -16,7 +16,10 @@ const HTML = `
       <button id="shuffleFullBtn"></button><button id="shuffleHereBtn"></button>
     </div>
   </div>
-  <div id="playlistListSection"><div id="playlistList"></div></div>
+  <div id="playlistListSection">
+    <input id="playlistFilter" />
+    <div id="playlistList"></div>
+  </div>
   <button id="openOptions"></button><span id="popupVersion"></span>
 `
 
@@ -101,6 +104,33 @@ describe("ui/popup", () => {
     const items = document.querySelectorAll(".playlist-card-item")
     expect(items).toHaveLength(3)
     expect(items[0]?.querySelector(".item-range-name")?.textContent).toBe("My OP")
+    controller.dispose()
+  })
+
+  it("filter auto-expands item hits, collapses misses, and Escape clears", async () => {
+    const { deps } = makeDeps()
+    const controller = createPopupController(deps)
+    controller.start()
+    await settle()
+
+    const filter = document.getElementById("playlistFilter") as HTMLInputElement
+    filter.value = "Episode b"
+    filter.dispatchEvent(new Event("input"))
+    await settle()
+
+    const cards = [...document.querySelectorAll<HTMLElement>(".playlist-card")]
+    const p1 = cards.find((card) => card.dataset["playlistId"] === "p1")
+    const p2 = cards.find((card) => card.dataset["playlistId"] === "p2")
+    expect(p1?.classList.contains("expanded")).toBe(true)
+    // Popup filtering drives expansion, not row hiding (options hides rows).
+    expect(p1?.querySelectorAll(".playlist-card-item").length).toBe(3)
+    expect(p2?.classList.contains("expanded")).toBe(false)
+    expect(p2?.querySelectorAll(".playlist-card-item").length).toBe(0)
+
+    filter.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    await settle()
+    expect(filter.value).toBe("")
+    expect(document.querySelectorAll(".playlist-card.expanded").length).toBe(0)
     controller.dispose()
   })
 

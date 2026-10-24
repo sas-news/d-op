@@ -158,7 +158,16 @@ describe("player ui", () => {
     expect(bar).not.toBeNull()
     // Start/end are editable inputs (legacy .d-op-custom-bar-time-input).
     const startInput = bar?.querySelector("[data-dop-field='start']")
-    expect(startInput instanceof HTMLInputElement && startInput.value).toBe("0:05")
+    expect(startInput instanceof HTMLInputElement && startInput.value).toBe("0:05.0")
+    // Shared ±0.1s / ±1s steppers live next to each edge input.
+    const startSteps = [
+      ...(bar
+        ?.querySelector(".d-op-time-stepper")
+        ?.querySelectorAll<HTMLButtonElement>(".d-op-time-step") ?? []),
+    ]
+    expect(startSteps.map((button) => button.textContent)).toEqual(["-1", "-0.1", "+0.1", "+1"])
+    startSteps[2]?.click()
+    expect(drafts).toContainEqual({ startMs: 5_100 })
     ui.dispose()
     expect(document.getElementById("d-op-custom-bar")).toBeNull()
   })

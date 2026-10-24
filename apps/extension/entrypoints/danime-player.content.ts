@@ -94,6 +94,8 @@ export default defineContentScript({
       beginCustomPreview: () => orchestrator.customPreview.begin(),
       getCustomDraft: () => orchestrator.customPreview.draft(),
       endCustomPreview: () => orchestrator.customPreview.cancel(),
+      testRange: (range) => orchestrator.customPreview.testRange(range),
+      endRangeTest: () => orchestrator.customPreview.endRangeTest(),
       currentUrl: () => window.location.href,
       schedule: (callback, ms) => window.setTimeout(callback, ms),
       cancelTimer: (timer) => window.clearTimeout(timer as number),

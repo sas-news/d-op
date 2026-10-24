@@ -4,6 +4,7 @@
 // the list synchronously without a storage round-trip.
 
 import type { LocalPlaylist } from "../../../../packages/shared/src/local-model"
+import { itemMatchesFilter, normalizeFilterQuery } from "./filter"
 import type { PopupDeps } from "./popup"
 import type { PopupActions } from "./popup-actions"
 import { itemRowTexts, shuffleIcon } from "./popup-rows"
@@ -16,18 +17,22 @@ export type PickerContext = {
 }
 
 export type PlaylistPicker = {
-  readonly renderPlaylistList: (playlists: readonly LocalPlaylist[]) => void
+  readonly renderPlaylistList: (playlists: readonly LocalPlaylist[], filterQuery?: string) => void
 }
 
 export function createPlaylistPicker(ctx: PickerContext): PlaylistPicker {
   const { doc, deps, actions, render } = ctx
   let expandedPlaylistId: string | null = null
+  let activeFilter = ""
 
   const el = <T extends HTMLElement>(id: string): T | null => doc.getElementById(id) as T | null
 
-  function renderPlaylistList(playlists: readonly LocalPlaylist[]): void {
+  function renderPlaylistList(playlists: readonly LocalPlaylist[], filterQuery = ""): void {
     const list = el("playlistList")
     if (list === null) return
+    activeFilter = filterQuery
+    const query = normalizeFilterQuery(filterQuery)
+    const filtering = query !== ""
     list.replaceChildren()
     if (playlists.length === 0) {
       const empty = doc.createElement("div")
@@ -48,15 +53,21 @@ export function createPlaylistPicker(ctx: PickerContext): PlaylistPicker {
     }
 
     for (const playlist of playlists) {
+      const itemHits = filtering
+        ? playlist.items.filter((item) => itemMatchesFilter(item, query))
+        : playlist.items
+      // While filtering, item hits drive expansion; a name-only match stays
+      // collapsed so the card remains reachable without opening empty rows.
+      const expanded = filtering ? itemHits.length > 0 : expandedPlaylistId === playlist.id
       const card = doc.createElement("div")
-      card.className = `playlist-card${expandedPlaylistId === playlist.id ? " expanded" : ""}`
+      card.className = `playlist-card${expanded ? " expanded" : ""}`
       card.dataset["playlistId"] = playlist.id
 
       const header = doc.createElement("div")
       header.className = "playlist-card-header"
       header.addEventListener("click", () => {
         expandedPlaylistId = expandedPlaylistId === playlist.id ? null : playlist.id
-        renderPlaylistList(playlists)
+        renderPlaylistList(playlists, activeFilter)
         // The re-render replaces every node — put focus back on the card's
         // toggle so keyboard users do not drop to <body> (task 24).
         list
@@ -71,7 +82,7 @@ export function createPlaylistPicker(ctx: PickerContext): PlaylistPicker {
       const toggle = doc.createElement("button")
       toggle.type = "button"
       toggle.className = "playlist-card-toggle"
-      toggle.setAttribute("aria-expanded", String(expandedPlaylistId === playlist.id))
+      toggle.setAttribute("aria-expanded", String(expanded))
       toggle.setAttribute("aria-label", `${playlist.name}のクリップ一覧`)
       const title = doc.createElement("span")
       title.textContent = playlist.name
@@ -107,7 +118,7 @@ export function createPlaylistPicker(ctx: PickerContext): PlaylistPicker {
       header.append(toggle, playBtn, shuffleBtn)
       card.appendChild(header)
 
-      if (expandedPlaylistId === playlist.id) {
+      if (expanded) {
         const items = doc.createElement("div")
         items.className = "playlist-card-items"
         if (playlist.items.length === 0) {

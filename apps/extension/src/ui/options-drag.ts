@@ -14,6 +14,8 @@ export type DragState = {
   readonly itemsList: HTMLElement
   readonly playlistId: string
   readonly offsetY: number
+  /** Selected block being moved together (DOM order); defaults to [row]. */
+  readonly blockRows?: readonly HTMLElement[]
 }
 
 export type DragDeps = Pick<OptionsDeps, "storage" | "newId" | "schedule" | "log">
@@ -34,6 +36,32 @@ export type DragController = {
   readonly moveByKey: (row: HTMLElement, delta: -1 | 1) => boolean
 }
 
+/** Clone the row(s) being dragged. A multi-row selection becomes one floating
+ *  block so the whole selected run visibly follows the cursor. */
+export function createDragClone(
+  doc: Document,
+  rows: readonly HTMLElement[],
+  rect: { readonly width: number; readonly left: number; readonly top: number },
+): HTMLElement {
+  let clone: HTMLElement
+  if (rows.length <= 1) {
+    clone = (rows[0] ?? doc.createElement("div")).cloneNode(true) as HTMLElement
+    clone.classList.add("drag-clone")
+  } else {
+    clone = doc.createElement("div")
+    clone.className = "drag-clone drag-clone-block"
+    for (const row of rows) {
+      const rowClone = row.cloneNode(true) as HTMLElement
+      rowClone.classList.remove("dragging")
+      clone.appendChild(rowClone)
+    }
+  }
+  clone.style.width = `${rect.width}px`
+  clone.style.left = `${rect.left}px`
+  clone.style.top = `${rect.top}px`
+  return clone
+}
+
 /** Reduced-motion check routed through the row's own window — the options
  *  page has no injected matchMedia dep and jsdom may lack the API. */
 function prefersReducedMotion(element: HTMLElement): boolean {
@@ -52,7 +80,7 @@ export function createDragController(deps: DragDeps): DragController {
 
   /** flipAnimate (options.js:277-298) — FLIP transform on reorder. Skipped
    *  under prefers-reduced-motion (no-op animator keeps call sites intact). */
-  function flipAnimate(listEl: HTMLElement, skipRow: HTMLElement): () => void {
+  function flipAnimate(listEl: HTMLElement, skipRows: readonly HTMLElement[]): () => void {
     if (prefersReducedMotion(listEl)) return () => {}
     const firsts = new Map<string, number>()
     for (const row of listEl.querySelectorAll<HTMLElement>(".item-row")) {
@@ -61,7 +89,7 @@ export function createDragController(deps: DragDeps): DragController {
     }
     return () => {
       for (const row of listEl.querySelectorAll<HTMLElement>(".item-row")) {
-        if (row === skipRow) continue
+        if (skipRows.includes(row)) continue
         const prev = firsts.get(row.dataset["itemId"] ?? "")
         if (prev === undefined) continue
         const diff = prev - row.getBoundingClientRect().top
@@ -80,6 +108,8 @@ export function createDragController(deps: DragDeps): DragController {
     const state = dragState
     if (state === null) return
     const itemsList = state.itemsList
+    const block = state.blockRows ?? [state.row]
+    const blockSet = new Set(block)
     const listRect = itemsList.getBoundingClientRect()
     const rowH = state.row.getBoundingClientRect().height
     const minY = listRect.top
@@ -92,7 +122,7 @@ export function createDragController(deps: DragDeps): DragController {
     let target: HTMLElement | null = null
     let minDist = Number.POSITIVE_INFINITY
     for (const row of rows) {
-      if (row === state.row) continue
+      if (blockSet.has(row)) continue
       const mid = row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2
       const d = Math.abs(event.clientY - mid)
       if (d < minDist) {
@@ -103,9 +133,20 @@ export function createDragController(deps: DragDeps): DragController {
     if (target === null) return
     const rect = target.getBoundingClientRect()
     const mid = rect.top + rect.height / 2
-    const play = flipAnimate(itemsList, state.row)
-    if (event.clientY < mid) itemsList.insertBefore(state.row, target)
-    else itemsList.insertBefore(state.row, target.nextSibling)
+    const play = flipAnimate(itemsList, block)
+    if (event.clientY < mid) {
+      // Inserting each row before the same target preserves block order.
+      for (const row of block) itemsList.insertBefore(row, target)
+    } else {
+      // Anchor after `target`, skipping over block rows that may sit next to it
+      // so the block is inserted as one contiguous run.
+      let ref: Node | null = target.nextSibling
+      while (ref instanceof HTMLElement && blockSet.has(ref)) ref = ref.nextSibling
+      for (const row of block) {
+        if (ref === null) itemsList.appendChild(row)
+        else itemsList.insertBefore(row, ref)
+      }
+    }
     play()
   }
 
@@ -135,7 +176,7 @@ export function createDragController(deps: DragDeps): DragController {
       // clone survives when the animation cannot run.
       deps.schedule(() => state.clone.remove(), 400)
     }
-    state.row.classList.remove("dragging")
+    for (const row of state.blockRows ?? [state.row]) row.classList.remove("dragging")
     for (const row of state.itemsList.querySelectorAll<HTMLElement>(".item-row")) {
       row.style.transition = ""
       row.style.transform = ""
@@ -177,7 +218,7 @@ export function createDragController(deps: DragDeps): DragController {
     cancel: () => {
       if (dragState === null) return
       dragState.clone.remove()
-      dragState.row.classList.remove("dragging")
+      for (const row of dragState.blockRows ?? [dragState.row]) row.classList.remove("dragging")
       dragState = null
     },
     moveByKey: (row, delta) => {
@@ -185,10 +226,31 @@ export function createDragController(deps: DragDeps): DragController {
       if (listEl === null || !listEl.classList.contains("items-list")) return false
       const playlistId = (listEl as HTMLElement).dataset["playlistId"]
       if (playlistId === undefined) return false
-      const sibling = delta === -1 ? row.previousElementSibling : row.nextElementSibling
-      if (sibling === null || !sibling.classList.contains("item-row")) return false
-      if (delta === -1) listEl.insertBefore(row, sibling)
-      else listEl.insertBefore(row, sibling.nextElementSibling)
+      const rows = [...listEl.querySelectorAll<HTMLElement>(".item-row")]
+      // A checked row drags its whole checked block (same playlist only);
+      // otherwise ↑/↓ keeps the single-row behaviour.
+      const rowCheckbox = row.querySelector<HTMLInputElement>(".item-select")
+      const block =
+        rowCheckbox?.checked === true
+          ? rows.filter(
+              (candidate) => candidate.querySelector<HTMLInputElement>(".item-select")?.checked,
+            )
+          : [row]
+      const first = block[0] ?? row
+      const last = block[block.length - 1] ?? row
+      if (delta === -1) {
+        const previous = first.previousElementSibling
+        if (previous === null || !previous.classList.contains("item-row")) return false
+        for (const blockRow of block) listEl.insertBefore(blockRow, previous)
+      } else {
+        const next = last.nextElementSibling
+        if (next === null || !next.classList.contains("item-row")) return false
+        const ref = next.nextElementSibling
+        for (const blockRow of block) {
+          if (ref === null) listEl.appendChild(blockRow)
+          else listEl.insertBefore(blockRow, ref)
+        }
+      }
       // insertBefore runs remove+insert, which unfocuses the moved row's
       // control — re-focus it so repeated Arrow presses keep working until
       // the commit-driven re-render takes over (task 24).

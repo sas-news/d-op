@@ -12,6 +12,7 @@ const HTML = `
   <input id="newPlaylistName" /><button id="createPlaylistBtn"></button>
   <button id="exportBtn"></button><input id="importFile" type="file" />
   <div id="importStatus"></div>
+  <input id="playlistSearch" />
   <label><input type="radio" name="windowMode" value="window" /></label>
   <label><input type="radio" name="windowMode" value="tab" /></label>
   <div id="playlistsContainer"></div>
@@ -256,6 +257,186 @@ describe("ui/options", () => {
     expect(target?.items[1]?.partId).toBe("part-a")
     const replace = commands.find((c) => c.kind === "replace-library")
     expect(replace).toBeDefined()
+    controller.dispose()
+  })
+
+  it("filter hides non-matching rows and collapses playlists with zero hits", async () => {
+    const { deps } = makeDeps()
+    const controller = createOptionsController(deps)
+    controller.start()
+    await settle()
+    const search = document.getElementById("playlistSearch") as HTMLInputElement
+    search.value = "Episode b"
+    search.dispatchEvent(new Event("input"))
+    await settle()
+
+    const cards = [...document.querySelectorAll<HTMLElement>(".playlist-card")]
+    const p1 = cards.find((card) => card.dataset["playlistId"] === "p1")
+    const p2 = cards.find((card) => card.dataset["playlistId"] === "p2")
+    expect(p1?.classList.contains("collapsed")).toBe(false)
+    expect(p1?.querySelectorAll(".item-row").length).toBe(1)
+    expect(p1?.querySelector(".item-row")?.getAttribute("data-item-id")).toBe("b")
+    // p2 has no matching item/name → collapsed with no rows.
+    expect(p2?.classList.contains("collapsed")).toBe(true)
+    expect(p2?.querySelectorAll(".item-row").length).toBe(0)
+
+    // Escape clears the search and restores the persisted (collapsed) view.
+    search.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    await settle()
+    expect(search.value).toBe("")
+    expect(document.querySelectorAll(".item-row").length).toBe(4)
+    controller.dispose()
+  })
+
+  it("bulk selection deletes the checked rows with one count confirmation", async () => {
+    const { deps, state } = makeDeps()
+    const controller = createOptionsController(deps)
+    controller.start()
+    await settle()
+
+    const card = document.querySelector<HTMLElement>(".playlist-card[data-playlist-id='p1']")
+    const selectToggle = [...(card?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find(
+      (button) => button.textContent === "選択",
+    )
+    selectToggle?.click()
+    await settle()
+    const selectedCard = document.querySelector<HTMLElement>(
+      ".playlist-card[data-playlist-id='p1']",
+    )
+    const checkboxes = selectedCard?.querySelectorAll<HTMLInputElement>(".item-select") ?? []
+    expect(checkboxes.length).toBe(3)
+    for (const checkbox of [checkboxes[0], checkboxes[2]]) {
+      if (checkbox !== undefined) {
+        checkbox.checked = true
+        checkbox.dispatchEvent(new Event("change"))
+      }
+    }
+    expect(selectedCard?.querySelector(".item-bulk-count")?.textContent).toBe("2件選択")
+    const bulkButtons = [
+      ...(selectedCard?.querySelectorAll<HTMLButtonElement>(".item-bulk-bar button") ?? []),
+    ]
+    expect(bulkButtons.map((button) => button.textContent)).toEqual(["コピー", "削除"])
+
+    ;(bulkButtons.find((button) => button.textContent === "削除") as HTMLButtonElement).click()
+    await settle()
+    expect(document.querySelector(".d-op-modal-body")?.textContent).toContain("2件")
+    document.querySelector<HTMLButtonElement>(".d-op-modal-footer button.primary")?.click()
+    await settle()
+    expect(state.public.playlists.find((p) => p.id === "p1")?.items.map((i) => i.id)).toEqual(["b"])
+    controller.dispose()
+  })
+
+  it("bulk copy reuses the copy dialog and copies every selected row", async () => {
+    const { deps, state } = makeDeps()
+    const controller = createOptionsController(deps)
+    controller.start()
+    await settle()
+
+    const card = document.querySelector<HTMLElement>(".playlist-card[data-playlist-id='p1']")
+    const selectToggle = [...(card?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find(
+      (button) => button.textContent === "選択",
+    )
+    selectToggle?.click()
+    await settle()
+    const selectedCard = document.querySelector<HTMLElement>(
+      ".playlist-card[data-playlist-id='p1']",
+    )
+    const checkboxes = selectedCard?.querySelectorAll<HTMLInputElement>(".item-select") ?? []
+    for (const checkbox of [checkboxes[0], checkboxes[1]]) {
+      if (checkbox !== undefined) {
+        checkbox.checked = true
+        checkbox.dispatchEvent(new Event("change"))
+      }
+    }
+    const copyButton = selectedCard?.querySelector<HTMLButtonElement>(".item-bulk-bar button")
+    copyButton?.click()
+    await settle()
+    ;(document.querySelector(".d-op-modal-playlist-item") as HTMLElement).click()
+    await settle()
+    const p2 = state.public.playlists.find((p) => p.id === "p2")
+    expect(p2?.items.map((item) => item.id)).toHaveLength(3)
+    expect(p2?.items.slice(1).map((item) => item.partId)).toEqual(["part-a", "part-b"])
+    controller.dispose()
+  })
+
+  it("dragging a checked row moves the whole selected block together", async () => {
+    const { deps, commands } = makeDeps()
+    const controller = createOptionsController(deps)
+    controller.start()
+    await settle()
+
+    const card = document.querySelector<HTMLElement>(".playlist-card[data-playlist-id='p1']")
+    const selectToggle = [...(card?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find(
+      (button) => button.textContent === "選択",
+    )
+    selectToggle?.click()
+    await settle()
+    const selectedCard = document.querySelector<HTMLElement>(
+      ".playlist-card[data-playlist-id='p1']",
+    )
+    const checkboxes = selectedCard?.querySelectorAll<HTMLInputElement>(".item-select") ?? []
+    for (const checkbox of [checkboxes[1], checkboxes[2]]) {
+      if (checkbox !== undefined) {
+        checkbox.checked = true
+        checkbox.dispatchEvent(new Event("change"))
+      }
+    }
+    const rowB = selectedCard?.querySelector<HTMLElement>(".item-row[data-item-id='b']")
+    rowB
+      ?.querySelector<HTMLElement>(".drag-grip")
+      ?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientY: 0 }))
+    // jsdom rects are all zero: a y above the midpoint inserts before row a.
+    document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientY: -1 }))
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }))
+    await settle()
+
+    const replace = commands.find((c) => c.kind === "replace-library") as
+      | Extract<LocalCommand, { kind: "replace-library" }>
+      | undefined
+    expect(replace?.playlists.find((p) => p.id === "p1")?.items.map((i) => i.id)).toEqual([
+      "b",
+      "c",
+      "a",
+    ])
+    controller.dispose()
+  })
+
+  it("keyboard move on a checked row moves the whole block preserving order", async () => {
+    const { deps, commands } = makeDeps()
+    const controller = createOptionsController(deps)
+    controller.start()
+    await settle()
+
+    const card = document.querySelector<HTMLElement>(".playlist-card[data-playlist-id='p1']")
+    const selectToggle = [...(card?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find(
+      (button) => button.textContent === "選択",
+    )
+    selectToggle?.click()
+    await settle()
+    const selectedCard = document.querySelector<HTMLElement>(
+      ".playlist-card[data-playlist-id='p1']",
+    )
+    const checkboxes = selectedCard?.querySelectorAll<HTMLInputElement>(".item-select") ?? []
+    // Select b + c, then move the block up one step → b, c, a.
+    for (const checkbox of [checkboxes[1], checkboxes[2]]) {
+      if (checkbox !== undefined) {
+        checkbox.checked = true
+        checkbox.dispatchEvent(new Event("change"))
+      }
+    }
+    const rowB = selectedCard?.querySelector<HTMLElement>(".item-row[data-item-id='b']")
+    rowB
+      ?.querySelector<HTMLElement>(".drag-grip")
+      ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }))
+    await settle()
+    const replace = commands.find((c) => c.kind === "replace-library") as
+      | Extract<LocalCommand, { kind: "replace-library" }>
+      | undefined
+    expect(replace?.playlists.find((p) => p.id === "p1")?.items.map((i) => i.id)).toEqual([
+      "b",
+      "c",
+      "a",
+    ])
     controller.dispose()
   })
 

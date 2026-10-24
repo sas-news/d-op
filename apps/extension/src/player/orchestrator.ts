@@ -21,9 +21,11 @@ import { decideEnforcement, type PlayerModeKind } from "./enforcement"
 import {
   beginCustomPreview,
   cancelCustomPreview,
+  endRangeTest,
   enterOpEdMode,
   startWorkPageRange,
   testCustomPreview,
+  testRange,
   updateCustomDraft,
 } from "./mode-flow"
 import {
@@ -59,6 +61,13 @@ export type CustomPreviewApi = {
     readonly name?: string
   }) => void
   readonly test: () => Promise<boolean>
+  /** 試聴 an explicit range without changing the visible mode (add modal). */
+  readonly testRange: (range: {
+    readonly startMs: number
+    readonly endMs: number
+  }) => Promise<boolean>
+  /** Drop the modal 試聴 override when the picker closes. */
+  readonly endRangeTest: () => void
   readonly cancel: () => Promise<void>
   /** Live draft for the add-menu's '追加' button; null outside selection. */
   readonly draft: () => CustomDraft | null
@@ -154,10 +163,13 @@ export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
     const video = deps.getVideo()
     if (video === undefined) return // legacy returns early without a video
     const state = ctx.state
+    // A modal 試聴 overrides the underlying mode with the custom-test shape:
+    // no playlist advance/retarget, and the preview range is the only target.
+    const previewing = ctx.previewRange !== null
     const decision = decideEnforcement({
-      mode: state.mode,
-      hasPlayback: state.mode === "playlist",
-      fullEpisode: state.mode === "playlist" && state.playback.item.range === null,
+      mode: previewing ? "custom-preview" : state.mode,
+      hasPlayback: state.mode === "playlist" && !previewing,
+      fullEpisode: state.mode === "playlist" && !previewing && state.playback.item.range === null,
       ranges: enforcedRanges(ctx),
       positionMs: video.currentTime * 1000,
       durationMs: Number.isFinite(video.duration)
@@ -168,7 +180,7 @@ export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
       now: deps.now(),
       lastActionAt: ctx.lastActionAt,
       cooldownUntil: ctx.cooldownUntil,
-      sameVideoItems: ctx.sameVideoItems,
+      sameVideoItems: previewing ? [] : ctx.sameVideoItems,
       currentItemId: state.mode === "playlist" ? state.playback.currentItemId : null,
     })
     switch (decision.kind) {
@@ -298,6 +310,8 @@ export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
     }))
     if (partIdChanged) {
       ctx.partId = partId
+      // A modal 試聴 belongs to the old part's timeline.
+      ctx.previewRange = null
       if (ctx.state.mode === "idle") {
         resetNativeSkip(ctx)
       } else if (ctx.state.mode === "op-ed") {
@@ -393,6 +407,8 @@ export function createPlayerOrchestrator(deps: PlayerDeps): PlayerOrchestrator {
       begin: () => beginCustomPreview(ctx),
       updateDraft: (patch) => updateCustomDraft(ctx, patch),
       test: () => testCustomPreview(ctx),
+      testRange: (range) => testRange(ctx, range, { modal: true }),
+      endRangeTest: () => endRangeTest(ctx),
       cancel: () => cancelCustomPreview(ctx),
       draft: () => (ctx.state.mode === "custom-preview" ? ctx.state.draft : null),
     },

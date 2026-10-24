@@ -413,6 +413,63 @@ describe("player orchestrator", () => {
     expect((await transientOf(h.driver)).playback?.ownerToken).toBe(foreignToken)
   })
 
+  it("testRange auditions an explicit range without entering custom-preview", async () => {
+    const h = makeHarness({ videoFollowsCommands: true })
+    const orchestrator = createPlayerOrchestrator(h.deps)
+    await orchestrator.handleChapters(CHAPTERS)
+    await settle()
+    h.commands.length = 0
+    expect(await orchestrator.customPreview.testRange({ startMs: 20_000, endMs: 40_000 })).toBe(
+      true,
+    )
+    // Visible mode stays idle; only SEEK + PLAY fire.
+    expect(orchestrator.mode()).toBe("idle")
+    expect(h.commands.map((c) => c.type)).toEqual(["SEEK", "PLAY"])
+    expect(h.commands[0]).toMatchObject({ type: "SEEK", timeMs: 20_000 })
+    // Enforcement uses the custom-test shape: past the preview end pauses
+    // instead of advancing/retargeting an underlying mode.
+    h.setNow(1_010_000)
+    h.video.currentTime = 60
+    h.video.fire("timeupdate")
+    await settle()
+    expect(h.commands.map((c) => c.type)).toContain("PAUSE")
+    // Dropping the override returns the player to plain idle enforcement.
+    orchestrator.customPreview.endRangeTest()
+    h.commands.length = 0
+    h.video.currentTime = 90
+    h.video.fire("timeupdate")
+    await settle()
+    expect(h.commands).toEqual([])
+  })
+
+  it("modal 試聴 overrides the custom-preview draft range until it closes", async () => {
+    const h = makeHarness({ videoFollowsCommands: true })
+    const orchestrator = createPlayerOrchestrator(h.deps)
+    await orchestrator.handleChapters(CHAPTERS)
+    await settle()
+    expect(await orchestrator.customPreview.begin()).toBe(true)
+    orchestrator.customPreview.updateDraft({ startMs: 0, endMs: 10_000, name: "draft" })
+    expect(await orchestrator.customPreview.testRange({ startMs: 20_000, endMs: 30_000 })).toBe(
+      true,
+    )
+    h.commands.length = 0
+    h.setNow(1_010_000)
+    // 15 s is outside the modal range but beyond the draft end: the modal
+    // override must win, so enforcement seeks back to 20 s (not pause/advance).
+    h.video.currentTime = 15
+    h.video.fire("timeupdate")
+    await settle()
+    expect(h.commands).toContainEqual(expect.objectContaining({ type: "SEEK", timeMs: 20_000 }))
+    // Closing the picker drops the override and returns to the draft.
+    orchestrator.customPreview.endRangeTest()
+    h.commands.length = 0
+    h.video.currentTime = 5
+    h.video.fire("timeupdate")
+    await settle()
+    expect(h.commands).toEqual([])
+    await orchestrator.customPreview.cancel()
+  })
+
   it("enforces custom-preview test playback and cancels cleanly", async () => {
     const h = makeHarness({ videoFollowsCommands: true })
     const orchestrator = createPlayerOrchestrator(h.deps)

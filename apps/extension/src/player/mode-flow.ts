@@ -54,6 +54,7 @@ export async function enterOpEdMode(ctx: PlayerContext, startIndex = 0): Promise
   ctx.generation += 1
   ctx.sameVideoItems = []
   ctx.playlistName = ""
+  ctx.previewRange = null
   ctx.state = { mode: "op-ed", ranges, rangeIndex: index }
   setNativeSkip(ctx, true, false)
   ctx.deps.setOpEdSessionFlag(true)
@@ -112,6 +113,7 @@ export async function beginCustomPreview(ctx: PlayerContext): Promise<boolean> {
     await stopPlayback(ctx)
   }
   ctx.generation += 1
+  ctx.previewRange = null
   ctx.state = {
     mode: "custom-preview",
     draft: { startMs: null, endMs: null, name: "" },
@@ -143,14 +145,21 @@ export function updateCustomDraft(
 }
 
 /**
- * Test-play the draft range (content.js:1307-1321): validates start<end,
- * restores the native skip cookie without blocking auto-advance, seeks, plays.
+ * Seek + play a range for audition without changing modes (extracted from the
+ * original testCustomPreview so the add-modal picker can use it). Invalid
+ * ranges surface the same custom modal as the custom bar.
+ *
+ * Enforcement treatment matches custom-test: in custom-preview the draft is
+ * marked testing; from any other mode the range is installed as
+ * ctx.previewRange, which enforcedRanges()/enforce() treat as a testing range
+ * until endRangeTest() runs when the picker closes.
  */
-export async function testCustomPreview(ctx: PlayerContext): Promise<boolean> {
-  if (ctx.state.mode !== "custom-preview") return false
-  const draft = ctx.state.draft
-  if (draft.startMs === null || draft.endMs === null) return false
-  if (draft.startMs >= draft.endMs) {
+export async function testRange(
+  ctx: PlayerContext,
+  range: { readonly startMs: number; readonly endMs: number },
+  options: { readonly modal?: boolean } = {},
+): Promise<boolean> {
+  if (range.startMs >= range.endMs) {
     await ctx.deps.showModal({
       title: "エラー",
       body: "開始地点は終了地点より前に設定してください。",
@@ -158,18 +167,43 @@ export async function testCustomPreview(ctx: PlayerContext): Promise<boolean> {
     })
     return false
   }
-  ctx.state = { ...ctx.state, testing: true }
+  const customPreview = ctx.state.mode === "custom-preview"
+  if (ctx.state.mode === "custom-preview") {
+    ctx.state = { ...ctx.state, testing: true }
+    renderPlayerUi(ctx)
+  }
+  // The custom bar's own テスト keeps enforcing the live draft; the add-modal
+  // 試聴 installs an explicit override even while custom-preview is active.
+  if (!customPreview || options.modal === true) {
+    ctx.previewRange = { startMs: range.startMs, endMs: range.endMs, name: "" }
+  }
   setNativeSkip(ctx, true, false)
-  renderPlayerUi(ctx)
-  sendCommand(ctx, { source: PAGE_MESSAGE_SOURCE, type: "SEEK", timeMs: draft.startMs })
+  sendCommand(ctx, { source: PAGE_MESSAGE_SOURCE, type: "SEEK", timeMs: range.startMs })
   sendCommand(ctx, { source: PAGE_MESSAGE_SOURCE, type: "PLAY" })
   return true
+}
+
+/** Drop a modal 試聴 override; custom-preview keeps its testing state. */
+export function endRangeTest(ctx: PlayerContext): void {
+  ctx.previewRange = null
+}
+
+/**
+ * Test-play the draft range (content.js:1307-1321): validates start<end,
+ * restores the native skip cookie without blocking auto-advance, seeks, plays.
+ */
+export async function testCustomPreview(ctx: PlayerContext): Promise<boolean> {
+  if (ctx.state.mode !== "custom-preview") return false
+  const draft = ctx.state.draft
+  if (draft.startMs === null || draft.endMs === null) return false
+  return testRange(ctx, { startMs: draft.startMs, endMs: draft.endMs })
 }
 
 /** Cancel the bar (content.js:1340-1352): cookie restore + back to idle. */
 export async function cancelCustomPreview(ctx: PlayerContext): Promise<void> {
   if (ctx.state.mode !== "custom-preview") return
   ctx.generation += 1
+  ctx.previewRange = null
   resetNativeSkip(ctx)
   ctx.state = { mode: "idle" }
   renderPlayerUi(ctx)

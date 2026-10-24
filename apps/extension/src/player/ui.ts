@@ -4,7 +4,8 @@
 // popup label (content.js:696-786, 799-864, 1009-1065, 1233-1429). All nodes
 // are idempotent, removed on idle/dispose, and aligned to the native 50px
 // .buttonArea bar. The ♪ add menu lives in add-menu.ts.
-import { parseTimeInput } from "../ui/format"
+import { formatSecTenths, parseTimeInput } from "../ui/format"
+import { createTimeStepper } from "../ui/time-stepper"
 import { PANEL_HIDE_DELAY_MS } from "./constants"
 import type { PlayerUiSnapshot, PlayerVideo, SeekMarker } from "./runtime"
 
@@ -263,6 +264,8 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
     const host = body()
     if (host === null) return
     let bar = doc.getElementById("d-op-custom-bar") as HTMLElement | null
+    let startStepper: ReturnType<typeof createTimeStepper> | null = null
+    let endStepper: ReturnType<typeof createTimeStepper> | null = null
     if (!snapshot.customBar.visible) {
       bar?.remove()
       return
@@ -283,10 +286,20 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
         const ms = parseTimeInput(startInput.value)
         if (ms !== null) {
           deps.onCustomDraft({ startMs: ms })
-          // Legacy reformats the input to canonical m:ss after a valid parse.
-          startInput.value = formatTime(ms)
+          // Reformat to the canonical tenths form after a valid parse.
+          startInput.value = formatSecTenths(ms)
         }
+        startStepper?.sync()
       })
+      const createdStartStepper = createTimeStepper(doc, {
+        label: "開始",
+        getValue: () => parseTimeInput(startInput.value),
+        onChange: (ms) => {
+          startInput.value = formatSecTenths(ms)
+          deps.onCustomDraft({ startMs: ms })
+        },
+      })
+      startStepper = createdStartStepper
       const sep = doc.createElement("span")
       sep.className = "d-op-custom-bar-time-sep"
       sep.textContent = " - "
@@ -300,9 +313,19 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
         const ms = parseTimeInput(endInput.value)
         if (ms !== null) {
           deps.onCustomDraft({ endMs: ms })
-          endInput.value = formatTime(ms)
+          endInput.value = formatSecTenths(ms)
         }
+        endStepper?.sync()
       })
+      const createdEndStepper = createTimeStepper(doc, {
+        label: "終了",
+        getValue: () => parseTimeInput(endInput.value),
+        onChange: (ms) => {
+          endInput.value = formatSecTenths(ms)
+          deps.onCustomDraft({ endMs: ms })
+        },
+      })
+      endStepper = createdEndStepper
       const startNow = doc.createElement("button")
       startNow.type = "button"
       startNow.textContent = "開始"
@@ -341,7 +364,19 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       cancel.type = "button"
       cancel.textContent = "キャンセル"
       cancel.addEventListener("click", deps.onCustomCancel)
-      bar.append(startInput, sep, endInput, startNow, endNow, name, test, add, cancel)
+      bar.append(
+        startInput,
+        createdStartStepper.element,
+        sep,
+        endInput,
+        createdEndStepper.element,
+        startNow,
+        endNow,
+        name,
+        test,
+        add,
+        cancel,
+      )
       host.appendChild(bar)
       lastCustomName = undefined
       lastCustomStart = undefined
@@ -359,11 +394,13 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       if (!(input instanceof HTMLInputElement)) return
       if (last === ms) return
       if (doc.activeElement === input) return
-      const value = ms === null ? "" : formatTime(ms)
+      const value = ms === null ? "" : formatSecTenths(ms)
       if (input.value !== value) input.value = value
     }
     syncTime(field("start"), snapshot.customBar.startMs, lastCustomStart)
     syncTime(field("end"), snapshot.customBar.endMs, lastCustomEnd)
+    startStepper?.sync()
+    endStepper?.sync()
     if (doc.activeElement !== field("start")) lastCustomStart = snapshot.customBar.startMs
     if (doc.activeElement !== field("end")) lastCustomEnd = snapshot.customBar.endMs
     const nameInput = field("name")

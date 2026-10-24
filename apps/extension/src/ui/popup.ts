@@ -41,6 +41,7 @@ export function createPopupController(deps: PopupDeps): PopupController {
   let renderRunning = false
   let unsubscribe: (() => void) | null = null
   let disposed = false
+  let filterQuery = ""
 
   const el = <T extends HTMLElement>(id: string): T | null => doc.getElementById(id) as T | null
 
@@ -140,7 +141,7 @@ export function createPopupController(deps: PopupDeps): PopupController {
     if (stored === undefined || playlist === undefined || restored === null) {
       playbackSection?.classList.add("hidden")
       listSection?.classList.remove("hidden")
-      picker.renderPlaylistList(playlists)
+      picker.renderPlaylistList(playlists, filterQuery)
       return
     }
 
@@ -149,7 +150,7 @@ export function createPopupController(deps: PopupDeps): PopupController {
     if (position < 0 || currentItem === undefined) {
       playbackSection?.classList.add("hidden")
       listSection?.classList.remove("hidden")
-      picker.renderPlaylistList(playlists)
+      picker.renderPlaylistList(playlists, filterQuery)
       return
     }
 
@@ -201,6 +202,18 @@ export function createPopupController(deps: PopupDeps): PopupController {
   return {
     start: () => {
       const versionEl = el("popupVersion")
+      const filterInput = el<HTMLInputElement>("playlistFilter")
+      filterInput?.addEventListener("input", () => {
+        filterQuery = filterInput.value
+        render()
+      })
+      filterInput?.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return
+        event.preventDefault()
+        filterInput.value = ""
+        filterQuery = ""
+        render()
+      })
       if (versionEl !== null) versionEl.textContent = `d-OP v${deps.version}`
       el<HTMLButtonElement>("prevBtn")?.addEventListener("click", () =>
         actions.forward({ type: "PLAYLIST_PREV" }),

@@ -695,3 +695,89 @@ body.d-op-skip-hidden .skipUi {
     transition: none;
   }
 }
+
+/* --- Range fine-tuning steppers (shared by custom bar + add modal) -------- */
+
+.d-op-time-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.d-op-time-step {
+  min-width: 26px;
+  padding: 2px 4px;
+  border: 1px solid var(--dop-border-strong);
+  border-radius: var(--dop-radius-sm);
+  background: var(--dop-bg-elevated);
+  color: var(--dop-text-primary);
+  font-family: var(--dop-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.d-op-time-step:hover:not(:disabled) {
+  background: var(--dop-border-strong);
+}
+
+.d-op-time-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.d-op-modal-range {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--dop-space-3);
+  margin-bottom: var(--dop-space-5);
+  padding: var(--dop-space-3) var(--dop-space-4);
+  border: 1px solid var(--dop-border);
+  border-radius: var(--dop-radius-md);
+  background: var(--dop-bg-elevated);
+}
+
+.d-op-modal-range-label {
+  color: var(--dop-text-primary);
+  font-family: var(--dop-font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 104px;
+}
+
+.d-op-modal-range-test {
+  margin-left: auto;
+  padding: var(--dop-space-3) var(--dop-space-5);
+  border: 1px solid var(--dop-accent);
+  border-radius: var(--dop-radius-sm);
+  background: var(--dop-bg-panel);
+  color: var(--dop-accent-text);
+  font-family: var(--dop-font);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.d-op-modal-range-test:hover {
+  background: var(--dop-accent-subtle);
+}
+
+.d-op-custom-bar .d-op-time-step {
+  min-width: 24px;
+  padding: 2px 4px;
+  font-family: var(--dop-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.d-op-modal-range-error {
+  flex-basis: 100%;
+  color: var(--dop-danger);
+  font-size: 12px;
+}
+
+.d-op-modal-range-error[hidden] {
+  display: none;
+}

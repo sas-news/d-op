@@ -169,6 +169,10 @@ export type PlayerContext = {
    *  overlay's library half (content.js:925-948). Refreshed from the public
    *  snapshot on chapters arrival + storage changes (debounced). */
   libraryRanges: readonly NamedRange[]
+  /** Ad-hoc 試聴 range from the add-modal picker. While set, enforcement uses
+   *  it with the same "testing" treatment as custom-test, without changing the
+   *  visible mode. Cleared when the picker closes or a real mode starts. */
+  previewRange: NamedRange | null
   seekingStart: boolean
   cooldownUntil: number
   startupLockUntil: number
@@ -191,6 +195,7 @@ export function createContext(deps: PlayerDeps): PlayerContext {
     playlistName: "",
     sameVideoItems: [],
     libraryRanges: [],
+    previewRange: null,
     seekingStart: false,
     cooldownUntil: 0,
     startupLockUntil: 0,
@@ -221,6 +226,11 @@ export function currentPartId(ctx: PlayerContext): string | null {
 
 /** Ranges currently enforced for the active mode (legacy targetRanges). */
 export function enforcedRanges(ctx: PlayerContext): readonly EnforcedRange[] {
+  // Modal 試聴 takes precedence: it must be treated like custom-test even while
+  // an underlying playlist/op-ed mode is active.
+  if (ctx.previewRange !== null) {
+    return [{ startMs: ctx.previewRange.startMs, endMs: ctx.previewRange.endMs }]
+  }
   const state = ctx.state
   switch (state.mode) {
     case "playlist": {
@@ -475,6 +485,7 @@ export async function stopPlayback(ctx: PlayerContext): Promise<void> {
   ctx.state = { mode: "idle" }
   ctx.sameVideoItems = []
   ctx.playlistName = ""
+  ctx.previewRange = null
   ctx.seekingStart = false
   ctx.cooldownUntil = 0
   ctx.lastActionAt = 0

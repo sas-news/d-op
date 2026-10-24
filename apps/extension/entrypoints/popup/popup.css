@@ -621,3 +621,22 @@ p.empty {
     transition: none;
   }
 }
+
+/* Playlist filter — sits directly above #playlistList. */
+.playlist-filter {
+  width: 100%;
+  margin-bottom: var(--dop-space-4);
+  padding: var(--dop-space-3) var(--dop-space-4);
+  border: 1px solid var(--dop-border-strong);
+  border-radius: var(--dop-radius-sm);
+  background: var(--dop-bg-panel);
+  color: var(--dop-text-primary);
+  font-family: var(--dop-font);
+  font-size: 12px;
+}
+
+.playlist-filter:focus {
+  border-color: var(--dop-accent);
+  box-shadow: 0 0 0 3px var(--dop-accent-subtle);
+  outline: none;
+}

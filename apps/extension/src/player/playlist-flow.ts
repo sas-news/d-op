@@ -103,6 +103,7 @@ export async function startPlaylistItem(
   )
   if (reconciled.kind !== "ready") return
   ctx.generation += 1
+  ctx.previewRange = null
   ctx.playlistName = playlist.name
   ctx.state = {
     mode: "playlist",
@@ -136,6 +137,7 @@ export async function playResolvedItem(
 ): Promise<void> {
   if (item.partId === currentPartId(ctx)) {
     ctx.generation += 1
+    ctx.previewRange = null
     ctx.state = { mode: "playlist", playback }
     refreshSameVideoItems(ctx, playlist)
     armPlaybackStart(ctx, true)
@@ -150,6 +152,7 @@ export async function playResolvedItem(
   // Cross-episode: persist order first so the next page restores it
   // (content.js:317-327), then hand the URL to the background singleton.
   ctx.generation += 1
+  ctx.previewRange = null
   ctx.state = { mode: "playlist", playback }
   renderPlayerUi(ctx)
   await persistQuietly(ctx, playlist)

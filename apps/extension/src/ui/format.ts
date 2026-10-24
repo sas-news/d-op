@@ -12,17 +12,38 @@ export function formatSec(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`
 }
 
-/** Legacy `parseTimeInput` (common.js:120-132): "m:ss" or seconds → ms. */
+/** Edit-surface formatter: milliseconds → "m:ss.s" (100 ms precision, floored).
+ *  Whole-second displays keep using `formatSec`; only edit UIs/steppers show
+ *  the tenths so no existing list/count rendering changes. */
+export function formatSecTenths(ms: number): string {
+  const totalTenths = Math.max(0, Math.floor(ms / 100))
+  const minutes = Math.floor(totalTenths / 600)
+  const seconds = Math.floor(totalTenths / 10) % 60
+  const tenths = totalTenths % 10
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths}`
+}
+
+/** Round a seconds value to the 100 ms editing grid before converting to ms. */
+function secondsToEditingMs(seconds: number): number {
+  return Math.round(seconds * 10) * 100
+}
+
+/** Legacy `parseTimeInput` (common.js:120-132) plus sub-second support:
+ *  "m:ss", "m:ss.s" and raw seconds → ms rounded to 100 ms steps. */
 export function parseTimeInput(input: string): number | null {
   if (!input) return null
-  const parts = String(input).trim().split(":")
+  const text = String(input).trim()
+  if (text === "") return null
+  const parts = text.split(":")
   if (parts.length === 2) {
     const minutes = Number.parseInt(parts[0] ?? "", 10)
-    const seconds = Number.parseInt(parts[1] ?? "", 10)
-    if (!Number.isNaN(minutes) && !Number.isNaN(seconds)) return (minutes * 60 + seconds) * 1000
+    const seconds = Number.parseFloat(parts[1] ?? "")
+    if (!Number.isNaN(minutes) && !Number.isNaN(seconds)) {
+      return secondsToEditingMs(minutes * 60 + seconds)
+    }
   }
-  const secondsFloat = Number.parseFloat(input)
-  if (!Number.isNaN(secondsFloat)) return Math.floor(secondsFloat * 1000)
+  const secondsFloat = Number.parseFloat(text)
+  if (!Number.isNaN(secondsFloat)) return secondsToEditingMs(secondsFloat)
   return null
 }
 

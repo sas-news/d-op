@@ -12,14 +12,25 @@ import {
   decodeHtmlEntities,
   formatRangeName,
   formatSec,
+  formatSecTenths,
   isSystemPlaylist,
   parseTimeInput,
 } from "./format"
 import type { OptionsDeps } from "./options"
 import { runMutation } from "./storage-client"
+import { createTimeStepper } from "./time-stepper"
+
+export type BulkSelectionApi = {
+  readonly isActive: (playlistId: string) => boolean
+  readonly isSelected: (playlistId: string, itemId: string) => boolean
+  readonly toggle: (playlistId: string, itemId: string, selected: boolean) => void
+}
 
 export type ItemRowContext = {
   readonly doc: Document
+  /** Bulk-selection hooks — absent in tests/legacy surfaces, in which case
+   *  rows render exactly as before (no checkbox). */
+  readonly selection?: BulkSelectionApi
   readonly deps: OptionsDeps
   readonly modal: ModalHost
   readonly showStatus: (text: string, type?: "success" | "error") => void
@@ -128,17 +139,32 @@ export function buildItemRow(
   const startInput = doc.createElement("input")
   startInput.type = "text"
   startInput.className = "item-time-input"
-  startInput.value = item.range !== null ? formatSec(item.range.start) : ""
+  startInput.value = item.range !== null ? formatSecTenths(item.range.start) : ""
   startInput.placeholder = "開始"
   startInput.setAttribute("aria-label", "開始時刻")
   startInput.disabled = item.range === null
   const endInput = doc.createElement("input")
   endInput.type = "text"
   endInput.className = "item-time-input"
-  endInput.value = item.range !== null ? formatSec(item.range.end) : ""
+  endInput.value = item.range !== null ? formatSecTenths(item.range.end) : ""
   endInput.placeholder = "終了"
   endInput.setAttribute("aria-label", "終了時刻")
   endInput.disabled = item.range === null
+
+  const startStepper = createTimeStepper(doc, {
+    label: "開始",
+    getValue: () => parseTimeInput(startInput.value),
+    onChange: (ms) => {
+      startInput.value = formatSecTenths(ms)
+    },
+  })
+  const endStepper = createTimeStepper(doc, {
+    label: "終了",
+    getValue: () => parseTimeInput(endInput.value),
+    onChange: (ms) => {
+      endInput.value = formatSecTenths(ms)
+    },
+  })
 
   const saveBtn = doc.createElement("button")
   saveBtn.type = "button"
@@ -193,7 +219,16 @@ export function buildItemRow(
     editRow.classList.remove("open")
     meta.style.display = ""
   })
-  editRow.append(titleInput, startInput, doc.createTextNode(" - "), endInput, saveBtn, cancelBtn)
+  editRow.append(
+    titleInput,
+    startInput,
+    startStepper.element,
+    doc.createTextNode(" - "),
+    endInput,
+    endStepper.element,
+    saveBtn,
+    cancelBtn,
+  )
   info.append(title, episodeSub, meta, editRow)
 
   const controls = doc.createElement("div")
@@ -309,6 +344,19 @@ export function buildItemRow(
     grip.appendChild(line)
   }
 
-  li.append(grip, info, controls)
+  const selection = ctx.selection
+  if (selection?.isActive(playlist.id) === true) {
+    const checkbox = doc.createElement("input")
+    checkbox.type = "checkbox"
+    checkbox.className = "item-select"
+    checkbox.checked = selection.isSelected(playlist.id, item.id)
+    checkbox.setAttribute("aria-label", `${title.textContent ?? ""}を選択`)
+    checkbox.addEventListener("change", () => {
+      selection.toggle(playlist.id, item.id, checkbox.checked)
+    })
+    li.append(checkbox, grip, info, controls)
+  } else {
+    li.append(grip, info, controls)
+  }
   return li
 }

@@ -4,6 +4,7 @@ import {
   decodeHtmlEntities,
   formatRangeName,
   formatSec,
+  formatSecTenths,
   isSystemPlaylist,
   itemPlaybackUrl,
   parseTimeInput,
@@ -25,6 +26,21 @@ describe("ui/format (common.js parity)", () => {
     expect(parseTimeInput("abc")).toBeNull()
     // Legacy quirk: a 3-part m:ss falls through to parseFloat("1:2:3")=1.
     expect(parseTimeInput("1:2:3")).toBe(1_000)
+  })
+
+  it("parseTimeInput accepts decimal seconds rounded to 100 ms steps", () => {
+    expect(parseTimeInput("1:23.4")).toBe(83_400)
+    expect(parseTimeInput("83.4")).toBe(83_400)
+    expect(parseTimeInput("83.45")).toBe(83_500)
+    expect(parseTimeInput("0:00.1")).toBe(100)
+    expect(parseTimeInput("1:30.0")).toBe(90_000)
+  })
+
+  it("formatSecTenths renders m:ss.s for edit surfaces without changing formatSec", () => {
+    expect(formatSecTenths(0)).toBe("0:00.0")
+    expect(formatSecTenths(83_400)).toBe("1:23.4")
+    expect(formatSecTenths(90_550)).toBe("1:30.5")
+    expect(formatSec(83_400)).toBe("1:23")
   })
 
   it("isSystemPlaylist filters __dop_ names", () => {

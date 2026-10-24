@@ -19,8 +19,9 @@ import type {
 import { addItem, createPlaylist } from "../domain/playlist"
 import { guessRangeName } from "../domain/range"
 import type { CommandReply, PublicLocalState } from "../storage/repository"
-import { decodeHtmlEntities, formatSec, isSystemPlaylist } from "../ui/format"
+import { decodeHtmlEntities, formatSec, formatSecTenths, isSystemPlaylist } from "../ui/format"
 import { runMutation } from "../ui/storage-client"
+import { createTimeStepper } from "../ui/time-stepper"
 import { ADD_POPUP_HIDE_DELAY_MS } from "./constants"
 import type { EnforcedRange } from "./enforcement"
 import type { CustomDraft, ModalRequest, NamedRange, PlayerVideo } from "./runtime"
@@ -40,6 +41,13 @@ export type AddMenuDeps = {
   readonly beginCustomPreview: () => Promise<boolean>
   readonly getCustomDraft: () => CustomDraft | null
   readonly endCustomPreview: () => Promise<void>
+  /** 試聴 an explicit range without entering custom-preview mode. */
+  readonly testRange: (range: {
+    readonly startMs: number
+    readonly endMs: number
+  }) => Promise<boolean>
+  /** Drop the 試聴 override when the picker closes. */
+  readonly endRangeTest: () => void
   readonly currentUrl: () => string
   readonly schedule: (callback: () => void, ms: number) => unknown
   readonly cancelTimer: (timer: unknown) => void
@@ -319,6 +327,7 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
     }
     if (disposed) return
     const playlists = state.playlists.filter((playlist) => !isSystemPlaylist(playlist))
+    let currentRange = { startMs: range.startMs, endMs: range.endMs }
 
     const list = doc.createElement("div")
     list.className = "d-op-modal-playlist-list"
@@ -378,22 +387,70 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
     nameInput.value = defaultName
     nameRow.appendChild(nameInput)
 
-    const content = doc.createElement("div")
-    content.append(list, newRow, nameRow)
-
-    const result = await deps.showModal({
-      title: "プレイリストに追加",
-      body: "",
-      bodyNode: content,
-      buttons: [
-        { label: "キャンセル", value: "cancel" },
-        { label: "追加", value: "add", primary: true, disabled: true },
-      ],
-      onReady: ({ root }) => {
-        addButton = root.querySelector<HTMLButtonElement>(".d-op-modal-footer button.primary")
-        updateAddButton()
+    const rangeRow = doc.createElement("div")
+    rangeRow.className = "d-op-modal-range"
+    const rangeLabel = doc.createElement("span")
+    rangeLabel.className = "d-op-modal-range-label"
+    const refreshRangeLabel = (): void => {
+      rangeLabel.textContent = `${formatSecTenths(currentRange.startMs)} - ${formatSecTenths(currentRange.endMs)}`
+    }
+    refreshRangeLabel()
+    const startStepper = createTimeStepper(doc, {
+      label: "開始",
+      getValue: () => currentRange.startMs,
+      onChange: (ms) => {
+        currentRange = { ...currentRange, startMs: ms }
+        refreshRangeLabel()
       },
     })
+    const endStepper = createTimeStepper(doc, {
+      label: "終了",
+      getValue: () => currentRange.endMs,
+      onChange: (ms) => {
+        currentRange = { ...currentRange, endMs: ms }
+        refreshRangeLabel()
+      },
+    })
+    const rangeError = doc.createElement("span")
+    rangeError.className = "d-op-modal-range-error"
+    rangeError.hidden = true
+    const testButton = doc.createElement("button")
+    testButton.type = "button"
+    testButton.className = "d-op-modal-range-test"
+    testButton.textContent = "試聴"
+    testButton.title = "この範囲を試しに再生"
+    testButton.addEventListener("click", () => {
+      if (currentRange.startMs >= currentRange.endMs) {
+        rangeError.textContent = "開始地点は終了地点より前に設定してください。"
+        rangeError.hidden = false
+        return
+      }
+      rangeError.hidden = true
+      void deps.testRange(currentRange)
+    })
+    rangeRow.append(rangeLabel, startStepper.element, endStepper.element, testButton, rangeError)
+
+    const content = doc.createElement("div")
+    content.append(rangeRow, list, newRow, nameRow)
+
+    let result: string | null = null
+    try {
+      result = await deps.showModal({
+        title: "プレイリストに追加",
+        body: "",
+        bodyNode: content,
+        buttons: [
+          { label: "キャンセル", value: "cancel" },
+          { label: "追加", value: "add", primary: true, disabled: true },
+        ],
+        onReady: ({ root }) => {
+          addButton = root.querySelector<HTMLButtonElement>(".d-op-modal-footer button.primary")
+          updateAddButton()
+        },
+      })
+    } finally {
+      deps.endRangeTest()
+    }
     if (result !== "add" || disposed) return
 
     const newPlaylistName = newInput.value.trim()
@@ -412,7 +469,7 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
       episodeTitle: info.episodeTitle,
       episodeNumber: info.episodeNumber !== "" ? info.episodeNumber : undefined,
       url: deps.currentUrl(),
-      range: { start: range.startMs, end: range.endMs, name: itemName },
+      range: { start: currentRange.startMs, end: currentRange.endMs, name: itemName },
     }
 
     const reply = await runMutation(

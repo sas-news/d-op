@@ -7,7 +7,8 @@
 // playback starts via transient write + REQUEST_PLAYER. Modals are the shared
 // custom host — never alert/confirm/prompt.
 
-import type { TransientPlayback } from "../../../../packages/shared/src/local-model"
+import type { LocalPlaylist, TransientPlayback } from "../../../../packages/shared/src/local-model"
+import { copyItem, removeItem } from "../domain/playlist"
 import { createModalHost } from "../player/modal"
 import { mutateTransientState, withPlayback } from "../player/transient-session"
 import { buildPlaylistItemUrl } from "../player/url-params"
@@ -15,11 +16,12 @@ import type { DataPermissions } from "../share/consent"
 import { publicationDirty } from "../share/dirty-state"
 import { createShareManageClient } from "../share/management-protocol"
 import { createShareConsentSection } from "./consent-section"
+import { itemMatchesFilter, normalizeFilterQuery, playlistMatchesFilter } from "./filter"
 import { formatSec, isSystemPlaylist, itemPlaybackUrl } from "./format"
 import { createShareManagement } from "./management"
-import { createDragController } from "./options-drag"
+import { createDragClone, createDragController } from "./options-drag"
 import { createImportExport } from "./options-io"
-import { buildItemRow } from "./options-items"
+import { type BulkSelectionApi, buildItemRow, showCopyDialog } from "./options-items"
 import { createShareDialog } from "./share-dialog"
 import { runMutation, type UiStorageClient } from "./storage-client"
 
@@ -55,6 +57,11 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
   let renderRunning = false
   let unsubscribe: (() => void) | null = null
   let disposed = false
+  let playlistQuery = ""
+  // Per-playlist bulk selection: mode is opt-in via the header 「選択」 toggle;
+  // selected item ids survive the subscribe-driven re-render.
+  const selectionMode = new Set<string>()
+  const selectedByPlaylist = new Map<string, Set<string>>()
 
   const el = <T extends HTMLElement>(id: string): T | null => doc.getElementById(id) as T | null
 
@@ -140,8 +147,45 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     })
   }
 
+  function selectedSet(playlistId: string): Set<string> {
+    let set = selectedByPlaylist.get(playlistId)
+    if (set === undefined) {
+      set = new Set<string>()
+      selectedByPlaylist.set(playlistId, set)
+    }
+    return set
+  }
+
+  function playlistCard(playlistId: string): HTMLElement | null {
+    const cards = el("playlistsContainer")?.querySelectorAll<HTMLElement>(".playlist-card")
+    return [...(cards ?? [])].find((card) => card.dataset["playlistId"] === playlistId) ?? null
+  }
+
+  function refreshBulkBar(playlistId: string): void {
+    const card = playlistCard(playlistId)
+    if (card === null) return
+    const count = selectedByPlaylist.get(playlistId)?.size ?? 0
+    const label = card.querySelector<HTMLElement>(".item-bulk-count")
+    if (label !== null) label.textContent = `${count}件選択`
+    for (const button of card.querySelectorAll<HTMLButtonElement>(".item-bulk-bar button")) {
+      button.disabled = count === 0
+    }
+  }
+
+  const selectionApi: BulkSelectionApi = {
+    isActive: (playlistId) => selectionMode.has(playlistId),
+    isSelected: (playlistId, itemId) => selectedByPlaylist.get(playlistId)?.has(itemId) === true,
+    toggle: (playlistId, itemId, selected) => {
+      const set = selectedSet(playlistId)
+      if (selected) set.add(itemId)
+      else set.delete(itemId)
+      refreshBulkBar(playlistId)
+    },
+  }
+
   const drag = createDragController(deps)
   const itemRowCtx = {
+    selection: selectionApi,
     doc,
     deps,
     modal,
@@ -282,6 +326,8 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     if (disposed) return
     const playlists = state.playlists.filter((playlist) => !isSystemPlaylist(playlist))
     const collapsed = state.preferences.collapsedPlaylists
+    const query = normalizeFilterQuery(playlistQuery)
+    const filtering = query !== ""
     const restoreFocus = takeFocusRestore(container)
     container.replaceChildren()
 
@@ -299,6 +345,20 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     }
 
     for (const playlist of playlists) {
+      const playlistHit = playlistMatchesFilter(playlist, query)
+      const matchingItems =
+        filtering && !playlistHit
+          ? playlist.items.filter((item) => itemMatchesFilter(item, query))
+          : playlist.items
+      const hasHit = !filtering || playlistHit || matchingItems.length > 0
+      const expanded = filtering ? hasHit : collapsed[playlist.id] === false
+      // Drop selection ids removed from storage so the bulk count stays exact.
+      const selectedIds = selectedByPlaylist.get(playlist.id)
+      if (selectedIds !== undefined) {
+        for (const id of [...selectedIds]) {
+          if (!playlist.items.some((item) => item.id === id)) selectedIds.delete(id)
+        }
+      }
       const card = doc.createElement("div")
       card.className = "playlist-card"
       card.dataset["playlistId"] = playlist.id
@@ -316,8 +376,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
       toggleBtn.textContent = "▶"
       toggleBtn.setAttribute("aria-label", `${playlist.name}の一覧を開閉`)
       // Legacy semantics: collapsed by default; only an explicit `false`
-      // expands (options.js:49, 398).
-      const expanded = collapsed[playlist.id] === false
+      // expands (options.js:49, 398). An active filter expands hit cards.
       if (expanded) toggleBtn.classList.add("expanded")
       toggleBtn.setAttribute("aria-expanded", String(expanded))
       const count = doc.createElement("span")
@@ -384,16 +443,119 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
           render()
         })()
       })
-      actions.append(playBtn, shareBtn, deleteBtn)
+      const selectionActive = selectionMode.has(playlist.id)
+      const selectBtn = doc.createElement("button")
+      selectBtn.type = "button"
+      selectBtn.textContent = "選択"
+      selectBtn.className = "btn-text item-select-toggle"
+      selectBtn.setAttribute("aria-pressed", String(selectionActive))
+      if (selectionActive) selectBtn.classList.add("active")
+      selectBtn.title = selectionActive ? "選択モードを終了" : "アイテムをまとめて選択"
+      selectBtn.addEventListener("click", () => {
+        if (selectionMode.has(playlist.id)) {
+          selectionMode.delete(playlist.id)
+          selectedByPlaylist.delete(playlist.id)
+        } else {
+          selectionMode.add(playlist.id)
+        }
+        render()
+      })
+      actions.append(selectBtn, playBtn, shareBtn, deleteBtn)
       header.append(toggleGroup, nameInput, actions)
       card.appendChild(header)
+
+      if (selectionActive) {
+        const bulkBar = doc.createElement("div")
+        bulkBar.className = "item-bulk-bar"
+        const bulkCount = doc.createElement("span")
+        bulkCount.className = "item-bulk-count"
+        const count = selectedByPlaylist.get(playlist.id)?.size ?? 0
+        bulkCount.textContent = `${count}件選択`
+        const copySelected = doc.createElement("button")
+        copySelected.type = "button"
+        copySelected.className = "btn-secondary"
+        copySelected.textContent = "コピー"
+        copySelected.disabled = count === 0
+        copySelected.addEventListener("click", () => {
+          const ids = playlist.items
+            .filter((item) => selectionApi.isSelected(playlist.id, item.id))
+            .map((item) => item.id)
+          if (ids.length === 0) return
+          void (async () => {
+            const current = await deps.storage.readPublic()
+            const targetId = await showCopyDialog(doc, modal, current.playlists, playlist.id)
+            if (targetId === null) return
+            const reply = await runMutation(
+              deps.storage,
+              (fresh) => {
+                let lists: readonly LocalPlaylist[] = fresh.playlists
+                for (const itemId of ids) {
+                  const copied = copyItem(lists, {
+                    sourcePlaylistId: playlist.id,
+                    itemId,
+                    targetPlaylistId: targetId,
+                    nextId: deps.newId,
+                  })
+                  if (copied.kind !== "updated") return null
+                  lists = copied.playlists
+                }
+                return { kind: "replace-library", playlists: [...lists] }
+              },
+              deps.newId,
+            )
+            if (reply.kind === "committed") {
+              showPlaylistStatus(`${ids.length}件コピーしました。`)
+              render()
+            } else {
+              showPlaylistStatus("コピーに失敗しました。", "error")
+            }
+          })()
+        })
+        const deleteSelected = doc.createElement("button")
+        deleteSelected.type = "button"
+        deleteSelected.className = "btn-danger-text"
+        deleteSelected.textContent = "削除"
+        deleteSelected.disabled = count === 0
+        deleteSelected.addEventListener("click", () => {
+          const ids = playlist.items
+            .filter((item) => selectionApi.isSelected(playlist.id, item.id))
+            .map((item) => item.id)
+          if (ids.length === 0) return
+          void (async () => {
+            const ok = await showConfirm(`選択した${ids.length}件を削除しますか？`)
+            if (!ok) return
+            const reply = await runMutation(
+              deps.storage,
+              (fresh) => {
+                let lists: readonly LocalPlaylist[] = fresh.playlists
+                for (const itemId of ids) {
+                  const removed = removeItem(lists, playlist.id, itemId)
+                  if (removed.kind !== "updated") return null
+                  lists = removed.playlists
+                }
+                return { kind: "replace-library", playlists: [...lists] }
+              },
+              deps.newId,
+            )
+            if (reply.kind === "committed") {
+              selectedByPlaylist.delete(playlist.id)
+              showPlaylistStatus(`${ids.length}件削除しました。`)
+              render()
+            } else {
+              showPlaylistStatus("削除に失敗しました。", "error")
+            }
+          })()
+        })
+        bulkBar.append(bulkCount, copySelected, deleteSelected)
+        card.appendChild(bulkBar)
+      }
 
       const itemsList = doc.createElement("ol")
       itemsList.className = "items-list"
       // Keyboard reorder resolves the owning playlist from the list node so
       // the same moveByKey path works after any re-render.
       itemsList.dataset["playlistId"] = playlist.id
-      for (const item of playlist.items) {
+      for (const item of matchingItems) {
         itemsList.appendChild(buildItemRow(itemRowCtx, playlist, item))
       }
       itemsList.addEventListener("mousedown", (event) => {
@@ -403,23 +565,32 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
         const row = grip.closest<HTMLElement>(".item-row")
         if (row === null) return
         const rowRect = row.getBoundingClientRect()
-        const clone = row.cloneNode(true) as HTMLElement
-        clone.classList.add("drag-clone")
-        clone.style.width = `${rowRect.width}px`
-        clone.style.left = `${rowRect.left}px`
-        clone.style.top = `${rowRect.top}px`
+        const rowId = row.dataset["itemId"]
+        const selectedBlock =
+          selectionActive && rowId !== undefined && selectionApi.isSelected(playlist.id, rowId)
+            ? [...itemsList.querySelectorAll<HTMLElement>(".item-row")].filter(
+                (candidate) =>
+                  candidate.dataset["itemId"] !== undefined &&
+                  selectionApi.isSelected(playlist.id, candidate.dataset["itemId"] ?? ""),
+              )
+            : [row]
+        const clone = createDragClone(doc, selectedBlock, rowRect)
         ;(doc.body ?? doc.documentElement).appendChild(clone)
-        row.classList.add("dragging")
+        for (const blockRow of selectedBlock) blockRow.classList.add("dragging")
         drag.begin({
           row,
           clone,
           itemsList,
           playlistId: playlist.id,
           offsetY: event.clientY - rowRect.top,
+          blockRows: selectedBlock,
         })
       })
 
       const setCollapsed = (isCollapsed: boolean): void => {
+        // While filtering, expansion is derived from hits — do not persist a
+        // temporary search-state toggle into preferences.
+        if (filtering) return
         card.classList.toggle("collapsed", isCollapsed)
         toggleBtn.classList.toggle("expanded", !isCollapsed)
         toggleBtn.setAttribute("aria-expanded", String(!isCollapsed))
@@ -453,7 +624,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
       const itemsWrapper = doc.createElement("div")
       itemsWrapper.className = "playlist-items-wrapper"
       itemsWrapper.appendChild(itemsList)
-      if (collapsed[playlist.id] !== false) card.classList.add("collapsed")
+      if (!expanded) card.classList.add("collapsed")
       card.appendChild(itemsWrapper)
       container.appendChild(card)
     }
@@ -532,6 +703,19 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
         event.preventDefault()
         createBtn?.click()
       }
+    })
+
+    const filterInput = el<HTMLInputElement>("playlistSearch")
+    filterInput?.addEventListener("input", () => {
+      playlistQuery = filterInput.value
+      render()
+    })
+    filterInput?.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      filterInput.value = ""
+      playlistQuery = ""
+      render()
     })
 
     const exportBtn = el<HTMLButtonElement>("exportBtn")
