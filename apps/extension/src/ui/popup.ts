@@ -13,7 +13,13 @@ import { decodeHtmlEntities, isSystemPlaylist } from "./format"
 import { createPopupActions } from "./popup-actions"
 import { createPlaylistPicker } from "./popup-picker"
 import { itemRowTexts } from "./popup-rows"
-import type { PublicReply, UiStorageClient } from "./storage-client"
+import { type PublicReply, runMutation, type UiStorageClient } from "./storage-client"
+import {
+  applyThemePreference,
+  nextTogglePreference,
+  syncThemeToggle,
+  themePreferenceOf,
+} from "./theme"
 
 export type PopupDeps = {
   readonly doc: Document
@@ -42,6 +48,7 @@ export function createPopupController(deps: PopupDeps): PopupController {
   let unsubscribe: (() => void) | null = null
   let disposed = false
   let filterQuery = ""
+  let themePreference: ReturnType<typeof themePreferenceOf> = "system"
 
   const el = <T extends HTMLElement>(id: string): T | null => doc.getElementById(id) as T | null
 
@@ -119,12 +126,20 @@ export function createPopupController(deps: PopupDeps): PopupController {
         void actions.shuffleFromHere(playlist, order, order[position] ?? "", position).then(render)
   }
 
+  function syncTheme(preference: ReturnType<typeof themePreferenceOf>): void {
+    themePreference = preference
+    applyThemePreference(doc, preference)
+    const toggle = el<HTMLButtonElement>("themeToggle")
+    if (toggle !== null) syncThemeToggle(toggle, doc, preference)
+  }
+
   async function doRender(): Promise<void> {
     const [transient, pub] = await Promise.all([
       deps.storage.readTransient(),
       deps.storage.readPublic(),
     ])
     if (disposed) return
+    syncTheme(themePreferenceOf(pub.preferences))
     const playlists = pub.playlists.filter((playlist) => !isSystemPlaylist(playlist))
     const playbackSection = el("playback")
     const listSection = el("playlistListSection")
@@ -213,6 +228,22 @@ export function createPopupController(deps: PopupDeps): PopupController {
         filterInput.value = ""
         filterQuery = ""
         render()
+      })
+      el<HTMLButtonElement>("themeToggle")?.addEventListener("click", () => {
+        const next = nextTogglePreference(doc, themePreference)
+        // Optimistic paint; the commit below becomes the canonical value.
+        syncTheme(next)
+        void runMutation(
+          deps.storage,
+          (fresh) => ({
+            kind: "set-preferences",
+            preferences: { ...fresh.preferences, theme: next },
+          }),
+          deps.newId,
+        ).then((reply) => {
+          if (reply.kind !== "committed") deps.log?.("theme-save-failed", reply)
+          render()
+        })
       })
       if (versionEl !== null) versionEl.textContent = `d-OP v${deps.version}`
       el<HTMLButtonElement>("prevBtn")?.addEventListener("click", () =>

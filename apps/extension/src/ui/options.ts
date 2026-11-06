@@ -24,6 +24,7 @@ import { createImportExport } from "./options-io"
 import { type BulkSelectionApi, buildItemRow, showCopyDialog } from "./options-items"
 import { createShareDialog } from "./share-dialog"
 import { runMutation, type UiStorageClient } from "./storage-client"
+import { applyThemePreference, type ThemePreference, themePreferenceOf } from "./theme"
 
 export type OptionsDeps = {
   readonly doc: Document
@@ -310,10 +311,18 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     return null
   }
 
+  function syncTheme(preference: ThemePreference): void {
+    applyThemePreference(doc, preference)
+    for (const radio of doc.querySelectorAll<HTMLInputElement>("input[name='theme']")) {
+      radio.checked = radio.value === preference
+    }
+  }
+
   async function renderPlaylists(): Promise<void> {
     const container = el("playlistsContainer")
     if (container === null) return
     const state = await deps.storage.readPublic()
+    syncTheme(themePreferenceOf(state.preferences))
     // Vault read feeds the per-card share state badge; a privileged-read
     // failure degrades to plain "共有" buttons rather than breaking render.
     const publications = await deps.storage
@@ -655,6 +664,32 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     })()
   }
 
+  // --- Appearance preference (v2.0.2+) ------------------------------------
+
+  function initTheme(): void {
+    for (const radio of doc.querySelectorAll<HTMLInputElement>("input[name='theme']")) {
+      radio.addEventListener("change", () => {
+        if (!radio.checked) return
+        const theme: ThemePreference =
+          radio.value === "light" ? "light" : radio.value === "dark" ? "dark" : "system"
+        applyThemePreference(doc, theme)
+        void runMutation(
+          deps.storage,
+          (fresh) => ({
+            kind: "set-preferences",
+            preferences: { ...fresh.preferences, theme },
+          }),
+          deps.newId,
+        ).then((reply) => {
+          if (reply.kind !== "committed") {
+            showPlaylistStatus("外観の保存に失敗しました。", "error")
+          }
+          render()
+        })
+      })
+    }
+  }
+
   // --- Window-mode preference (options.js:893-905) ------------------------
 
   async function initWindowMode(): Promise<void> {
@@ -733,6 +768,7 @@ export function createOptionsController(deps: OptionsDeps): OptionsController {
     doc.addEventListener("mouseup", drag.onMouseUp)
 
     unsubscribe = deps.subscribe(() => render())
+    initTheme()
     void initWindowMode()
     render()
   }

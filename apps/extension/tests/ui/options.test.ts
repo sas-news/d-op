@@ -15,6 +15,9 @@ const HTML = `
   <input id="playlistSearch" />
   <label><input type="radio" name="windowMode" value="window" /></label>
   <label><input type="radio" name="windowMode" value="tab" /></label>
+  <label><input type="radio" name="theme" value="system" /></label>
+  <label><input type="radio" name="theme" value="light" /></label>
+  <label><input type="radio" name="theme" value="dark" /></label>
   <div id="playlistsContainer"></div>
 `
 
@@ -192,6 +195,25 @@ describe("ui/options", () => {
     await settle()
     expect(commands.some((c) => c.kind === "delete-playlist")).toBe(true)
     expect(state.public.playlists.some((p) => p.id === "p1")).toBe(false)
+    controller.dispose()
+  })
+
+  it("theme radios persist the preference and apply it to the page", async () => {
+    const { deps, commands, state } = makeDeps()
+    const controller = createOptionsController(deps)
+    controller.start()
+    await settle()
+    const dark = document.querySelector<HTMLInputElement>("input[name='theme'][value='dark']")
+    expect(dark).not.toBeNull()
+    if (dark !== null) {
+      dark.checked = true
+      dark.dispatchEvent(new Event("change"))
+    }
+    await settle()
+    expect(document.documentElement.dataset["dopTheme"]).toBe("dark")
+    const preference = commands.find((command) => command.kind === "set-preferences")
+    expect(preference?.kind === "set-preferences" && preference.preferences.theme).toBe("dark")
+    expect(state.public.preferences.theme).toBe("dark")
     controller.dispose()
   })
 

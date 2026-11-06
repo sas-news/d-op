@@ -640,3 +640,90 @@ p.empty {
   box-shadow: 0 0 0 3px var(--dop-accent-subtle);
   outline: none;
 }
+
+/* --- Dark appearance (v2.0.2+) -------------------------------------------
+   Explicit themes come from preferences.theme via <html data-dop-theme>.
+   The media query covers the pre-hydration paint for "system" (and attribute-
+   less pages); an explicit light preference opts out of it. */
+:root {
+  color-scheme: light;
+}
+
+:root[data-dop-theme="system"] {
+  color-scheme: light dark;
+}
+
+:root[data-dop-theme="dark"] {
+  color-scheme: dark;
+  --dop-accent: #e60012;
+  --dop-accent-hover: #ff1a2d;
+  --dop-accent-pressed: #b3000e;
+  --dop-accent-subtle: rgba(230, 0, 18, 0.24);
+  /* #e60012 is only ~3.5:1 on the dark panel: use the lighter player-page
+     accent for text. */
+  --dop-accent-text: #ff5c6a;
+  --dop-danger: #ff6b7a;
+  --dop-danger-hover: #ff8a96;
+  --dop-info: #4da3ff;
+  --dop-warning: #ffd633;
+  --dop-success: #5bd47e;
+
+  --dop-bg-base: #0a0a0c;
+  --dop-bg-panel: #141418;
+  --dop-bg-elevated: #1c1c22;
+
+  --dop-border: rgba(255, 255, 255, 0.10);
+  --dop-border-strong: rgba(255, 255, 255, 0.18);
+
+  --dop-text-primary: #ffffff;
+  /* ≥4.5:1 on every dark surface tint (panel/elevated/base). */
+  --dop-text-secondary: #b3b3bd;
+  --dop-text-tertiary: #8a8a94;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-dop-theme="light"]) {
+      color-scheme: dark;
+    --dop-accent: #e60012;
+    --dop-accent-hover: #ff1a2d;
+    --dop-accent-pressed: #b3000e;
+    --dop-accent-subtle: rgba(230, 0, 18, 0.24);
+    /* #e60012 is only ~3.5:1 on the dark panel: use the lighter player-page
+       accent for text. */
+    --dop-accent-text: #ff5c6a;
+    --dop-danger: #ff6b7a;
+    --dop-danger-hover: #ff8a96;
+    --dop-info: #4da3ff;
+    --dop-warning: #ffd633;
+    --dop-success: #5bd47e;
+
+    --dop-bg-base: #0a0a0c;
+    --dop-bg-panel: #141418;
+    --dop-bg-elevated: #1c1c22;
+
+    --dop-border: rgba(255, 255, 255, 0.10);
+    --dop-border-strong: rgba(255, 255, 255, 0.18);
+
+    --dop-text-primary: #ffffff;
+    /* ≥4.5:1 on every dark surface tint (panel/elevated/base). */
+    --dop-text-secondary: #b3b3bd;
+    --dop-text-tertiary: #8a8a94;
+  }
+}
+
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-3);
+}
+
+header button.theme-toggle {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

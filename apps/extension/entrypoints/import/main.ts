@@ -10,6 +10,8 @@ import {
   requestImportDetails,
 } from "../../src/share/import-page"
 import type { ShareImportPreview } from "../../src/share/protocol"
+import { createUiStorageClient } from "../../src/ui/storage-client"
+import { applyThemePreference, themePreferenceOf } from "../../src/ui/theme"
 
 // Extension-owned import confirmation window (task 17). The ?t=<token> query
 // parameter is the only input — the token is minted by the background and
@@ -46,6 +48,12 @@ const grantButton = $("import-consent-grant")
 const declineButton = $("import-consent-decline")
 
 const send = (message: unknown) => browser.runtime.sendMessage(message)
+const storage = createUiStorageClient((message) => browser.runtime.sendMessage(message))
+// Best-effort appearance sync for this extension-owned confirmation window.
+void storage
+  .readPublic()
+  .then((state) => applyThemePreference(document, themePreferenceOf(state.preferences)))
+  .catch(() => {})
 const errorText = (reason: string): string => ERROR_TEXT[reason] ?? "拡張機能が応答しませんでした。"
 
 // Firefox ≥140 native data-consent surface; absent key → the in-extension

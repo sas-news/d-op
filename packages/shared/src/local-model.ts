@@ -65,6 +65,9 @@ export type PendingCreate = z.infer<typeof PendingCreateSchema>
 export const LocalPreferencesSchema = z.strictObject({
   windowMode: z.enum(["window", "tab"]),
   collapsedPlaylists: z.record(z.string(), z.boolean()),
+  // v2.0.2+: explicit appearance preference. Optional so states written by
+  // earlier builds (and the v1 migration) stay valid; absent → "system".
+  theme: z.enum(["system", "light", "dark"]).optional(),
 })
 export type LocalPreferences = z.infer<typeof LocalPreferencesSchema>
 

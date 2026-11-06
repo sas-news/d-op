@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest"
-import type { TransientState } from "../../../../packages/shared/src/local-model"
+import type { LocalCommand, TransientState } from "../../../../packages/shared/src/local-model"
+import type { CommandReply } from "../../src/storage/repository"
 import { emptyTransientState } from "../../src/storage/transient"
 import { createPopupController, type PopupDeps } from "../../src/ui/popup"
 import type { PublicReply } from "../../src/ui/storage-client"
@@ -21,23 +22,26 @@ const HTML = `
     <div id="playlistList"></div>
   </div>
   <button id="openOptions"></button><span id="popupVersion"></span>
+  <button id="themeToggle"></button>
 `
 
 function makeDeps(overrides: Partial<PopupDeps> = {}): {
   deps: PopupDeps
   sent: unknown[]
+  commands: LocalCommand[]
   state: { public: PublicReply; transient: TransientState }
   listeners: Set<() => void>
 } {
   const sent: unknown[] = []
+  const commands: LocalCommand[] = []
   const listeners = new Set<() => void>()
-  const state = {
+  const state: { public: PublicReply; transient: TransientState } = {
     public: {
       schemaVersion: 2,
       revision: 0,
       playlists: [playlist("p1"), playlist("p2", ["x"])],
-      preferences: { windowMode: "window" as const, collapsedPlaylists: {} },
-    } satisfies PublicReply,
+      preferences: { windowMode: "window", collapsedPlaylists: {} },
+    },
     transient: emptyTransientState(),
   }
   const deps: PopupDeps = {
@@ -49,8 +53,18 @@ function makeDeps(overrides: Partial<PopupDeps> = {}): {
       writeTransient: async (next) => {
         state.transient = next
       },
-      dispatch: async () => {
-        throw new Error("popup never dispatches")
+      dispatch: async (command) => {
+        commands.push(command)
+        if (command.kind === "set-preferences") {
+          state.public = { ...state.public, preferences: command.preferences }
+        }
+        state.public.revision += 1
+        const reply: CommandReply = {
+          kind: "committed",
+          operationId: command.operationId,
+          revision: state.public.revision,
+        }
+        return reply
       },
     },
     sendMessage: async (message) => {
@@ -68,7 +82,7 @@ function makeDeps(overrides: Partial<PopupDeps> = {}): {
     },
     ...overrides,
   }
-  return { deps, sent, state, listeners }
+  return { deps, sent, commands, state, listeners }
 }
 
 /** Flush pending microtasks + the render loop. */
@@ -131,6 +145,24 @@ describe("ui/popup", () => {
     await settle()
     expect(filter.value).toBe("")
     expect(document.querySelectorAll(".playlist-card.expanded").length).toBe(0)
+    controller.dispose()
+  })
+
+  it("theme toggle persists an explicit preference and repaints the popup", async () => {
+    const { deps, commands, state } = makeDeps()
+    const controller = createPopupController(deps)
+    controller.start()
+    await settle()
+    const toggle = document.getElementById("themeToggle") as HTMLButtonElement
+    expect(document.documentElement.dataset["dopTheme"]).toBe("system")
+    toggle.click()
+    await settle()
+    // jsdom has no matchMedia → system resolves light, so the toggle picks dark.
+    expect(document.documentElement.dataset["dopTheme"]).toBe("dark")
+    expect(toggle.textContent).toBe("☀")
+    const preference = commands.find((command) => command.kind === "set-preferences")
+    expect(preference?.kind === "set-preferences" && preference.preferences.theme).toBe("dark")
+    expect(state.public.preferences.theme).toBe("dark")
     controller.dispose()
   })
 
