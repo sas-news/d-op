@@ -173,7 +173,6 @@ describe("player ui", () => {
       (button) => button.textContent === "試聴",
     )
     expect(audition?.classList.contains("secondary")).toBe(true)
-    expect(bar?.querySelector(".d-op-custom-bar-divider")).not.toBeNull()
     ui.dispose()
     expect(document.getElementById("d-op-custom-bar")).toBeNull()
   })

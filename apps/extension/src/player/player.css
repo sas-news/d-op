@@ -286,7 +286,7 @@ body.d-op-skip-hidden .skipUi {
   gap: var(--dop-space-3);
   width: max-content;
   max-width: calc(100vw - 32px);
-  padding: var(--dop-space-4) var(--dop-space-6);
+  padding: var(--dop-space-5);
   background: var(--dop-bg-panel);
   border-radius: var(--dop-radius-lg);
   z-index: 10000;
@@ -326,14 +326,6 @@ body.d-op-skip-hidden .skipUi {
   display: inline-flex;
   align-items: center;
   gap: var(--dop-space-2);
-  flex-shrink: 0;
-}
-
-.d-op-custom-bar-divider {
-  width: 1px;
-  align-self: stretch;
-  min-height: 22px;
-  background: var(--dop-border-strong);
   flex-shrink: 0;
 }
 
