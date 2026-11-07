@@ -351,16 +351,15 @@ body.d-op-skip-hidden .skipUi {
   }
 
   .d-op-custom-bar-footer {
+    flex-wrap: wrap;
     padding-top: var(--dop-space-2);
     border-top: 1px solid var(--dop-border);
   }
 }
 
-@media (max-width: 620px) {
-  .d-op-custom-bar-footer {
-    flex-wrap: wrap;
-  }
-
+/* Extremely narrow windows: keep the actions together if the name row no
+   longer fits, instead of squeezing every control. */
+@media (max-width: 380px) {
   .d-op-custom-bar-actions {
     width: 100%;
     justify-content: flex-end;
