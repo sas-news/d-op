@@ -326,9 +326,7 @@ body.d-op-skip-hidden .skipUi {
   display: inline-flex;
   align-items: center;
   gap: var(--dop-space-2);
-  margin-left: auto;
-  padding-left: var(--dop-space-4);
-  border-left: 1px solid var(--dop-border);
+  flex-shrink: 0;
 }
 
 /* Narrow windows: two rows with breathing room at both edges. */
@@ -363,9 +361,6 @@ body.d-op-skip-hidden .skipUi {
   .d-op-custom-bar-actions {
     width: 100%;
     justify-content: flex-end;
-    margin-left: 0;
-    padding-left: 0;
-    border-left: none;
   }
 }
 
@@ -438,7 +433,6 @@ body.d-op-skip-hidden .skipUi {
   flex: 1 1 160px;
   width: auto;
   min-width: 140px;
-  max-width: 240px;
 }
 
 /* --- Seek markers (styles.css:507-571) ------------------------------------ */
