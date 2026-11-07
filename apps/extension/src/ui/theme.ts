@@ -40,6 +40,32 @@ export function nextTogglePreference(doc: Document, preference: ThemePreference)
   return resolveTheme(doc, preference) === "dark" ? "light" : "dark"
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg"
+
+/** Moon/sun icon as inline SVG — the UI never uses emoji icons. */
+function themeIcon(doc: Document, moon: boolean): SVGSVGElement {
+  const svg = doc.createElementNS(SVG_NS, "svg")
+  svg.setAttribute("viewBox", "0 0 24 24")
+  svg.setAttribute("width", "16")
+  svg.setAttribute("height", "16")
+  svg.setAttribute("fill", "none")
+  svg.setAttribute("stroke", "currentColor")
+  svg.setAttribute("stroke-width", "2")
+  svg.setAttribute("stroke-linecap", "round")
+  svg.setAttribute("stroke-linejoin", "round")
+  svg.setAttribute("aria-hidden", "true")
+  svg.setAttribute("focusable", "false")
+  const path = doc.createElementNS(SVG_NS, "path")
+  path.setAttribute(
+    "d",
+    moon
+      ? "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"
+      : "M12 2v2m0 16v2m8-10h2M2 12h2m13.66-5.66 1.42-1.42M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14-1.41-1.41M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+  )
+  svg.appendChild(path)
+  return svg
+}
+
 /** Reflect the current effective theme on a toggle button. */
 export function syncThemeToggle(
   button: HTMLButtonElement,
@@ -47,7 +73,7 @@ export function syncThemeToggle(
   preference: ThemePreference,
 ): void {
   const dark = resolveTheme(doc, preference) === "dark"
-  button.textContent = dark ? "☀" : "🌙"
+  button.replaceChildren(themeIcon(doc, !dark))
   const label = dark ? "ライトモードに切り替え" : "ダークモードに切り替え"
   button.title = label
   button.setAttribute("aria-label", label)

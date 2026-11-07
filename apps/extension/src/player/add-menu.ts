@@ -428,7 +428,13 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
       rangeError.hidden = true
       void deps.testRange(currentRange)
     })
-    rangeRow.append(rangeLabel, startStepper.element, endStepper.element, testButton, rangeError)
+    const startGroup = doc.createElement("span")
+    startGroup.className = "d-op-modal-range-group"
+    startGroup.append(doc.createTextNode("開始"), startStepper.element)
+    const endGroup = doc.createElement("span")
+    endGroup.className = "d-op-modal-range-group"
+    endGroup.append(doc.createTextNode("終了"), endStepper.element)
+    rangeRow.append(rangeLabel, startGroup, endGroup, testButton, rangeError)
 
     const content = doc.createElement("div")
     content.append(rangeRow, list, newRow, nameRow)

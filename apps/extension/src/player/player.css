@@ -696,6 +696,12 @@ body.d-op-skip-hidden .skipUi {
   }
 }
 
+.d-op-custom-bar-time-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-2);
+}
+
 /* --- Range fine-tuning steppers (shared by custom bar + add modal) -------- */
 
 .d-op-time-stepper {
@@ -745,6 +751,15 @@ body.d-op-skip-hidden .skipUi {
   font-size: 13px;
   font-weight: 700;
   min-width: 104px;
+}
+
+.d-op-modal-range-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-2);
+  color: var(--dop-text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .d-op-modal-range-test {

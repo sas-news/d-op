@@ -159,7 +159,8 @@ describe("ui/popup", () => {
     await settle()
     // jsdom has no matchMedia → system resolves light, so the toggle picks dark.
     expect(document.documentElement.dataset["dopTheme"]).toBe("dark")
-    expect(toggle.textContent).toBe("☀")
+    expect(toggle.textContent).toBe("")
+    expect(toggle.querySelector("svg")).not.toBeNull()
     const preference = commands.find((command) => command.kind === "set-preferences")
     expect(preference?.kind === "set-preferences" && preference.preferences.theme).toBe("dark")
     expect(state.public.preferences.theme).toBe("dark")

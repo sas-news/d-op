@@ -112,6 +112,7 @@ section {
 }
 
 input[type="text"],
+input[type="search"],
 select,
 textarea {
   padding: var(--dop-space-4) var(--dop-space-5);
@@ -125,6 +126,7 @@ textarea {
 }
 
 input[type="text"]:focus,
+input[type="search"]:focus,
 select:focus,
 textarea:focus {
   border-color: var(--dop-accent);
@@ -133,6 +135,7 @@ textarea:focus {
 }
 
 input[type="text"],
+input[type="search"],
 select,
 textarea {
   width: 100%;
@@ -1163,6 +1166,7 @@ button:disabled {
 
   button,
   input[type="text"],
+  input[type="search"],
   select,
   textarea,
   .playlist-toggle,
@@ -1233,6 +1237,12 @@ button:disabled {
 
 .drag-clone-block .item-row:last-child {
   border-bottom: none;
+}
+
+.item-time-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-2);
 }
 
 /* Time steppers in the edit row (same shared helper as the player bar). */

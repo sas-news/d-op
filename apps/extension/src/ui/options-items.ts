@@ -219,16 +219,13 @@ export function buildItemRow(
     editRow.classList.remove("open")
     meta.style.display = ""
   })
-  editRow.append(
-    titleInput,
-    startInput,
-    startStepper.element,
-    doc.createTextNode(" - "),
-    endInput,
-    endStepper.element,
-    saveBtn,
-    cancelBtn,
-  )
+  const startGroup = doc.createElement("span")
+  startGroup.className = "item-time-group"
+  startGroup.append(startInput, startStepper.element)
+  const endGroup = doc.createElement("span")
+  endGroup.className = "item-time-group"
+  endGroup.append(endInput, endStepper.element)
+  editRow.append(titleInput, startGroup, doc.createTextNode(" - "), endGroup, saveBtn, cancelBtn)
   info.append(title, episodeSub, meta, editRow)
 
   const controls = doc.createElement("div")

@@ -364,19 +364,13 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       cancel.type = "button"
       cancel.textContent = "キャンセル"
       cancel.addEventListener("click", deps.onCustomCancel)
-      bar.append(
-        startInput,
-        createdStartStepper.element,
-        sep,
-        endInput,
-        createdEndStepper.element,
-        startNow,
-        endNow,
-        name,
-        test,
-        add,
-        cancel,
-      )
+      const startGroup = doc.createElement("span")
+      startGroup.className = "d-op-custom-bar-time-group"
+      startGroup.append(startInput, createdStartStepper.element)
+      const endGroup = doc.createElement("span")
+      endGroup.className = "d-op-custom-bar-time-group"
+      endGroup.append(endInput, createdEndStepper.element)
+      bar.append(startGroup, sep, endGroup, startNow, endNow, name, test, add, cancel)
       host.appendChild(bar)
       lastCustomName = undefined
       lastCustomStart = undefined
