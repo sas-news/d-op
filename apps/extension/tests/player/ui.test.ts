@@ -169,6 +169,10 @@ describe("player ui", () => {
     expect(startSteps[1]?.getAttribute("aria-label")).toBe("開始を0.1秒進める")
     startSteps[1]?.click()
     expect(drafts).toContainEqual({ startMs: 5_100 })
+    const audition = [...(bar?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find(
+      (button) => button.textContent === "試聴",
+    )
+    expect(audition?.classList.contains("secondary")).toBe(true)
     ui.dispose()
     expect(document.getElementById("d-op-custom-bar")).toBeNull()
   })

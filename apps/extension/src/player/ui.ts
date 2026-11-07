@@ -352,8 +352,8 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       name.addEventListener("input", () => deps.onCustomDraft({ name: name.value }))
       const test = doc.createElement("button")
       test.type = "button"
-      test.className = "primary"
-      test.textContent = "テスト"
+      test.className = "secondary"
+      test.textContent = "試聴"
       test.addEventListener("click", deps.onCustomTest)
       const add = doc.createElement("button")
       add.type = "button"
@@ -380,7 +380,13 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       const actionsGroup = doc.createElement("span")
       actionsGroup.className = "d-op-custom-bar-actions"
       actionsGroup.append(test, add, cancel)
-      bar.append(rangeGroup, captureGroup, name, actionsGroup)
+      const mainRow = doc.createElement("div")
+      mainRow.className = "d-op-custom-bar-main"
+      mainRow.append(rangeGroup, captureGroup)
+      const footerRow = doc.createElement("div")
+      footerRow.className = "d-op-custom-bar-footer"
+      footerRow.append(name, actionsGroup)
+      bar.append(mainRow, footerRow)
       host.appendChild(bar)
       lastCustomName = undefined
       lastCustomStart = undefined

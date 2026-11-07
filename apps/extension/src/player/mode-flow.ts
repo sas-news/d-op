@@ -172,7 +172,7 @@ export async function testRange(
     ctx.state = { ...ctx.state, testing: true }
     renderPlayerUi(ctx)
   }
-  // The custom bar's own テスト keeps enforcing the live draft; the add-modal
+  // The custom bar's own 試聴 keeps enforcing the live draft; the add-modal
   // 試聴 installs an explicit override even while custom-preview is active.
   if (!customPreview || options.modal === true) {
     ctx.previewRange = { startMs: range.startMs, endMs: range.endMs, name: "" }
