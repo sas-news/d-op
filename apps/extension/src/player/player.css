@@ -279,10 +279,13 @@ body.d-op-skip-hidden .skipUi {
   bottom: 62px;
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  /* Wrap (task 24): at narrow window widths the inputs/buttons must not
-     overflow the viewport edge. */
-  flex-wrap: wrap;
+  display: grid;
+  /* Wide windows: one intentional row. The explicit max-content width is
+     important — a fixed element with left:50% otherwise shrink-to-fits to
+     half the viewport and wraps onto a second line even at 1280px. */
+  grid-template-columns: max-content max-content minmax(140px, 1fr) max-content;
+  grid-template-areas: "range capture name actions";
+  width: max-content;
   max-width: calc(100vw - 16px);
   align-items: center;
   gap: var(--dop-space-4);
@@ -293,6 +296,39 @@ body.d-op-skip-hidden .skipUi {
   color: var(--dop-text-primary);
   font-size: 13px;
   border: 1px solid var(--dop-border);
+}
+
+.d-op-custom-bar-range {
+  grid-area: range;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-2);
+}
+
+.d-op-custom-bar-capture {
+  grid-area: capture;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-2);
+}
+
+.d-op-custom-bar-actions {
+  grid-area: actions;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-3);
+}
+
+/* Narrow windows: two balanced rows instead of one cramped/wrapped row. */
+@media (max-width: 760px) {
+  .d-op-custom-bar {
+    width: calc(100vw - 16px);
+    grid-template-columns: minmax(max-content, 1fr) max-content;
+    grid-template-areas:
+      "range capture"
+      "name actions";
+    row-gap: var(--dop-space-3);
+  }
 }
 
 .d-op-custom-bar button {
@@ -348,6 +384,13 @@ body.d-op-skip-hidden .skipUi {
   border-color: var(--dop-accent);
   box-shadow: 0 0 0 3px var(--dop-accent-subtle);
   outline: none;
+}
+
+.d-op-custom-bar input.d-op-custom-bar-name-input {
+  grid-area: name;
+  width: 100%;
+  min-width: 140px;
+  max-width: 220px;
 }
 
 /* --- Seek markers (styles.css:507-571) ------------------------------------ */
@@ -756,21 +799,24 @@ body.d-op-skip-hidden .skipUi {
   background: var(--dop-bg-elevated);
 }
 
-.d-op-modal-range-label {
+.d-op-modal-range-edge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dop-space-2);
+}
+
+.d-op-modal-range-value {
   color: var(--dop-text-primary);
   font-family: var(--dop-font-mono);
   font-size: 13px;
   font-weight: 700;
-  min-width: 104px;
+  white-space: nowrap;
 }
 
-.d-op-modal-range-group {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--dop-space-2);
-  color: var(--dop-text-secondary);
-  font-size: 11px;
-  white-space: nowrap;
+.d-op-modal-range-sep {
+  color: var(--dop-text-tertiary);
+  font-family: var(--dop-font-mono);
+  font-size: 13px;
 }
 
 .d-op-modal-range-test {

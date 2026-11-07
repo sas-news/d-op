@@ -345,6 +345,7 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       })
       const name = doc.createElement("input")
       name.type = "text"
+      name.className = "d-op-custom-bar-name-input"
       name.placeholder = "区間名"
       name.setAttribute("aria-label", "区間名")
       name.setAttribute("data-dop-field", "name")
@@ -370,7 +371,16 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       const endGroup = doc.createElement("span")
       endGroup.className = "d-op-custom-bar-time-group"
       endGroup.append(endInput, createdEndStepper.element)
-      bar.append(startGroup, sep, endGroup, startNow, endNow, name, test, add, cancel)
+      const rangeGroup = doc.createElement("span")
+      rangeGroup.className = "d-op-custom-bar-range"
+      rangeGroup.append(startGroup, sep, endGroup)
+      const captureGroup = doc.createElement("span")
+      captureGroup.className = "d-op-custom-bar-capture"
+      captureGroup.append(startNow, endNow)
+      const actionsGroup = doc.createElement("span")
+      actionsGroup.className = "d-op-custom-bar-actions"
+      actionsGroup.append(test, add, cancel)
+      bar.append(rangeGroup, captureGroup, name, actionsGroup)
       host.appendChild(bar)
       lastCustomName = undefined
       lastCustomStart = undefined

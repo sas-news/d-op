@@ -200,12 +200,14 @@ describe("player/add-menu", () => {
     ;(document.querySelector(".d-op-popup-item") as HTMLElement).click()
     await settle()
 
-    expect(document.querySelector(".d-op-modal-range-label")?.textContent).toBe("0:00.0 - 1:30.0")
+    const rangeValues = (): (string | null)[] =>
+      [...document.querySelectorAll(".d-op-modal-range-value")].map((value) => value.textContent)
+    expect(rangeValues()).toEqual(["0:00.0", "1:30.0"])
     const fine = document.querySelector<HTMLButtonElement>(
-      ".d-op-modal-range-group .d-op-time-step:last-child",
+      ".d-op-modal-range-edge .d-op-time-step:last-child",
     )
     fine?.click()
-    expect(document.querySelector(".d-op-modal-range-label")?.textContent).toBe("0:00.1 - 1:30.0")
+    expect(rangeValues()).toEqual(["0:00.1", "1:30.0"])
 
     const testButton = document.querySelector<HTMLButtonElement>(".d-op-modal-range-test")
     testButton?.click()

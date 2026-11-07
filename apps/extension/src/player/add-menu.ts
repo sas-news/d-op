@@ -389,18 +389,25 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
 
     const rangeRow = doc.createElement("div")
     rangeRow.className = "d-op-modal-range"
-    const rangeLabel = doc.createElement("span")
-    rangeLabel.className = "d-op-modal-range-label"
-    const refreshRangeLabel = (): void => {
-      rangeLabel.textContent = `${formatSecTenths(currentRange.startMs)} - ${formatSecTenths(currentRange.endMs)}`
+    rangeRow.setAttribute("role", "group")
+    rangeRow.setAttribute("aria-label", "追加する範囲")
+    const startValue = doc.createElement("span")
+    startValue.className = "d-op-modal-range-value"
+    startValue.setAttribute("data-dop-range-edge", "start")
+    const endValue = doc.createElement("span")
+    endValue.className = "d-op-modal-range-value"
+    endValue.setAttribute("data-dop-range-edge", "end")
+    const refreshRangeValues = (): void => {
+      startValue.textContent = formatSecTenths(currentRange.startMs)
+      endValue.textContent = formatSecTenths(currentRange.endMs)
     }
-    refreshRangeLabel()
+    refreshRangeValues()
     const startStepper = createTimeStepper(doc, {
       label: "開始",
       getValue: () => currentRange.startMs,
       onChange: (ms) => {
         currentRange = { ...currentRange, startMs: ms }
-        refreshRangeLabel()
+        refreshRangeValues()
       },
     })
     const endStepper = createTimeStepper(doc, {
@@ -408,7 +415,7 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
       getValue: () => currentRange.endMs,
       onChange: (ms) => {
         currentRange = { ...currentRange, endMs: ms }
-        refreshRangeLabel()
+        refreshRangeValues()
       },
     })
     const rangeError = doc.createElement("span")
@@ -429,12 +436,15 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
       void deps.testRange(currentRange)
     })
     const startGroup = doc.createElement("span")
-    startGroup.className = "d-op-modal-range-group"
-    startGroup.append(doc.createTextNode("開始"), startStepper.element)
+    startGroup.className = "d-op-modal-range-edge"
+    startGroup.append(startValue, startStepper.element)
+    const separator = doc.createElement("span")
+    separator.className = "d-op-modal-range-sep"
+    separator.textContent = " - "
     const endGroup = doc.createElement("span")
-    endGroup.className = "d-op-modal-range-group"
-    endGroup.append(doc.createTextNode("終了"), endStepper.element)
-    rangeRow.append(rangeLabel, startGroup, endGroup, testButton, rangeError)
+    endGroup.className = "d-op-modal-range-edge"
+    endGroup.append(endValue, endStepper.element)
+    rangeRow.append(startGroup, separator, endGroup, testButton, rangeError)
 
     const content = doc.createElement("div")
     content.append(rangeRow, list, newRow, nameRow)
