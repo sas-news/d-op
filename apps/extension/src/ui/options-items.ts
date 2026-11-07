@@ -18,7 +18,12 @@ import {
 } from "./format"
 import type { OptionsDeps } from "./options"
 import { runMutation } from "./storage-client"
-import { createTimeStepper } from "./time-stepper"
+import {
+  createTimeStepControl,
+  createTimeStepper,
+  TIME_STEP_FINE_MS,
+  type TimeStepMs,
+} from "./time-stepper"
 
 export type BulkSelectionApi = {
   readonly isActive: (playlistId: string) => boolean
@@ -151,9 +156,11 @@ export function buildItemRow(
   endInput.setAttribute("aria-label", "終了時刻")
   endInput.disabled = item.range === null
 
+  let stepMs: TimeStepMs = TIME_STEP_FINE_MS
   const startStepper = createTimeStepper(doc, {
     label: "開始",
     getValue: () => parseTimeInput(startInput.value),
+    getStep: () => stepMs,
     onChange: (ms) => {
       startInput.value = formatSecTenths(ms)
     },
@@ -161,8 +168,17 @@ export function buildItemRow(
   const endStepper = createTimeStepper(doc, {
     label: "終了",
     getValue: () => parseTimeInput(endInput.value),
+    getStep: () => stepMs,
     onChange: (ms) => {
       endInput.value = formatSecTenths(ms)
+    },
+  })
+  const stepControl = createTimeStepControl(doc, {
+    getStep: () => stepMs,
+    onChange: (next) => {
+      stepMs = next
+      startStepper.sync()
+      endStepper.sync()
     },
   })
 
@@ -225,7 +241,17 @@ export function buildItemRow(
   const endGroup = doc.createElement("span")
   endGroup.className = "item-time-group"
   endGroup.append(endInput, endStepper.element)
-  editRow.append(titleInput, startGroup, doc.createTextNode(" - "), endGroup, saveBtn, cancelBtn)
+  const editActions = doc.createElement("span")
+  editActions.className = "item-edit-actions"
+  editActions.append(saveBtn, cancelBtn)
+  editRow.append(
+    titleInput,
+    startGroup,
+    doc.createTextNode(" - "),
+    endGroup,
+    stepControl.element,
+    editActions,
+  )
   info.append(title, episodeSub, meta, editRow)
 
   const controls = doc.createElement("div")

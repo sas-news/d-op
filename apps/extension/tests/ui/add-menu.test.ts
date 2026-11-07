@@ -201,9 +201,9 @@ describe("player/add-menu", () => {
     await settle()
 
     expect(document.querySelector(".d-op-modal-range-label")?.textContent).toBe("0:00.0 - 1:30.0")
-    const fine = [
-      ...document.querySelectorAll<HTMLButtonElement>(".d-op-modal-range .d-op-time-step"),
-    ].find((button) => button.textContent === "+0.1")
+    const fine = document.querySelector<HTMLButtonElement>(
+      ".d-op-modal-range-group .d-op-time-step:last-child",
+    )
     fine?.click()
     expect(document.querySelector(".d-op-modal-range-label")?.textContent).toBe("0:00.1 - 1:30.0")
 
