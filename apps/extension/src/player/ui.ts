@@ -5,12 +5,7 @@
 // are idempotent, removed on idle/dispose, and aligned to the native 50px
 // .buttonArea bar. The ♪ add menu lives in add-menu.ts.
 import { formatSecTenths, parseTimeInput } from "../ui/format"
-import {
-  createTimeStepControl,
-  createTimeStepper,
-  TIME_STEP_FINE_MS,
-  type TimeStepMs,
-} from "../ui/time-stepper"
+import { createTimeStepper } from "../ui/time-stepper"
 import { PANEL_HIDE_DELAY_MS } from "./constants"
 import type { PlayerUiSnapshot, PlayerVideo, SeekMarker } from "./runtime"
 
@@ -279,7 +274,6 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       bar = doc.createElement("div")
       bar.id = "d-op-custom-bar"
       bar.className = "d-op-custom-bar"
-      let stepMs: TimeStepMs = TIME_STEP_FINE_MS
       // Editable start/end inputs (legacy .d-op-custom-bar-time-input,
       // content.js:1270-1301): m:ss or raw seconds, parsed on change.
       const startInput = doc.createElement("input")
@@ -300,7 +294,6 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       const createdStartStepper = createTimeStepper(doc, {
         label: "開始",
         getValue: () => parseTimeInput(startInput.value),
-        getStep: () => stepMs,
         onChange: (ms) => {
           startInput.value = formatSecTenths(ms)
           deps.onCustomDraft({ startMs: ms })
@@ -327,7 +320,6 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       const createdEndStepper = createTimeStepper(doc, {
         label: "終了",
         getValue: () => parseTimeInput(endInput.value),
-        getStep: () => stepMs,
         onChange: (ms) => {
           endInput.value = formatSecTenths(ms)
           deps.onCustomDraft({ endMs: ms })
@@ -372,32 +364,13 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       cancel.type = "button"
       cancel.textContent = "キャンセル"
       cancel.addEventListener("click", deps.onCustomCancel)
-      const stepControl = createTimeStepControl(doc, {
-        getStep: () => stepMs,
-        onChange: (next) => {
-          stepMs = next
-          createdStartStepper.sync()
-          createdEndStepper.sync()
-        },
-      })
       const startGroup = doc.createElement("span")
       startGroup.className = "d-op-custom-bar-time-group"
       startGroup.append(startInput, createdStartStepper.element)
       const endGroup = doc.createElement("span")
       endGroup.className = "d-op-custom-bar-time-group"
       endGroup.append(endInput, createdEndStepper.element)
-      bar.append(
-        startGroup,
-        sep,
-        endGroup,
-        stepControl.element,
-        startNow,
-        endNow,
-        name,
-        test,
-        add,
-        cancel,
-      )
+      bar.append(startGroup, sep, endGroup, startNow, endNow, name, test, add, cancel)
       host.appendChild(bar)
       lastCustomName = undefined
       lastCustomStart = undefined

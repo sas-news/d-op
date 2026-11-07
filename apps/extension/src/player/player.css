@@ -739,18 +739,6 @@ body.d-op-skip-hidden .skipUi {
   color: var(--dop-accent-text);
 }
 
-.d-op-step-select {
-  height: 22px;
-  max-width: 100px;
-  padding: 0 2px;
-  border: 1px solid var(--dop-border-strong);
-  border-radius: var(--dop-radius-sm);
-  background: var(--dop-bg-elevated);
-  color: var(--dop-text-primary);
-  font-family: var(--dop-font);
-  font-size: 11px;
-}
-
 .d-op-time-step:disabled {
   opacity: 0.35;
   cursor: default;
@@ -812,12 +800,6 @@ body.d-op-skip-hidden .skipUi {
   font-family: var(--dop-font-mono);
   font-size: 13px;
   line-height: 1;
-}
-
-.d-op-custom-bar .d-op-step-select {
-  width: auto;
-  max-width: 100px;
-  padding: 0 2px;
 }
 
 .d-op-modal-range-error {

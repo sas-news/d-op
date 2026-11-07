@@ -21,12 +21,7 @@ import { guessRangeName } from "../domain/range"
 import type { CommandReply, PublicLocalState } from "../storage/repository"
 import { decodeHtmlEntities, formatSec, formatSecTenths, isSystemPlaylist } from "../ui/format"
 import { runMutation } from "../ui/storage-client"
-import {
-  createTimeStepControl,
-  createTimeStepper,
-  TIME_STEP_FINE_MS,
-  type TimeStepMs,
-} from "../ui/time-stepper"
+import { createTimeStepper } from "../ui/time-stepper"
 import { ADD_POPUP_HIDE_DELAY_MS } from "./constants"
 import type { EnforcedRange } from "./enforcement"
 import type { CustomDraft, ModalRequest, NamedRange, PlayerVideo } from "./runtime"
@@ -394,7 +389,6 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
 
     const rangeRow = doc.createElement("div")
     rangeRow.className = "d-op-modal-range"
-    let stepMs: TimeStepMs = TIME_STEP_FINE_MS
     const rangeLabel = doc.createElement("span")
     rangeLabel.className = "d-op-modal-range-label"
     const refreshRangeLabel = (): void => {
@@ -404,7 +398,6 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
     const startStepper = createTimeStepper(doc, {
       label: "開始",
       getValue: () => currentRange.startMs,
-      getStep: () => stepMs,
       onChange: (ms) => {
         currentRange = { ...currentRange, startMs: ms }
         refreshRangeLabel()
@@ -413,7 +406,6 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
     const endStepper = createTimeStepper(doc, {
       label: "終了",
       getValue: () => currentRange.endMs,
-      getStep: () => stepMs,
       onChange: (ms) => {
         currentRange = { ...currentRange, endMs: ms }
         refreshRangeLabel()
@@ -436,21 +428,13 @@ export function createAddMenu(doc: Document, deps: AddMenuDeps): AddMenu {
       rangeError.hidden = true
       void deps.testRange(currentRange)
     })
-    const stepControl = createTimeStepControl(doc, {
-      getStep: () => stepMs,
-      onChange: (next) => {
-        stepMs = next
-        startStepper.sync()
-        endStepper.sync()
-      },
-    })
     const startGroup = doc.createElement("span")
     startGroup.className = "d-op-modal-range-group"
     startGroup.append(doc.createTextNode("開始"), startStepper.element)
     const endGroup = doc.createElement("span")
     endGroup.className = "d-op-modal-range-group"
     endGroup.append(doc.createTextNode("終了"), endStepper.element)
-    rangeRow.append(rangeLabel, startGroup, endGroup, stepControl.element, testButton, rangeError)
+    rangeRow.append(rangeLabel, startGroup, endGroup, testButton, rangeError)
 
     const content = doc.createElement("div")
     content.append(rangeRow, list, newRow, nameRow)

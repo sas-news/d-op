@@ -159,23 +159,16 @@ describe("player ui", () => {
     // Start/end are editable inputs (legacy .d-op-custom-bar-time-input).
     const startInput = bar?.querySelector("[data-dop-field='start']")
     expect(startInput instanceof HTMLInputElement && startInput.value).toBe("0:05.0")
-    // Compact −/+ nudgers share one 0.1 s / 1 s step select.
+    // Compact −/+ nudgers always move 0.1 s; coarse changes come from text.
     const startSteps = [
       ...(bar
         ?.querySelector(".d-op-time-stepper")
         ?.querySelectorAll<HTMLButtonElement>(".d-op-time-step") ?? []),
     ]
     expect(startSteps.map((button) => button.textContent)).toEqual(["−", "+"])
+    expect(startSteps[1]?.getAttribute("aria-label")).toBe("開始を0.1秒進める")
     startSteps[1]?.click()
     expect(drafts).toContainEqual({ startMs: 5_100 })
-    const stepSelect = bar?.querySelector<HTMLSelectElement>(".d-op-step-select")
-    expect(stepSelect?.value).toBe("100")
-    if (stepSelect !== null && stepSelect !== undefined) {
-      stepSelect.value = "1000"
-      stepSelect.dispatchEvent(new Event("change"))
-    }
-    startSteps[1]?.click()
-    expect(drafts).toContainEqual({ startMs: 6_100 })
     ui.dispose()
     expect(document.getElementById("d-op-custom-bar")).toBeNull()
   })

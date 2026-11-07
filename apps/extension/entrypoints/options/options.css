@@ -1343,19 +1343,6 @@ button:disabled {
   color: var(--dop-accent-text);
 }
 
-.d-op-step-select {
-  height: 22px;
-  max-width: 100px;
-  padding: 0 2px;
-  border: 1px solid var(--dop-border-strong);
-  border-radius: var(--dop-radius-sm);
-  background: var(--dop-bg-elevated);
-  color: var(--dop-text-primary);
-  font-family: var(--dop-font);
-  font-size: 11px;
-  cursor: pointer;
-}
-
 .d-op-time-step:disabled {
   opacity: 0.35;
   cursor: default;
@@ -1372,13 +1359,6 @@ button:disabled {
   font-family: var(--dop-font-mono);
   font-size: 13px;
   line-height: 1;
-}
-
-.item-edit-row .d-op-step-select {
-  width: auto;
-  height: 24px;
-  padding: 0 2px;
-  font-size: 11px;
 }
 
 /* --- Dark appearance (v2.0.2+) -------------------------------------------
