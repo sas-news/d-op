@@ -377,9 +377,12 @@ export function createPlayerUi(doc: Document, deps: PlayerUiDeps): PlayerUi {
       const captureGroup = doc.createElement("span")
       captureGroup.className = "d-op-custom-bar-capture"
       captureGroup.append(startNow, endNow)
+      const auditionDivider = doc.createElement("span")
+      auditionDivider.className = "d-op-custom-bar-divider"
+      auditionDivider.setAttribute("aria-hidden", "true")
       const actionsGroup = doc.createElement("span")
       actionsGroup.className = "d-op-custom-bar-actions"
-      actionsGroup.append(test, add, cancel)
+      actionsGroup.append(test, auditionDivider, add, cancel)
       const mainRow = doc.createElement("div")
       mainRow.className = "d-op-custom-bar-main"
       mainRow.append(rangeGroup, captureGroup)
